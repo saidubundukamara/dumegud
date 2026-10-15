@@ -1,0 +1,36 @@
+/*
+ * DuMeGud design tokens — the ONLY place brand colours are defined.
+ *
+ * TEMPORARY palette: PRD §1A "Direction A" (coral / charcoal / warm off-white). No direction is
+ * approved yet; swap values here and every component follows. Components must use the semantic
+ * names below (via Tailwind: bg-primary, text-muted, border-border …), never raw hex.
+ *
+ * Financial-state colours (success / warning / danger) are deliberately brand-independent and
+ * must never be the only signal of a payment state — always pair with text or an icon.
+ *
+ * Contrast notes: coral #FF7F63 fails AA with white text, so primary buttons use charcoal text
+ * (≈6:1). Body text #2E2E2E on #FFFFFF ≈ 13:1; muted #5C5C5C on #FFFFFF ≈ 6.7:1.
+ */
+:root {
+  --dmg-primary: #ff7f63;
+  --dmg-primary-hover: #ff6a4a;
+  --dmg-primary-foreground: #2e2e2e;
+  --dmg-accent: #2e2e2e;
+  --dmg-accent-foreground: #ffffff;
+
+  --dmg-background: #ffffff;
+  --dmg-surface: #f8f1e7;
+  --dmg-border: #e4dccf;
+  --dmg-text: #2e2e2e;
+  --dmg-muted: #5c5c5c;
+  --dmg-focus: #1d4ed8;
+
+  --dmg-success: #15803d;
+  --dmg-success-surface: #dcfce7;
+  --dmg-warning: #b45309;
+  --dmg-warning-surface: #fef3c7;
+  --dmg-danger: #b91c1c;
+  --dmg-danger-surface: #fee2e2;
+
+  --dmg-radius: 0.75rem;
+}
