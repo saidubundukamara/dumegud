@@ -1,36 +1,126 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DuMeGud
 
-## Getting Started
+**Support creators. Fuel good.** *(working tagline)*
 
-First, run the development server:
+DuMeGud ("do me good") is a creator-support and digital-commerce platform for Sierra Leone. Creators get a shareable page where supporters can send **one-off contributions** and buy **digital products**, paying with local mobile money (Orange Money, AfriMoney) through [Monime]. Supporters don't need an app or an account, just a browser.
+
+> **Status:** Phase 0 (foundations) is complete. Feature work starts at Phase 1 (authentication). See [`implementation.md`](./implementation.md) for the roadmap.
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [`PRD.md`](./PRD.md) | Product requirements: goals, user journeys, AML/risk controls, brand direction |
+| [`implementation.md`](./implementation.md) | Phased engineering plan (Phases 0–10), decision log, money model, security threat model, Monime API reference, data model |
+| [`CLAUDE.md`](./CLAUDE.md) / [`AGENTS.md`](./AGENTS.md) | Guidance for AI coding agents working in this repo |
+
+Where `implementation.md` and the PRD disagree, the **decision log in `implementation.md` §0** wins.
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Framework | Next.js 16.4 (App Router, Cache Components, Partial Prefetching), React 19, TypeScript (strict) |
+| Styling | Tailwind CSS 4 + semantic design tokens (`styles/tokens.css`) |
+| Database | Neon Postgres + Drizzle ORM / Drizzle Kit |
+| Auth *(Phase 1)* | Auth.js v5: email + password (Argon2id) and Google |
+| Payments *(Phase 2–6)* | Monime: checkout sessions, per-creator financial accounts (wallets), internal transfers, payouts |
+| Files *(Phase 5)* | Cloudflare R2 (private buckets, presigned URLs) |
+| Email *(Phase 1)* | Cloudflare Email Sending (toggle with `EMAIL_ENABLED`) |
+| Rate limiting | Upstash Redis (in-memory fallback in development) |
+| Hosting | Vercel (Fluid Compute, Vercel Cron) |
+| Testing | Vitest (unit/integration), Playwright (E2E) |
+
+> **Note:** This project runs Next.js 16, which differs from older versions. For example, middleware is now `proxy.ts`, and request APIs (`cookies()`, `params`, …) are async. Check the bundled docs in `node_modules/next/dist/docs/` before writing framework code.
+
+## Getting started
+
+**Requirements:** Node.js 22 or newer (CI and Vercel use Node 24) and npm.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # then fill in the values for the current phase
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Minimum `.env.local` for Phase 0:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Notes |
+|---|---|
+| `APP_BASE_URL` | `http://localhost:3000` locally |
+| `DATABASE_URL` | Neon **pooled** connection string |
+| `HASH_PEPPER` | Random secret, at least 32 chars (`openssl rand -base64 48`) |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`.env.example` lists every variable along with the phase that introduces it. Env vars are validated on first use (`server/env.ts`), so `npm run build` works without secrets.
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+| Command | Description |
+|---|---|
+| `npm run dev` | Start the dev server (Turbopack) |
+| `npm run build` / `npm start` | Production build / serve it |
+| `npm run lint` | ESLint (`next lint` was removed in Next 16) |
+| `npm run typecheck` | Generate route types, then `tsc --noEmit` |
+| `npm test` | Unit and integration tests (Vitest) |
+| `npm run test:watch` | Vitest in watch mode |
+| `npm run test:coverage` | Tests with a coverage report |
+| `npm run test:e2e` | Playwright E2E: builds and starts the app, or targets `E2E_BASE_URL` |
+| `npm run db:generate` | Generate a SQL migration from the Drizzle schema |
+| `npm run db:migrate` | Apply migrations (uses `DATABASE_URL_MIGRATOR`, falling back to `DATABASE_URL`) |
+| `npm run db:studio` | Open Drizzle Studio |
+| `npm run audit:prod` | `npm audit` on production dependencies |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Running a single test:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npx vitest run tests/unit/money.test.ts
+npx vitest run -t "floors, never rounds"
+npx playwright test tests/e2e/security-headers.spec.ts
+```
 
-## Deploy on Vercel
+If the Playwright browser download fails, use an installed Chrome instead: `PW_CHANNEL=chrome npm run test:e2e`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```text
+app/                    Routes (App Router). Route groups planned: (marketing) (auth) (creator) (admin)
+lib/                    Pure helpers safe for client and server (e.g. money.ts)
+server/
+  env.ts                Zod-validated environment
+  db/                   Drizzle client, schema (one file per domain), migrations
+  repositories/         Database access only (extend BaseRepository)
+  services/             Business logic, authorization, integrations; index.ts wires everything
+  lib/                  errors, logger, rate limiting, origin (CSRF) check, hashing
+styles/tokens.css       Brand/design tokens (the only place brand colours are defined)
+tests/                  unit/, integration/, e2e/
+instrumentation.ts      Server error reporting hook
+```
+
+## Architecture in brief
+
+```text
+Server Action / Route Handler  →  Service  →  Repository  →  Drizzle → Neon
+   (validate, auth, map DTO)      (rules,      (queries only)
+                                   Monime/R2/email)
+```
+
+- **Only repositories touch the database**, and ESLint enforces this.
+- **No external calls inside DB transactions.** Write the intent row, commit, call the provider with a deterministic idempotency key, then record the result.
+- **Money is integer minor units of SLE** (1 Le = 100). Fees always use `Math.floor`.
+- **Money flow:** supporter → Monime checkout → DuMeGud platform account → signed webhook → internal transfer of the net amount to the creator's own Monime wallet → payout to the creator's verified mobile money number. See `implementation.md` §3.
+
+## Security baseline
+
+- A static Content-Security-Policy and hardening headers are set in `next.config.ts`. Nonce-based CSP is not used because it is incompatible with Partial Prerendering. E2E tests fail on any CSP violation.
+- Server Actions accept same-origin requests only. Mutating route handlers call `assertSameOrigin`.
+- Central rate-limit policies (`server/lib/rate-limit.ts`). IPs and identifiers are peppered-hashed before storage.
+- ESLint bans `sql.raw()` and `dangerouslySetInnerHTML`.
+- The logger redacts PII and secrets.
+
+The full threat model (CSRF, XSS, SQL injection, DDoS, webhook spoofing, IDOR, and more) is in `implementation.md` §4.
+
+## Deployment
+
+The app is deployed on Vercel. CI (`.github/workflows/ci.yml`) runs audit → typecheck → lint → unit tests → build → E2E on every push and PR. Production needs real values for every variable used by the deployed phases, including Upstash Redis.
+
+[Monime]: https://monime.io
