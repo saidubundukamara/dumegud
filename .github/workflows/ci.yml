@@ -19,6 +19,8 @@ jobs:
       HASH_PEPPER: ci-pepper-ci-pepper-ci-pepper-ci-pepper-00
       AUTH_SECRET: ci-auth-secret-ci-auth-secret-ci-auth-secret-00
       AUTH_TRUST_HOST: "true"
+      FIELD_ENCRYPTION_KEY: Y2ktZmllbGQtZW5jcnlwdGlvbi1rZXktMzItYnl0ZXM=
+      DOWNLOAD_SIGNING_SECRET: ci-download-signing-secret-ci-download-00
       # E2E runs a production build without Upstash.
       ALLOW_MEMORY_RATE_LIMIT: "true"
     steps:

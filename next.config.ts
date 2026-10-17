@@ -34,9 +34,11 @@ const csp = [
   withOrigins("connect-src 'self'", r2UploadOrigin),
   "object-src 'none'",
   "base-uri 'self'",
-  // Google sign-in: without JS the server action answers the form POST with a redirect to
-  // Google, and form-action also governs redirects that follow a form submission.
-  "form-action 'self' https://accounts.google.com",
+  // Google sign-in and Monime checkout: without JS the server action answers the form POST with
+  // a redirect to them, and form-action also governs redirects that follow a form submission.
+  // (Confirm Monime's hosted-checkout host against a live session before launch.)
+  // Downloads: the library's form posts to a server action that redirects to a presigned R2 URL.
+  withOrigins("form-action 'self' https://accounts.google.com https://*.monime.io", r2UploadOrigin),
   "frame-ancestors 'none'",
   ...(isProd ? ["upgrade-insecure-requests"] : []),
 ].join("; ");

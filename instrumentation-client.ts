@@ -7,5 +7,7 @@ initBotId({
     { path: "/login", method: "POST" },
     { path: "/register", method: "POST" },
     { path: "/forgot-password", method: "POST" },
+    // The support widget's Server Action posts to the creator page, /{handle}.
+    { path: "/*", method: "POST" },
   ],
 });

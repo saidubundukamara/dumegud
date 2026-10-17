@@ -55,6 +55,8 @@ const schema = z
     MONIME_SPACE_ID: optionalString,
     /** HMAC secret for webhook signatures. Without it every webhook is rejected. */
     MONIME_WEBHOOK_SECRET: optionalString,
+    /** The DuMeGud platform financial account (fac-…) every checkout pays into. */
+    MONIME_PLATFORM_ACCOUNT_ID: optionalString,
 
     // Cloudflare R2. Optional until set up: avatar upload is hidden while unconfigured.
     R2_ACCOUNT_ID: optionalString,
@@ -65,6 +67,18 @@ const schema = z
     /** Public bucket for re-encoded images (avatars), served from R2_PUBLIC_BASE_URL. */
     R2_PUBLIC_BUCKET: z.string().min(1).default("dumegud-public"),
     R2_PUBLIC_BASE_URL: optionalUrl,
+    /** Private bucket for sellable files (and their watermarked copies). */
+    R2_PRODUCTS_BUCKET: z.string().min(1).default("dumegud-products"),
+
+    // Field encryption (AES-256-GCM) for buyer emails and, later, KYC data. Base64, 32 bytes.
+    // Set FIELD_ENCRYPTION_KEY_PREVIOUS while rotating so old values still decrypt.
+    FIELD_ENCRYPTION_KEY: z.base64().refine((v) => Buffer.from(v, "base64").length === 32, "Must be 32 bytes, base64"),
+    FIELD_ENCRYPTION_KEY_PREVIOUS: z.preprocess(
+      (v) => (v === "" ? undefined : v),
+      z.base64().refine((v) => Buffer.from(v, "base64").length === 32, "Must be 32 bytes, base64").optional(),
+    ),
+    /** HMAC key for 60-second download tokens. */
+    DOWNLOAD_SIGNING_SECRET: z.string().min(32),
   })
   .superRefine((env, ctx) => {
     if (env.EMAIL_ENABLED && env.EMAIL_PROVIDER === "cloudflare") {
@@ -73,7 +87,7 @@ const schema = z
       }
     }
     if (env.MONIME_ENVIRONMENT !== "fake") {
-      for (const key of ["MONIME_ACCESS_TOKEN", "MONIME_SPACE_ID", "MONIME_WEBHOOK_SECRET"] as const) {
+      for (const key of ["MONIME_ACCESS_TOKEN", "MONIME_SPACE_ID", "MONIME_WEBHOOK_SECRET", "MONIME_PLATFORM_ACCOUNT_ID"] as const) {
         if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: "Required unless MONIME_ENVIRONMENT=fake" });
       }
     }
@@ -128,6 +142,7 @@ export function getR2Config(env: Env = getEnv()) {
     secretAccessKey: R2_SECRET_ACCESS_KEY,
     uploadsBucket: env.R2_UPLOADS_BUCKET,
     publicBucket: env.R2_PUBLIC_BUCKET,
+    productsBucket: env.R2_PRODUCTS_BUCKET,
     publicBaseUrl: R2_PUBLIC_BASE_URL.replace(/\/$/, ""),
   };
 }

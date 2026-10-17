@@ -10,3 +10,5 @@ process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/dumegud_test";
 process.env.HASH_PEPPER ??= "test-pepper-test-pepper-test-pepper-0123";
 process.env.LOG_LEVEL ??= "error";
 process.env.AUTH_SECRET ??= "test-auth-secret-test-auth-secret-0123456789";
+process.env.FIELD_ENCRYPTION_KEY ??= "dGVzdC1maWVsZC1lbmNyeXB0aW9uLWtleS0zMi1ieXQ="; // 32 bytes
+process.env.DOWNLOAD_SIGNING_SECRET ??= "test-download-signing-secret-0123456789";

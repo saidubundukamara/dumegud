@@ -19,8 +19,12 @@ export const RATE_LIMIT_POLICIES = {
   "verify-email:user": { limit: 3, window: "1 h" },
   "checkout:ip": { limit: 10, window: "10 m" },
   "checkout:creator": { limit: 30, window: "10 m" },
+  "payment-status:ip": { limit: 120, window: "10 m" },
   "upload:user": { limit: 30, window: "1 h" },
   "download:entitlement": { limit: 20, window: "1 h" },
+  "download:ip": { limit: 60, window: "1 h" },
+  "library-recovery:email": { limit: 3, window: "1 h" },
+  "library-recovery:ip": { limit: 10, window: "1 h" },
   "provider-kyc:user": { limit: 5, window: "1 h" },
   "report:ip": { limit: 10, window: "1 h" },
 } as const satisfies Record<string, Policy>;
