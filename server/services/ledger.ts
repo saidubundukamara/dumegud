@@ -64,3 +64,15 @@ export function varianceJournal(p: { id: string; monimePaymentId: string; deltaM
     ],
   );
 }
+
+/**
+ * Money left the creator's Monime account: the amount to their phone plus Monime's payout fee
+ * (charged on top). Both reduce what we owe them.
+ */
+export function payoutJournal(p: { id: string; creatorId: string; amountMinor: number; feeMinor: number }) {
+  const total = p.amountMinor + p.feeMinor;
+  return journal({ idempotencyKey: `payout:${p.id}`, kind: "payout", paymentId: null, memo: `payout ${p.id}` }, [
+    { account: accounts.creatorPayable(p.creatorId), amountMinor: total },
+    { account: accounts.creatorWallet(p.creatorId), amountMinor: -total },
+  ]);
+}

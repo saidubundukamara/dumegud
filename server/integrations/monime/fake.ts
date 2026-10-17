@@ -53,7 +53,7 @@ export class FakeMonimeServer {
   /** Registered mobile-money holders: msisdn (232…) → name. */
   readonly kyc = new Map<string, string>();
   private readonly idempotent = new Map<string, StoredResponse>();
-  private readonly failures: StoredResponse[] = [];
+  private readonly failures: (StoredResponse & { path?: string })[] = [];
   /** Every request the client made, for assertions. */
   readonly requests: { method: string; path: string; idempotencyKey: string | null; body: unknown }[] = [];
   /** Payout fee charged on top, in basis points. */
@@ -70,9 +70,12 @@ export class FakeMonimeServer {
     });
   }
 
-  /** Make the next request fail with this HTTP status and Monime error code. */
-  failNext(status: number, code = "internal_error", message = "Simulated failure") {
-    this.failures.push({ status, body: { success: false, error: { code, message } } });
+  /**
+   * Make the next request fail with this HTTP status and Monime error code. With `path`, only
+   * the next request whose path starts with it fails (e.g. "/payouts").
+   */
+  failNext(status: number, code = "internal_error", message = "Simulated failure", path?: string) {
+    this.failures.push({ status, body: { success: false, error: { code, message } }, path });
   }
 
   /** Create a funded account directly (e.g. the platform account). */
@@ -93,8 +96,11 @@ export class FakeMonimeServer {
     const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
     this.requests.push({ method, path, idempotencyKey: key, body });
 
-    const failure = this.failures.shift();
-    if (failure) return Response.json(failure.body, { status: failure.status });
+    const at = this.failures.findIndex((f) => !f.path || path.startsWith(f.path));
+    if (at >= 0) {
+      const [failure] = this.failures.splice(at, 1);
+      return Response.json(failure.body, { status: failure.status });
+    }
 
     if (method === "POST" && key) {
       const cacheKey = `${path}:${key}`;
@@ -262,7 +268,7 @@ export class FakeMonimeServer {
    */
   completeCheckout(
     sessionId: string,
-    opts: { order?: "session-first" | "payment-first"; fees?: MonimeFee[] | null; provider?: "m17" | "m18" } = {},
+    opts: { order?: "session-first" | "payment-first"; fees?: MonimeFee[] | null; provider?: "m17" | "m18"; fingerprint?: string } = {},
   ): WebhookEnvelope[] {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`fake: unknown session ${sessionId}`);
@@ -284,7 +290,7 @@ export class FakeMonimeServer {
         provider: opts.provider ?? "m17",
         reference: `MP${randomBytes(4).toString("hex").toUpperCase()}`,
         phoneNumber: "+23276****12",
-        fingerprint: randomBytes(8).toString("hex"),
+        fingerprint: opts.fingerprint ?? randomBytes(8).toString("hex"),
       },
       financialAccountId: session.financialAccountId,
       financialTransactionReference: randomBytes(6).toString("hex"),

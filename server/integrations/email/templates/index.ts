@@ -142,3 +142,60 @@ export function libraryLinksTemplate(p: { items: { title: string; url: string }[
     }),
   };
 }
+
+export function kycDecisionTemplate(p: { outcome: "approved" | "rejected" | "needs_more_info"; note: string | null; url: string }): Rendered {
+  const copy = {
+    approved: { subject: "Your identity is verified", heading: "You're verified", body: "Your identity documents were approved. You can now add a mobile money number and withdraw your earnings." },
+    rejected: { subject: "We couldn't verify your identity", heading: "Verification wasn't approved", body: "We couldn't approve the documents you sent. You can submit new ones." },
+    needs_more_info: { subject: "We need a little more to verify you", heading: "More information needed", body: "We need something more before we can verify your identity." },
+  }[p.outcome];
+  return {
+    tag: `kyc-${p.outcome}`,
+    subject: copy.subject,
+    ...layout({
+      heading: copy.heading,
+      paragraphs: [copy.body, ...(p.note ? [`Note from our team: ${p.note}`] : [])],
+      action: { label: "Open verification", url: p.url },
+    }),
+  };
+}
+
+export function payoutMethodChangedTemplate(p: { maskedNumber: string; cooldownHours: number; url: string }): Rendered {
+  return {
+    tag: "payout-method-changed",
+    subject: "Your DuMeGud payout number was changed",
+    ...layout({
+      heading: "Your payout number changed",
+      paragraphs: [
+        `Withdrawals will now go to ${p.maskedNumber}. For your safety, withdrawals are paused for ${p.cooldownHours} hours.`,
+        "If you didn't make this change, reset your password now and contact support.",
+      ],
+      action: { label: "Review payout settings", url: p.url },
+    }),
+  };
+}
+
+export function payoutResultTemplate(p: { outcome: "completed" | "failed"; amount: string; maskedNumber: string; reason?: string; url: string }): Rendered {
+  return p.outcome === "completed"
+    ? {
+        tag: "payout-completed",
+        subject: `Your withdrawal of ${p.amount} was sent`,
+        ...layout({
+          heading: "Withdrawal sent",
+          paragraphs: [`We sent ${p.amount} to ${p.maskedNumber}.`],
+          action: { label: "View your wallet", url: p.url },
+        }),
+      }
+    : {
+        tag: "payout-failed",
+        subject: "Your withdrawal didn't go through",
+        ...layout({
+          heading: "Withdrawal failed",
+          paragraphs: [
+            `Your withdrawal of ${p.amount} to ${p.maskedNumber} didn't go through. The money is still in your wallet.`,
+            ...(p.reason ? [`Reason: ${p.reason}`] : []),
+          ],
+          action: { label: "View your wallet", url: p.url },
+        }),
+      };
+}
