@@ -786,6 +786,18 @@ onCheckoutTerminal(sessionId, status):    // failed/cancelled/expired
 - A cancel/expire after success is ignored.
 - Hitting the success URL without a webhook never shows "Thank you" unless the Monime poll says `completed`.
 
+### Implementation notes (as built)
+- **Pulled forward:** `ledger_journals` + `ledger_entries` (planned for Phase 6) and a minimal `platform_settings` table (Phase 7/8) with `PlatformSettingsService`. Seeded by migration `0005` with **placeholder** values: contribution fee 300 bps and product fee 500 bps (the PRD §9 hypotheses), Monime estimate 100 bps, min Le 10, max Le 500 (PRD: not approved). Invalid or missing values fall back to defaults and are logged. The admin editor and history table arrive in Phase 8.
+- **Ledger model:** a journal holds balanced lines (debit +, credit −), with keys `settle:{paymentId}`, `transfer:{paymentId}` and `variance:{spm}`. Accounts: `platform_cash` (mirrors the platform Monime account), `creator_wallet:{userId}` (mirrors the creator's Monime account; Phase 6's withdrawal gate), `creator_payable:{userId}` (owed to the creator until payout), `platform_revenue`, `platform_fee_variance`. Transfer = Dr `creator_wallet`, Cr `platform_cash`. The Monime fee lives on the payment row, not in a memo journal. This replaces the looser table in §3.4.
+- **Transfer idempotency key** is `transfer-{paymentId}-{definitiveFailures}`, not `transfer-{paymentId}`: replaying a key Monime definitively failed only returns that failure. Network errors and 5xx keep the key (a request that went through is replayed, not duplicated). `TransferService.refreshPending` is the Phase 9 cron entry point.
+- **Settlement:** both events lock the row (`FOR UPDATE`) and are order-independent. The split is computed once from the first known fee; a reported fee that differs from an earlier estimate always becomes a variance (the creator keeps their split, even before the transfer froze it). Money arriving for a `failed`/`canceled`/`expired` payment, or with a different amount, goes to `under_review`, never straight to `succeeded`. A webhook that arrives before the checkout id is saved is matched via `metadata.paymentId`. `settleWithEstimate` is the Phase 9 fee-timeout entry point.
+- **Cancel page changes nothing** (anyone can open the URL); Monime's `checkout_session.cancelled`/`.expired` webhooks do. The success page polls `/api/payments/[id]/status` (rate-limited `payment-status:ip`, UUID-checked, `{ status }` only). After 20s pending, the endpoint asks Monime and applies the same idempotent settlement: the one GET that writes.
+- **Messages are creator-only** (`messageVisibility = 'creator_only'`) until moderation exists (Phase 7). The public "recent supporters" list shows non-anonymous names only. Anonymous supporters' names are not stored.
+- **Checkout dedupe:** same IP hash + creator + amount within 60s reuses the open checkout URL. Card and bank are disabled; mobile money only.
+- **CSP:** `form-action` allows `https://*.monime.io` for the no-JS redirect to checkout. **Confirm the hosted-checkout host against a live session.** BotID protects POSTs on `/*` (the widget action posts to `/{handle}`).
+- **Tests on real SQL:** `tests/integration` runs every migration on PGlite (in-process Postgres) and drives the real repositories, webhook pipeline and fake Monime through the acceptance list (both event orders, replays, concurrent delivery, estimate + variance, late cancel, late success, poll fallback, amount mismatch).
+- **Not built yet:** `LimitService.precheck` / `RiskService.evaluate` (Phase 7), the creator "new support" email, supporter receipts (guests give no email), and the `retry-transfers` / fee-estimate crons (Phase 9; their service entry points exist).
+
 ---
 
 ## Phase 5 — Digital products & secure delivery
@@ -840,6 +852,17 @@ Reuses the Phase 4 pipeline with `kind='order'`:
 - An expired download token → 403. The (limit+1)th download → a friendly limit message.
 - Webhook replay → still one entitlement, one receipt.
 - An uploaded `.pdf` that is actually an executable → rejected.
+
+### Implementation notes (as built)
+- **Uploads use Server Actions** (`requestProductUpload` / `confirmProductUpload`) instead of `POST /api/uploads/presign`: same checks (session, upload rate limit, allow-list and size from `platform_settings`, presigned PUT bound to type and exact length, 10-min TTL), with Next's built-in origin check instead of `assertSameOrigin`. Assets start as `uploading`. On confirm: `HeadObject` size must match, a 4 KB ranged GET must sniff as the declared type (`server/lib/uploads.ts`; a renamed `.exe` is rejected and deleted), then `pending` (awaiting review). SHA-256 is streamed in `after()`.
+- **Preview images** (no preview audio yet) go to the private uploads bucket, are re-encoded with sharp (≤1200px WebP, metadata stripped) into the public bucket, and are `clean` immediately.
+- **Review = scan for the MVP:** staff approve or send back from `/admin/products` (`ProductReviewService`, pulled forward from Phase 8; no audit log yet). Approving marks pending files clean and publishes. Editing a live product, or adding a file to it, sends it back to `pending_review`. Files are locked once a product has ever been published (buyers rely on them). Auto-publish for verified creators is not built (needs Phase 6 KYC).
+- **Orders:** `orders.status` isn't stored; it comes from the payment. The buyer email is AES-256-GCM encrypted (`encryptField`, `FIELD_ENCRYPTION_KEY`, plus a `_PREVIOUS` key for rotation) with a peppered hash for lookup. The library token is stored as a SHA-256 (lookup) plus an encrypted copy, so recovery re-sends the same link.
+- **Instant access:** the purchase action sets an httpOnly `dmg_claim` cookie (`paymentId.secret`; the order stores the secret's hash). The status endpoint returns `libraryUrl` only to that browser once the payment succeeded. Anyone else with the success URL sees "check your email".
+- **Fulfilment hook:** `SettlementService` takes `fulfilment[kind]`. For orders, `onSucceeded` grants the entitlement in the same transaction as the succeeded transition (unique `orderId` → exactly one). `afterSucceeded` sends the receipt once (claimed via `orders.receipt_sent_at`, released if sending fails). **Phase 8: any admin `under_review → succeeded` resolution must call the same fulfilment.**
+- **Downloads:** the library form → `downloadFile` action mints a 60s HMAC token → `/api/downloads/[token]` re-checks everything, increments atomically (`downloads_used < download_limit AND not revoked AND not expired`), logs `download_events`, then 302s to a 5-min presigned GET with `Content-Disposition: attachment`. Failures redirect to `/library?download=…`. PDFs ≤ 50 MB are stamped once per order (`watermarked/{orderId}/{assetId}.pdf`, "Licensed to order #XXXXXXXX - DuMeGud"); anything that can't be stamped is served as is. CSP `form-action` includes the R2 origin for the no-JS redirect.
+- **Settings added** (migration `0007`, placeholders): product price Le 5 to Le 5,000, uploads ≤ 200 MB with types `pdf, epub, mp3, wav, zip, png, jpg, webp`, 5 downloads over 30 days. Product fee 500 bps.
+- **R2 setup:** bucket `R2_PRODUCTS_BUCKET` (private, CORS PUT from the app origin); previews use `R2_UPLOADS_BUCKET` (staging) and `R2_PUBLIC_BUCKET`.
 
 ---
 

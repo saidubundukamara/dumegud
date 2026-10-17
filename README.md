@@ -4,7 +4,7 @@
 
 DuMeGud ("do me good") is a creator-support and digital-commerce platform for Sierra Leone. Creators get a shareable page where supporters can send **one-off contributions** and buy **digital products**, paying with local mobile money (Orange Money, AfriMoney) through [Monime]. Supporters don't need an app or an account, just a browser.
 
-> **Status:** Phases 0–3 (foundations, authentication, creator profile and wallet, Monime integration core) are complete. Next up is Phase 4 (one-off support). See [`implementation.md`](./implementation.md) for the roadmap.
+> **Status:** Phases 0–5 (foundations, authentication, creator profile and wallet, Monime integration core, one-off support, digital products) are complete. Next up is Phase 6 (wallet, KYC and payouts). See [`implementation.md`](./implementation.md) for the roadmap.
 
 ## Documentation
 
@@ -43,7 +43,7 @@ cp .env.example .env.local   # then fill in the values for the current phase
 npm run dev                  # http://localhost:3000
 ```
 
-Minimum `.env.local` (through Phase 2):
+Minimum `.env.local` (through Phase 5):
 
 | Variable | Notes |
 |---|---|
@@ -51,6 +51,8 @@ Minimum `.env.local` (through Phase 2):
 | `DATABASE_URL` | Neon **pooled** connection string. Run `npm run db:migrate` once. |
 | `HASH_PEPPER` | Random secret, at least 32 chars (`openssl rand -base64 48`) |
 | `AUTH_SECRET` | Random secret, at least 32 chars (`openssl rand -base64 32`) |
+| `FIELD_ENCRYPTION_KEY` | `openssl rand -base64 32` (encrypts buyer emails) |
+| `DOWNLOAD_SIGNING_SECRET` | `openssl rand -base64 48` (signs download links) |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Optional. The Google button only appears when both are set. Redirect URI: `{APP_BASE_URL}/api/auth/callback/google` |
 
 Monime defaults to `MONIME_ENVIRONMENT=fake` (an in-memory Monime), so wallets "provision" instantly in dev. With the fake, `POST /api/dev/monime-webhook` creates checkouts and fires signed webhooks at the app (see the route file for actions). Profile photos need the R2 variables (see `.env.example`); without them the upload control is hidden.
@@ -67,7 +69,7 @@ With `EMAIL_ENABLED=false` (the default), emails aren't sent: in dev their text,
 | `npm run build` / `npm start` | Production build / serve it |
 | `npm run lint` | ESLint (`next lint` was removed in Next 16) |
 | `npm run typecheck` | Generate route types, then `tsc --noEmit` |
-| `npm test` | Unit and integration tests (Vitest) |
+| `npm test` | Unit and integration tests (Vitest; integration tests run every migration on in-process PGlite) |
 | `npm run test:watch` | Vitest in watch mode |
 | `npm run test:coverage` | Tests with a coverage report |
 | `npm run test:e2e` | Playwright E2E: builds and starts the app, or targets `E2E_BASE_URL` |
