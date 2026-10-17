@@ -24,8 +24,8 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <>
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Sign in</h1>
-        <p className="text-muted">Welcome back to DuMeGud.</p>
+        <h1 className="text-title">Sign in</h1>
+        <p className="text-muted">Welcome back. Good to see you.</p>
       </div>
       <Suspense fallback={null}>
         <Notices searchParams={searchParams} />
@@ -37,7 +37,7 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
       <p className="text-center text-muted">
         New to DuMeGud?{" "}
         <Link href="/register" className="font-semibold text-text underline underline-offset-4">
-          Create an account
+          Make a free page
         </Link>
       </p>
     </>

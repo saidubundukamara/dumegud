@@ -145,14 +145,14 @@ export function ShareLinks({ links }: { links: Array<{ label: string; url: strin
   return (
     <ul className="flex flex-col gap-2">
       {links.map((l) => (
-        <li key={l.url} className="flex flex-wrap items-center justify-between gap-2 rounded-brand bg-surface px-4 py-2">
+        <li key={l.url} className="flex flex-wrap items-center justify-between gap-2 rounded-brand bg-surface-muted px-4 py-2">
           <span className="flex min-w-0 flex-col">
             <span className="font-semibold">{l.label}</span>
             <span className="truncate text-sm text-muted">{l.url}</span>
           </span>
           <button
             type="button"
-            className="min-h-10 rounded-brand border border-border bg-background px-4 font-semibold hover:bg-surface"
+            className="min-h-10 rounded-full bg-surface px-4 font-semibold shadow-soft ring-1 ring-border transition-[box-shadow,transform] duration-200 ease-brand hover:ring-border-strong active:scale-[0.97]"
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(l.url);

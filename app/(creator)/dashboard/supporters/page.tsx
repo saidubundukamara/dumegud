@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Supporters" };
 export default function SupportersPage() {
   return (
     <>
-      <h1 className="text-3xl font-bold tracking-tight">Supporters</h1>
+      <h1 className="text-title">Supporters</h1>
       <Suspense fallback={<p className="text-muted">Loading…</p>}>
         <Supporters />
       </Suspense>
@@ -35,7 +35,7 @@ async function Supporters() {
           <p className="text-sm text-muted">Not confirmed yet. These count only once the payment succeeds.</p>
           <ul className="flex flex-col gap-2">
             {processing.map((s) => (
-              <li key={s.paymentId} className="flex justify-between gap-4 rounded-brand border border-border px-4 py-3">
+              <li key={s.paymentId} className="flex justify-between gap-4 rounded-brand-lg bg-surface shadow-soft ring-1 ring-border px-4 py-3">
                 <span>{s.name ?? "Anonymous"}</span>
                 <span>{formatSLE(s.grossMinor)}</span>
               </li>
@@ -50,7 +50,7 @@ async function Supporters() {
           <p className="text-sm text-muted">Support and sales, counted from your share links and the app people opened your page in.</p>
           <ul className="flex flex-col gap-2">
             {sources.map((r) => (
-              <li key={r.source ?? "unknown"} className="flex justify-between gap-4 rounded-brand bg-surface px-4 py-2">
+              <li key={r.source ?? "unknown"} className="flex justify-between gap-4 rounded-brand bg-surface-muted px-4 py-2">
                 <span>
                   {r.source ? TRAFFIC_SOURCE_LABELS[r.source] : "Before tracking started"}
                   <span className="ml-2 text-sm text-muted">{r.payments === 1 ? "1 payment" : `${r.payments} payments`}</span>
@@ -82,7 +82,7 @@ function SupporterCard({ supporter: s }: { supporter: SupporterDTO }) {
   const fee = (minor: number | null, estimated = false) =>
     minor === null ? "pending" : `${formatSLE(minor)}${estimated ? " (est.)" : ""}`;
   return (
-    <li className="flex flex-col gap-2 rounded-brand border border-border p-4">
+    <li className="flex flex-col gap-2 rounded-brand-lg bg-surface shadow-soft ring-1 ring-border p-4">
       <div className="flex justify-between gap-4">
         <span className="flex flex-col">
           <span className="font-semibold">{s.name ?? (s.shoutout ? `@${s.shoutout.handle}` : "Anonymous")}</span>

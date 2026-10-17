@@ -10,12 +10,14 @@ const TONES: Record<Tone, string> = {
 };
 
 /** Page frame for the screens fans land on after checkout (and other one-message pages). */
-export function StatusPage({ children }: { children: ReactNode }) {
+export function StatusPage({ children, align = "center" }: { children: ReactNode; align?: "center" | "top" }) {
   return (
     <div className="relative flex min-h-dvh flex-1 flex-col">
       <PageGlow />
       <PublicHeader cta={false} />
-      <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-4 pb-20 pt-10 sm:px-6">
+      <main
+        className={`relative mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 pb-20 sm:px-6 ${align === "center" ? "justify-center pt-10" : "pt-10 sm:pt-16"}`}
+      >
         {children}
       </main>
     </div>

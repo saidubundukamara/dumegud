@@ -63,7 +63,7 @@ export function AssetManager({
       {visible.length ? (
         <ul className="flex flex-col gap-2">
           {visible.map((a) => (
-            <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 rounded-brand border border-border p-3">
+            <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 rounded-brand-lg bg-surface shadow-soft ring-1 ring-border p-3">
               <span className="flex items-center gap-3">
                 {a.url ? <Image src={a.url} alt="" width={48} height={48} unoptimized className="size-12 rounded object-cover" /> : null}
                 <span>

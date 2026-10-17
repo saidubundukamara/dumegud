@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Suspense } from "react";
+import { StatusPage } from "@/components/checkout/StatusScreen";
 import { Alert } from "@/components/ui/Alert";
 import { RecoverForm } from "./forms";
 
@@ -15,19 +15,16 @@ const DOWNLOAD_ERRORS: Record<string, string> = {
 
 export default function LibraryRecoveryPage({ searchParams }: PageProps<"/library">) {
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 py-12 sm:px-6">
-      <Link href="/" className="text-xl font-bold tracking-tight">
-        DuMeGud
-      </Link>
+    <StatusPage align="top">
       <Suspense fallback={null}>
         <DownloadError searchParams={searchParams} />
       </Suspense>
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Lost your download link?</h1>
+        <h1 className="text-title">Lost your download link?</h1>
         <p className="text-muted">Enter the email you used when buying and we&apos;ll send your links again.</p>
       </div>
       <RecoverForm />
-    </main>
+    </StatusPage>
   );
 }
 

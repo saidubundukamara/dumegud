@@ -33,7 +33,7 @@ async function EditProduct({ params }: Pick<PageProps<"/dashboard/products/[prod
   return (
     <>
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold tracking-tight">{product.title}</h1>
+        <h1 className="text-title">{product.title}</h1>
         <p className="text-muted">
           Status: {PRODUCT_STATUS_LABELS[product.status]}
           {product.status === "published" ? (

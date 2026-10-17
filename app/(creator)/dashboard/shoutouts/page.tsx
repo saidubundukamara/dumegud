@@ -22,7 +22,7 @@ export default function ShoutoutsPage({ searchParams }: PageProps<"/dashboard/sh
   return (
     <>
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Thank your supporters</h1>
+        <h1 className="text-title">Thank your supporters</h1>
         <p className="text-muted">
           A shout-out makes supporters feel seen, and the people you tag often share it, which brings new supporters to your
           page. Only supporters who agreed to be mentioned appear here.
@@ -57,7 +57,7 @@ async function Shoutouts({ searchParams }: Pick<PageProps<"/dashboard/shoutouts"
         <Alert tone="success">Done! {posted === 1 ? "1 supporter has" : `${posted} supporters have`} been thanked.</Alert>
       ) : null}
 
-      <form method="get" className="flex flex-col gap-4 rounded-brand border border-border p-4 sm:p-6">
+      <form method="get" className="flex flex-col gap-4 rounded-brand-lg bg-surface p-5 shadow-soft ring-1 ring-border sm:p-6">
         <div className="grid gap-3 sm:grid-cols-3">
           <SelectField label="Who" name="period" defaultValue={opts.period}>
             {Object.entries(PERIOD_LABELS).map(([value, label]) => (
@@ -99,7 +99,7 @@ async function Shoutouts({ searchParams }: Pick<PageProps<"/dashboard/shoutouts"
             </p>
             <ul className="flex flex-col gap-2">
               {preview.people.map((p) => (
-                <li key={p.contributionId} className="flex items-center justify-between gap-4 rounded-brand bg-surface px-4 py-2">
+                <li key={p.contributionId} className="flex items-center justify-between gap-4 rounded-brand bg-surface-muted px-4 py-2">
                   <span className={p.excluded ? "text-muted line-through" : ""}>
                     {p.mention}
                     {p.thanked ? <span className="ml-2 text-sm text-muted">(thanked before)</span> : null}
@@ -120,7 +120,7 @@ async function Shoutouts({ searchParams }: Pick<PageProps<"/dashboard/shoutouts"
       </form>
 
       {!preview.people.length ? (
-        <section className="flex flex-col gap-2 rounded-brand border border-border p-4 sm:p-6">
+        <section className="flex flex-col gap-2 rounded-brand-lg bg-surface p-5 shadow-soft ring-1 ring-border sm:p-6">
           <h2 className="text-xl font-bold">Nobody to thank yet</h2>
           <p className="text-muted">
             {opts.period === "since_last"
@@ -133,7 +133,7 @@ async function Shoutouts({ searchParams }: Pick<PageProps<"/dashboard/shoutouts"
           </Link>
         </section>
       ) : included.length ? (
-        <section aria-labelledby="post-heading" className="flex flex-col gap-6 rounded-brand border border-border p-4 sm:p-6">
+        <section aria-labelledby="post-heading" className="flex flex-col gap-6 rounded-brand-lg bg-surface p-5 shadow-soft ring-1 ring-border sm:p-6">
           <h2 id="post-heading" className="text-xl font-bold">
             Your {platformLabel} post
           </h2>
@@ -147,7 +147,7 @@ async function Shoutouts({ searchParams }: Pick<PageProps<"/dashboard/shoutouts"
               alt={`Thank-you card naming ${included.length} supporters`}
               width={1080}
               height={1350}
-              className="h-auto w-full max-w-xs rounded-brand border border-border"
+              className="h-auto w-full max-w-xs rounded-brand-lg shadow-soft ring-1 ring-border"
             />
             <div className="flex flex-wrap gap-3">
               <a href={imageUrl(opts, "story")} download="dumegud-thank-you-story.png" className={buttonClasses("secondary")}>

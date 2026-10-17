@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Your page" };
 export default function ProfilePage() {
   return (
     <>
-      <h1 className="text-3xl font-bold tracking-tight">Your page</h1>
+      <h1 className="text-title">Your page</h1>
       <Suspense fallback={<p className="text-muted">Loading…</p>}>
         <ProfileEditor />
       </Suspense>

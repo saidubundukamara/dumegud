@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "New product" };
 export default function NewProductPage() {
   return (
     <>
-      <h1 className="text-3xl font-bold tracking-tight">New product</h1>
+      <h1 className="text-title">New product</h1>
       <Suspense fallback={<p className="text-muted">Loading…</p>}>
         <NewProduct />
       </Suspense>

@@ -41,7 +41,7 @@ export function AvatarUploader({ avatarUrl, displayName }: { avatarUrl: string |
         {avatarUrl ? (
           <Image src={avatarUrl} alt="" width={80} height={80} unoptimized className="size-20 rounded-full object-cover" />
         ) : (
-          <div aria-hidden="true" className="flex size-20 items-center justify-center rounded-full bg-surface text-2xl font-bold text-muted">
+          <div aria-hidden="true" className="flex size-20 items-center justify-center rounded-full bg-primary-soft text-2xl font-bold text-primary-pressed">
             {displayName.slice(0, 1).toUpperCase() || "?"}
           </div>
         )}

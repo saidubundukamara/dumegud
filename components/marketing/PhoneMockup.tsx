@@ -48,7 +48,15 @@ export function SampleCreatorScreen() {
 }
 
 /** Floating "you got paid" card used next to the phone. */
-export function PaidNotification({ className = "" }: { className?: string }) {
+export function PaidNotification({
+  className = "",
+  title = "You got Le 50",
+  line = 'Mohamed: "This song made my day!"',
+}: {
+  className?: string;
+  title?: string;
+  line?: string;
+}) {
   return (
     <div
       aria-hidden="true"
@@ -58,8 +66,8 @@ export function PaidNotification({ className = "" }: { className?: string }) {
         D
       </span>
       <div className="min-w-0 text-left">
-        <p className="text-sm font-semibold">You got Le 50</p>
-        <p className="truncate text-xs text-muted">Mohamed: &quot;This song made my day!&quot;</p>
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="truncate text-xs text-muted">{line}</p>
       </div>
     </div>
   );

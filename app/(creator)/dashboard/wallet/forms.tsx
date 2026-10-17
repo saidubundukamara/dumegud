@@ -31,7 +31,7 @@ export function WithdrawForm({ maxMinor, minMinor, feeBps }: { maxMinor: number;
         Withdraw the maximum
       </button>
       {minor ? (
-        <p className="rounded-brand bg-surface px-4 py-3" aria-live="polite">
+        <p className="rounded-brand bg-surface-muted px-4 py-3" aria-live="polite">
           You receive <strong>{formatSLE(minor)}</strong> on your phone. A {formatSLE(fee)} transfer fee is taken from your
           balance on top (total {formatSLE(minor + fee)}).
         </p>

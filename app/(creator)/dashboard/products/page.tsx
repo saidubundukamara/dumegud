@@ -13,7 +13,7 @@ export default function ProductsPage() {
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold tracking-tight">Products</h1>
+        <h1 className="text-title">Products</h1>
         <Link href="/dashboard/products/new" className={buttonClasses("primary")}>
           New product
         </Link>
@@ -35,7 +35,7 @@ async function ProductList() {
         <li key={p.id}>
           <Link
             href={`/dashboard/products/${p.id}`}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-brand border border-border p-4 hover:bg-surface"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-brand-lg bg-surface shadow-soft ring-1 ring-border p-4 transition-shadow duration-300 ease-brand hover:shadow-lift"
           >
             <span className="font-semibold">{p.title}</span>
             <span className="text-sm text-muted">

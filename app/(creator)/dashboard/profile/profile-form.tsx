@@ -125,7 +125,7 @@ export function ProfileForm({ initial, categories, appHost, handleLockedUntil, i
             <select
               name="linkPlatform"
               aria-label={`Link ${i + 1} platform`}
-              className="min-h-12 rounded-brand border border-border bg-background px-3 sm:w-44"
+              className="min-h-12 rounded-brand bg-surface-muted px-4 text-[1.0625rem] ring-1 ring-transparent transition-[box-shadow,background-color] duration-200 ease-brand hover:ring-border-strong focus:bg-surface focus:outline-none focus:ring-2 focus:ring-focus sm:w-44"
               value={link.platform}
               onChange={(e) => setLink(i, { platform: e.target.value as Platform })}
             >
@@ -141,7 +141,7 @@ export function ProfileForm({ initial, categories, appHost, handleLockedUntil, i
               inputMode="url"
               aria-label={`Link ${i + 1} address`}
               placeholder="https://"
-              className="min-h-12 flex-1 rounded-brand border border-border bg-background px-3"
+              className="min-h-12 flex-1 rounded-brand bg-surface-muted px-4 text-[1.0625rem] ring-1 ring-transparent transition-[box-shadow,background-color] duration-200 ease-brand hover:ring-border-strong focus:bg-surface focus:outline-none focus:ring-2 focus:ring-focus"
               value={link.url}
               onChange={(e) => setLink(i, { url: e.target.value })}
             />

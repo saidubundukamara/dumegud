@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Payout number" };
 export default function PayoutMethodPage() {
   return (
     <>
-      <h1 className="text-3xl font-bold tracking-tight">Payout number</h1>
+      <h1 className="text-title">Payout number</h1>
       <Suspense fallback={<p className="text-muted">Loading…</p>}>
         <PayoutMethod />
       </Suspense>
@@ -35,7 +35,7 @@ async function PayoutMethod() {
   return (
     <>
       {method ? (
-        <section className="flex flex-col gap-2 rounded-brand border border-border p-4">
+        <section className="flex flex-col gap-2 rounded-brand-lg bg-surface shadow-soft ring-1 ring-border p-4">
           <p className="font-semibold">
             {method.providerLabel} {method.masked}
           </p>

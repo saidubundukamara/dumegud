@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { StatusPage } from "@/components/checkout/StatusScreen";
 import { Alert } from "@/components/ui/Alert";
 import { services } from "@/server/services";
 import { DownloadButton } from "../forms";
@@ -11,14 +11,11 @@ export const metadata: Metadata = { title: "Your downloads", robots: { index: fa
 
 export default function LibraryPage({ params }: PageProps<"/library/[accessToken]">) {
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 py-12 sm:px-6">
-      <Link href="/" className="text-xl font-bold tracking-tight">
-        DuMeGud
-      </Link>
+    <StatusPage align="top">
       <Suspense fallback={<p className="text-muted">Loading your downloads…</p>}>
         <Library params={params} />
       </Suspense>
-    </main>
+    </StatusPage>
   );
 }
 
@@ -41,7 +38,7 @@ async function Library({ params }: Pick<PageProps<"/library/[accessToken]">, "pa
   return (
     <>
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold tracking-tight">{library.productTitle}</h1>
+        <h1 className="text-title">{library.productTitle}</h1>
         <p className="text-muted">Order #{library.orderRef}</p>
       </div>
       {library.status !== "active" ? <Alert tone="warning">{notices[library.status]}</Alert> : null}
@@ -53,7 +50,7 @@ async function Library({ params }: Pick<PageProps<"/library/[accessToken]">, "pa
           </p>
           <ul className="flex flex-col gap-4">
             {library.files.map((f) => (
-              <li key={f.id} className="flex flex-col gap-2 rounded-brand border border-border p-4">
+              <li key={f.id} className="flex flex-col gap-2 rounded-brand-lg bg-surface shadow-soft ring-1 ring-border p-4">
                 <span className="font-semibold">{f.filename}</span>
                 <span className="text-sm text-muted">{size(f.sizeBytes)}</span>
                 <DownloadButton accessToken={accessToken} assetId={f.id} label={f.filename} />

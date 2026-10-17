@@ -10,8 +10,8 @@ export default function RegisterPage() {
   return (
     <>
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Create your DuMeGud</h1>
-        <p className="text-muted">Get support for your work and sell your digital creations.</p>
+        <h1 className="text-title">Create your DuMeGud</h1>
+        <p className="text-muted">Free to join. Your page can be ready in two minutes.</p>
       </div>
       <Suspense fallback={null}>
         <GoogleOption />

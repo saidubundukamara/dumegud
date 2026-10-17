@@ -24,7 +24,7 @@ export function CaptionEditor({ caption }: { caption: string }) {
           setCopied(false);
         }}
         rows={Math.min(14, text.split("\n").length + 2)}
-        className="rounded-brand border border-border bg-background px-3 py-2 text-base"
+        className="min-h-12 w-full rounded-brand bg-surface-muted px-4 text-[1.0625rem] ring-1 ring-transparent transition-[box-shadow,background-color] duration-200 ease-brand hover:ring-border-strong focus:bg-surface focus:outline-none focus:ring-2 focus:ring-focus py-2"
       />
       <div className="flex flex-wrap items-center gap-3">
         <button

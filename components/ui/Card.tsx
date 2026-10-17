@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-type Props = { children: ReactNode; className?: string; inner?: string; as?: "div" | "section" | "article" | "li" };
+type Props = { children: ReactNode; className?: string; inner?: string; as?: "div" | "section" | "article" | "li" | "ul" | "ol" };
 
 /**
  * "Double-bezel" card: a faint outer tray with a white core inside it, concentric radii. Use for

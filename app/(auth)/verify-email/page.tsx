@@ -10,7 +10,7 @@ export default function VerifyEmailPage({ searchParams }: PageProps<"/verify-ema
   return (
     <>
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Confirm your email</h1>
+        <h1 className="text-title">Confirm your email</h1>
         <p className="text-muted">One tap and you&apos;re set.</p>
       </div>
       <Suspense fallback={null}>

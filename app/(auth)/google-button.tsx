@@ -1,3 +1,4 @@
+import { GoogleLogoIcon } from "@phosphor-icons/react/dist/ssr";
 import { connection } from "next/server";
 import { isGoogleSignInEnabled } from "@/auth";
 import { SubmitButton } from "@/components/ui/Button";
@@ -13,6 +14,7 @@ export async function GoogleOption() {
       <form action={signInWithGoogle}>
         <NextField />
         <SubmitButton variant="secondary" className="w-full" pendingLabel="Opening Google…">
+          <GoogleLogoIcon aria-hidden="true" weight="bold" className="size-5" />
           Continue with Google
         </SubmitButton>
       </form>

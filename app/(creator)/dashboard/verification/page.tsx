@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Verification" };
 export default function VerificationPage() {
   return (
     <>
-      <h1 className="text-3xl font-bold tracking-tight">Verify your identity</h1>
+      <h1 className="text-title">Verify your identity</h1>
       <p className="text-muted">We verify every creator before they can withdraw. It keeps your money, and your supporters, safe.</p>
       <Suspense fallback={<p className="text-muted">Loading…</p>}>
         <Verification />

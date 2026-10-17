@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Orders" };
 export default function OrdersPage() {
   return (
     <>
-      <h1 className="text-3xl font-bold tracking-tight">Orders</h1>
+      <h1 className="text-title">Orders</h1>
       <Suspense fallback={<p className="text-muted">Loading…</p>}>
         <Orders />
       </Suspense>
@@ -25,7 +25,7 @@ async function Orders() {
   return (
     <ul className="flex flex-col gap-3">
       {orders.map((o) => (
-        <li key={o.orderRef} className="flex flex-col gap-2 rounded-brand border border-border p-4">
+        <li key={o.orderRef} className="flex flex-col gap-2 rounded-brand-lg bg-surface shadow-soft ring-1 ring-border p-4">
           <div className="flex flex-wrap justify-between gap-2">
             <span className="font-semibold">{o.productTitle}</span>
             <span className="text-sm">{label[o.status]}</span>

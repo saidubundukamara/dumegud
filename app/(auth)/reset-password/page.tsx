@@ -10,7 +10,7 @@ export default function ResetPasswordPage({ searchParams }: PageProps<"/reset-pa
   return (
     <>
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Choose a new password</h1>
+        <h1 className="text-title">Choose a new password</h1>
         <p className="text-muted">You&apos;ll be signed out on every device.</p>
       </div>
       <Suspense fallback={null}>
