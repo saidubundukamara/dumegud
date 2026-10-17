@@ -12,6 +12,7 @@ import {
 import { unwrapResult } from "@/server/integrations/monime/client";
 import type { MonimeEvent } from "@/server/integrations/monime/webhook";
 import { creatorTag } from "@/server/lib/cache-tags";
+import { ConflictError } from "@/server/lib/errors";
 import { pepperedHash } from "@/server/lib/hash";
 import { logger } from "@/server/lib/logger";
 import type { CreatorProfileRepository } from "@/server/repositories/CreatorProfileRepository";
@@ -20,6 +21,8 @@ import type { EventInfo, PaymentPatch, PaymentRepository } from "@/server/reposi
 import { settleJournal, varianceJournal } from "./ledger";
 import { ALLOWED_FROM, TERMINAL_UNPAID } from "./payment-state";
 import type { PlatformSettingsService } from "./PlatformSettingsService";
+import type { LimitBreach, LimitService } from "./LimitService";
+import type { RiskService } from "./RiskService";
 import { runInTransaction, type Tx } from "./transaction";
 import type { TransferService } from "./TransferService";
 import { WebhookRetryLater, type WebhookHandler, type WebhookHandlerResult } from "./WebhookService";
@@ -46,6 +49,8 @@ export type SettlementServiceDeps = {
   monime: MonimeClient;
   now?: () => Date;
   transaction?: typeof runInTransaction;
+  limits?: Pick<LimitService, "postcheck">;
+  risk?: Pick<RiskService, "evaluatePayment" | "raiseLimitBreaches">;
 };
 
 /** Supporter-facing status: never reveals review/risk detail. */
@@ -81,8 +86,12 @@ export class SettlementService {
   private readonly now: () => Date;
   private readonly transaction: typeof runInTransaction;
   private readonly fulfilment: NonNullable<SettlementServiceDeps["fulfilment"]>;
+  private readonly limits: SettlementServiceDeps["limits"];
+  private readonly risk: SettlementServiceDeps["risk"];
 
   constructor(deps: SettlementServiceDeps) {
+    this.limits = deps.limits;
+    this.risk = deps.risk;
     this.repos = deps.repos;
     this.fulfilment = deps.fulfilment ?? {};
     this.transfers = deps.transfers;
@@ -125,7 +134,9 @@ export class SettlementService {
     const reportedFee = sumMonimeFees(data.fees); // null = not reported (never 0)
     const info: EventInfo = { source: "webhook", providerEventId: event.event.id };
 
+    let breaches: LimitBreach[] = [];
     const result = await this.transaction(async (tx) => {
+      breaches = [];
       const payment = await this.lock(ref, tx);
       let current = payment;
 
@@ -156,8 +167,14 @@ export class SettlementService {
       }
 
       if (reportedFee !== null) current = await this.applyReportedFee(current, reportedFee, data.id, tx);
-      return current;
+      const checked = await this.postcheck(current, info, tx);
+      breaches = checked.breaches;
+      return checked.payment;
     });
+    // Alerts only after the settlement committed.
+    if (breaches.length) {
+      await this.risk?.raiseLimitBreaches({ type: "payment", id: result.id, creatorId: result.creatorId }, breaches);
+    }
 
     return this.afterChange(result);
   }
@@ -214,6 +231,34 @@ export class SettlementService {
     if (result) await this.startTransfer(result.id);
   }
 
+  // ── Staff (PaymentAdminService audits these) ──────────────────────────────────
+
+  /**
+   * Release a payment held for review: under_review → succeeded through the same fulfilment as
+   * a normal success (order entitlement), then receipt and transfer. Never held again by limits.
+   */
+  async releaseFromReview(paymentId: string, info: EventInfo): Promise<PaymentRow> {
+    const released = await this.transaction(async (tx) => {
+      const payment = await this.repos.payments.lockById(paymentId, tx);
+      if (!payment || payment.status !== "under_review") return null;
+      const row = await this.repos.payments.transition(payment.id, ["under_review"], "succeeded", info, { reviewApprovedAt: this.now(), settledAt: payment.settledAt ?? this.now() }, tx);
+      if (row) await this.fulfilment[row.kind]?.onSucceeded(row, tx);
+      return row;
+    });
+    if (!released) throw new ConflictError("This payment isn't waiting for review.");
+    await this.afterChange(released);
+    return released;
+  }
+
+  /** Ask Monime about an open checkout now (staff "re-sync"). */
+  async resync(paymentId: string): Promise<PaymentRow | null> {
+    const payment = await this.repos.payments.findById(paymentId);
+    if (payment && (payment.status === "pending" || payment.status === "created") && payment.monimeCheckoutSessionId) {
+      await this.pollCheckout(payment);
+    }
+    return this.repos.payments.findById(paymentId);
+  }
+
   // ── Internals ─────────────────────────────────────────────────────────────────
 
   private async markSucceeded(ref: Ref, info: EventInfo): Promise<WebhookHandlerResult> {
@@ -251,9 +296,28 @@ export class SettlementService {
       logger.error("money arrived for a payment marked unpaid; holding for review", { paymentId: payment.id, status: payment.status });
       return this.toReview(payment, info, "late_success", tx);
     }
+    if (payment.reviewHold && !payment.reviewApprovedAt) {
+      // A limit said "review" at checkout: money is in, but nothing moves to the creator yet.
+      return this.toReview(payment, info, `limit:${payment.reviewHold}`, tx);
+    }
     const succeeded = await this.repos.payments.transition(payment.id, ["created", "pending"], "succeeded", info, { settledAt: this.now() }, tx);
     if (succeeded) await this.fulfilment[succeeded.kind]?.onSucceeded(succeeded, tx);
     return succeeded;
+  }
+
+  /**
+   * Payer-based limits, once the payer fingerprint is known: a breach holds a succeeded payment
+   * for review before any transfer (funds stay in the platform account).
+   */
+  private async postcheck(payment: PaymentRow, info: EventInfo, tx: Tx): Promise<{ payment: PaymentRow; breaches: LimitBreach[] }> {
+    if (!this.limits || payment.reviewApprovedAt || payment.status !== "succeeded" || payment.settlementFrozen || payment.transferStatus !== "none") {
+      return { payment, breaches: [] };
+    }
+    const profile = await this.repos.profiles.findByUserId(payment.creatorId, tx);
+    const result = await this.limits.postcheck(payment, { verificationTier: profile?.verificationTier ?? null, riskTier: profile?.riskTier ?? null }, tx);
+    if (result.outcome !== "review" && result.outcome !== "block") return { payment, breaches: result.breaches };
+    const held = await this.toReview(payment, info, `limit:${result.breaches.map((b) => `${b.scope}/${b.window}`).join(",")}`, tx);
+    return { payment: held ?? payment, breaches: result.breaches };
   }
 
   private toReview(payment: PaymentRow, info: EventInfo, reason: string, tx: Tx) {
@@ -301,6 +365,7 @@ export class SettlementService {
   }
 
   private async afterChange(payment: PaymentRow): Promise<WebhookHandlerResult> {
+    if (payment.status === "succeeded" || payment.status === "under_review") await this.risk?.evaluatePayment(payment.id);
     if (payment.status === "succeeded") {
       try {
         await this.fulfilment[payment.kind]?.afterSucceeded?.(payment);

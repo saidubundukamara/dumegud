@@ -12,6 +12,9 @@ import type { PaymentRepository } from "@/server/repositories/PaymentRepository"
 import type { UserRepository } from "@/server/repositories/UserRepository";
 import type { StartSupportInput } from "@/server/validation/support";
 import type { Actor, RequestContext } from "./actor";
+import { noRestrictions, type RestrictionGuard } from "./compliance";
+import type { LimitService } from "./LimitService";
+import type { RiskService } from "./RiskService";
 import { openCheckout } from "./checkout";
 import type { PlatformSettingsService } from "./PlatformSettingsService";
 import { runInTransaction } from "./transaction";
@@ -35,6 +38,9 @@ export type ContributionServiceDeps = {
   now?: () => Date;
   rateLimit?: (policy: RateLimitPolicy, id: string) => Promise<void>;
   transaction?: typeof runInTransaction;
+  restrictions?: RestrictionGuard;
+  limits?: Pick<LimitService, "precheck">;
+  risk?: Pick<RiskService, "raiseLimitBreaches">;
 };
 
 export type SupporterDTO = {
@@ -60,8 +66,10 @@ export class ContributionService {
   private readonly now: () => Date;
   private readonly rateLimit: (policy: RateLimitPolicy, id: string) => Promise<void>;
   private readonly transaction: typeof runInTransaction;
+  private readonly deps: ContributionServiceDeps;
 
   constructor(deps: ContributionServiceDeps) {
+    this.deps = deps;
     this.repos = deps.repos;
     this.monime = deps.monime;
     this.settings = deps.settings;
@@ -97,11 +105,18 @@ export class ContributionService {
       throw new ConflictError("This creator can't receive support right now.");
     }
 
+    await (this.deps.restrictions ?? noRestrictions).assertAllowed(profile.userId, "receive", "This creator can't receive support right now.");
     await this.rateLimit("checkout:ip", ctx.ip);
     await this.rateLimit("checkout:creator", profile.userId);
-    // Phase 7: LimitService.precheck (per-contribution max, daily receipts, velocity) goes here.
 
     const ipHash = ctx.ip !== "unknown" ? pepperedHash("ip", ctx.ip) : null;
+    const limit = this.deps.limits
+      ? await this.deps.limits.precheck({ creatorId: profile.userId, amountMinor: input.amount, ipHash, verificationTier: profile.verificationTier, riskTier: profile.riskTier })
+      : { outcome: "allow" as const, breaches: [] };
+    if (limit.outcome === "block") {
+      await this.deps.risk?.raiseLimitBreaches({ type: "creator", id: profile.userId, creatorId: profile.userId }, limit.breaches);
+      throw new ConflictError("This creator can't receive this amount right now.");
+    }
     if (ipHash) {
       const since = new Date(this.now().getTime() - CHECKOUT_DEDUPE_MS);
       const open = await this.repos.payments.findRecentOpenCheckout(ipHash, profile.userId, input.amount, since);
@@ -117,6 +132,7 @@ export class ContributionService {
           platformFeeBps: settings.contributionFeeBps,
           idempotencyKey: randomUUID(),
           ipHash,
+          reviewHold: limit.outcome === "review" ? limit.breaches.map((b) => `${b.scope}/${b.window}`).join(",") : null,
         },
         {
           supporterName: input.isAnonymous ? null : input.supporterName,
@@ -129,6 +145,9 @@ export class ContributionService {
       ),
     );
 
+    if (limit.breaches.length) {
+      await this.deps.risk?.raiseLimitBreaches({ type: "payment", id: payment.id, creatorId: profile.userId }, limit.breaches);
+    }
     const back = `${this.appBaseUrl}/${profile.handle}/support`;
     const redirectUrl = await openCheckout(
       { monime: this.monime, payments: this.repos.payments, platformAccountId: this.platformAccountId },

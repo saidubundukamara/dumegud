@@ -10,6 +10,7 @@ import type { CreatorWalletRepository } from "@/server/repositories/CreatorWalle
 import type { HandleRepository } from "@/server/repositories/HandleRepository";
 import type { ProfileInput } from "@/server/validation/creator";
 import type { Actor } from "./actor";
+import { noAudit, noRestrictions, type AuditLogger, type RestrictionGuard } from "./compliance";
 import { runInTransaction } from "./transaction";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -67,6 +68,8 @@ export type CreatorServiceDeps = {
   publicAssetUrl: (key: string) => string | null;
   now?: () => Date;
   transaction?: typeof runInTransaction;
+  audit?: AuditLogger;
+  restrictions?: RestrictionGuard;
 };
 
 export class CreatorService {
@@ -74,8 +77,12 @@ export class CreatorService {
   private readonly publicAssetUrl: CreatorServiceDeps["publicAssetUrl"];
   private readonly now: () => Date;
   private readonly transaction: typeof runInTransaction;
+  private readonly audit: AuditLogger;
+  private readonly restrictions: RestrictionGuard;
 
   constructor(deps: CreatorServiceDeps) {
+    this.audit = deps.audit ?? noAudit;
+    this.restrictions = deps.restrictions ?? noRestrictions;
     this.repos = deps.repos;
     this.publicAssetUrl = deps.publicAssetUrl;
     this.now = deps.now ?? (() => new Date());
@@ -157,6 +164,9 @@ export class CreatorService {
         await this.repos.profiles.replaceLinks(saved.id, input.links, tx);
         return saved;
       });
+      if (existing && handleChanged) {
+        await this.audit.log({ actor, action: "profile.handle_change", targetType: "creator_profile", targetId: profile.id, before: { handle: existing.handle }, after: { handle: input.handle } });
+      }
       const handles = [handleLower, ...(existing && handleChanged ? [existing.handleLower] : [])];
       return { profileId: profile.id, handles };
     } catch (err) {
@@ -208,6 +218,7 @@ export class CreatorService {
   }
 
   async publish(actor: Actor): Promise<ProfileChange> {
+    await this.restrictions.assertAllowed(actor.userId, "publish", "Publishing isn't available on your account right now. Contact support.");
     const checklist = await this.getPublishChecklist(actor);
     const missing = checklist.filter((i) => !i.done);
     if (missing.length) {

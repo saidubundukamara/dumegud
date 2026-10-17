@@ -4,6 +4,7 @@ import { logger } from "@/server/lib/logger";
 import type { CreatorProfileRepository } from "@/server/repositories/CreatorProfileRepository";
 import type { ProductRepository } from "@/server/repositories/ProductRepository";
 import { isStaff, type Actor } from "./actor";
+import { noAudit, type AuditLogger } from "./compliance";
 import type { ProductChange } from "./ProductService";
 
 /**
@@ -16,6 +17,7 @@ export class ProductReviewService {
     private readonly products: ProductRepository,
     private readonly profiles: CreatorProfileRepository,
     private readonly now: () => Date = () => new Date(),
+    private readonly audit: AuditLogger = noAudit,
   ) {}
 
   async listPending(actor: Actor) {
@@ -48,6 +50,7 @@ export class ProductReviewService {
     });
     if (!published) throw new ConflictError("This product is no longer waiting for review.");
     logger.info("product approved", { productId, reviewerId: actor.userId });
+    await this.audit.log({ actor, action: "product.approve", targetType: "product", targetId: productId, before: { status: "pending_review" }, after: { status: "published" } });
     return this.change(published.creatorId, productId);
   }
 
@@ -56,6 +59,7 @@ export class ProductReviewService {
     const rejected = await this.products.setStatus(productId, ["pending_review"], "draft", { reviewNote: note.slice(0, 500) });
     if (!rejected) throw new ConflictError("This product is no longer waiting for review.");
     logger.info("product sent back to draft", { productId, reviewerId: actor.userId });
+    await this.audit.log({ actor, action: "product.reject", targetType: "product", targetId: productId, after: { note } });
     return this.change(rejected.creatorId, productId);
   }
 

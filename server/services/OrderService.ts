@@ -14,6 +14,9 @@ import type { OrderRepository } from "@/server/repositories/OrderRepository";
 import type { PaymentRepository } from "@/server/repositories/PaymentRepository";
 import type { ProductRepository } from "@/server/repositories/ProductRepository";
 import type { Actor, RequestContext } from "./actor";
+import { noRestrictions, type RestrictionGuard } from "./compliance";
+import type { LimitService } from "./LimitService";
+import type { RiskService } from "./RiskService";
 import { openCheckout } from "./checkout";
 import type { PlatformSettingsService } from "./PlatformSettingsService";
 import type { ProductService } from "./ProductService";
@@ -41,6 +44,9 @@ export type OrderServiceDeps = {
   now?: () => Date;
   rateLimit?: (policy: RateLimitPolicy, id: string) => Promise<void>;
   transaction?: typeof runInTransaction;
+  restrictions?: RestrictionGuard;
+  limits?: Pick<LimitService, "precheck">;
+  risk?: Pick<RiskService, "raiseLimitBreaches">;
 };
 
 export type LibraryDTO = {
@@ -89,9 +95,18 @@ export class OrderService implements Fulfilment {
     const row = (await this.repos.products.findById(product.id))!;
     const wallet = await this.repos.wallets.findByUserId(row.creatorId);
     if (wallet?.status !== "active") throw new ConflictError("This product can't be bought right now.");
+    await (this.deps.restrictions ?? noRestrictions).assertAllowed(row.creatorId, "receive", "This product can't be bought right now.");
 
     await this.rateLimit("checkout:ip", ctx.ip);
     await this.rateLimit("checkout:creator", row.creatorId);
+    const ipHash = ctx.ip !== "unknown" ? pepperedHash("ip", ctx.ip) : null;
+    const limit = this.deps.limits
+      ? await this.deps.limits.precheck({ creatorId: row.creatorId, amountMinor: row.priceMinor, ipHash, verificationTier: null, riskTier: null })
+      : { outcome: "allow" as const, breaches: [] };
+    if (limit.outcome === "block") {
+      await this.deps.risk?.raiseLimitBreaches({ type: "creator", id: row.creatorId, creatorId: row.creatorId }, limit.breaches);
+      throw new ConflictError("This product can't be bought right now.");
+    }
 
     const settings = await this.deps.settings.get();
     const accessToken = randomToken();
@@ -104,7 +119,8 @@ export class OrderService implements Fulfilment {
           grossMinor: row.priceMinor,
           platformFeeBps: settings.productFeeBps,
           idempotencyKey: randomUUID(),
-          ipHash: ctx.ip !== "unknown" ? pepperedHash("ip", ctx.ip) : null,
+          ipHash,
+          reviewHold: limit.outcome === "review" ? limit.breaches.map((b) => `${b.scope}/${b.window}`).join(",") : null,
         },
         tx,
       );

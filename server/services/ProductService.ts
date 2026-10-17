@@ -15,6 +15,7 @@ import type { ProductRepository } from "@/server/repositories/ProductRepository"
 import type { UserRepository } from "@/server/repositories/UserRepository";
 import type { ProductInput } from "@/server/validation/product";
 import type { Actor } from "./actor";
+import { noRestrictions, type RestrictionGuard } from "./compliance";
 import type { PlatformSettingsService } from "./PlatformSettingsService";
 
 const MAX_FILES = 10;
@@ -83,6 +84,7 @@ export type ProductServiceDeps = {
   publicAssetUrl: (key: string) => string | null;
   now?: () => Date;
   rateLimit?: (policy: RateLimitPolicy, id: string) => Promise<void>;
+  restrictions?: RestrictionGuard;
 };
 
 /**
@@ -100,8 +102,10 @@ export class ProductService {
   private readonly publicAssetUrl: ProductServiceDeps["publicAssetUrl"];
   private readonly now: () => Date;
   private readonly rateLimit: (policy: RateLimitPolicy, id: string) => Promise<void>;
+  private readonly restrictions: RestrictionGuard;
 
   constructor(deps: ProductServiceDeps) {
+    this.restrictions = deps.restrictions ?? noRestrictions;
     this.repos = deps.repos;
     this.settings = deps.settings;
     this.storage = deps.storage;
@@ -167,6 +171,7 @@ export class ProductService {
   async submitForReview(actor: Actor, productId: string, ownershipDeclared: boolean): Promise<ProductChange> {
     const product = await this.owned(actor, productId);
     if (!["draft", "unpublished"].includes(product.status)) throw new ConflictError("This product is already in review or live.");
+    await this.restrictions.assertAllowed(actor.userId, "publish", "Publishing isn't available on your account right now. Contact support.");
     const missing: string[] = [];
     if (!actor.emailVerified) missing.push("confirm your email");
     const profile = await this.repos.profiles.findByUserId(actor.userId);
@@ -197,6 +202,7 @@ export class ProductService {
   async requestUpload(actor: Actor, input: { productId: string; kind: ProductAsset["kind"]; filename: string; size: number }) {
     const storage = this.requireStorage();
     await this.rateLimit("upload:user", actor.userId);
+    await this.restrictions.assertAllowed(actor.userId, "upload", "Uploads aren't available on your account right now. Contact support.");
     const product = await this.owned(actor, input.productId);
 
     const settings = await this.settings.get();
