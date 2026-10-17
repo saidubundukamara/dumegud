@@ -261,6 +261,18 @@ export class AuthService {
     await this.sendPasswordChangedEmail(user.id);
   }
 
+  /** Step-up: re-check the signed-in staff member's password. Rate-limited like login. */
+  async confirmPassword(actor: Actor, password: string): Promise<boolean> {
+    const user = await this.repos.users.findById(actor.userId);
+    if (!user) return false;
+    await this.rateLimit("login:email", user.email);
+    if (!user.passwordHash) {
+      await verifyAgainstDummy(password);
+      return false;
+    }
+    return verifyPassword(user.passwordHash, password);
+  }
+
   async signOutEverywhere(actor: Actor, ctx: RequestContext): Promise<void> {
     await this.repos.users.bumpSessionVersion(actor.userId);
     await this.logEvent(actor.userId, "logout_everywhere", ctx);

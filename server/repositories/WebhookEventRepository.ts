@@ -68,4 +68,14 @@ export class WebhookEventRepository extends BaseRepository {
       })
       .where(eq(webhookEvents.id, id));
   }
+
+  /** Staff replay of a failed/dead event: take it back into processing (guarded). */
+  async reclaimForReplay(id: string, now: Date, tx?: Executor) {
+    const [row] = await this.exec(tx)
+      .update(webhookEvents)
+      .set({ status: "processing", attempts: sql`${webhookEvents.attempts} + 1`, claimedAt: now, lastError: null })
+      .where(and(eq(webhookEvents.id, id), or(eq(webhookEvents.status, "failed"), eq(webhookEvents.status, "dead"))))
+      .returning({ id: webhookEvents.id, attempts: webhookEvents.attempts, payload: webhookEvents.payload });
+    return row ?? null;
+  }
 }

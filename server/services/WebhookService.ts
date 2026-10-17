@@ -50,6 +50,29 @@ export class WebhookService {
     this.now = opts.now ?? (() => new Date());
   }
 
+  /**
+   * Staff replay of a `failed`/`dead` event from its stored payload (handlers are idempotent).
+   * Returns the new status.
+   */
+  async replay(eventRowId: string, parse: (payload: unknown) => MonimeEvent | null): Promise<"processed" | "ignored" | "failed"> {
+    const claim = await this.events.reclaimForReplay(eventRowId, this.now());
+    if (!claim) throw new Error("This event isn't failed or dead.");
+    const event = parse(claim.payload);
+    const handler = event ? this.handlers[event.event.name] : undefined;
+    if (!event || !handler) {
+      await this.events.finish(claim.id, "ignored", this.now());
+      return "ignored";
+    }
+    try {
+      const result = await handler(event);
+      await this.events.finish(claim.id, result.status, this.now());
+      return result.status;
+    } catch (err) {
+      await this.events.finish(claim.id, "failed", this.now(), err instanceof Error ? err.message.slice(0, 500) : "unknown error");
+      return "failed";
+    }
+  }
+
   async handleMonime(event: MonimeEvent, payload: unknown): Promise<WebhookOutcome> {
     const claim = await this.events.claim(
       {

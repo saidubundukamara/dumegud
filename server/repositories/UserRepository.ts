@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
-import { users, type NewUser, type User, type UserStatus } from "@/server/db/schema";
+import { users, type NewUser, type Role, type User, type UserStatus } from "@/server/db/schema";
 import { BaseRepository } from "./BaseRepository";
 
 export type UserAuthState = Pick<User, "id" | "role" | "status" | "sessionVersion" | "emailVerified">;
@@ -100,6 +100,14 @@ export class UserRepository extends BaseRepository {
     await this.exec(tx)
       .update(users)
       .set({ status, sessionVersion: sql`${users.sessionVersion} + 1` })
+      .where(eq(users.id, id));
+  }
+
+  /** Role changes revoke sessions so the new role (and step-up) apply immediately. */
+  async setRole(id: string, role: Role, tx?: Executor): Promise<void> {
+    await this.exec(tx)
+      .update(users)
+      .set({ role, sessionVersion: sql`${users.sessionVersion} + 1` })
       .where(eq(users.id, id));
   }
 }

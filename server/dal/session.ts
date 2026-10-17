@@ -5,13 +5,14 @@ import { auth } from "@/auth";
 import type { Role } from "@/server/db/schema";
 import type { Actor } from "@/server/services/actor";
 import { repos } from "@/server/services";
+import { requireStepUp } from "./step-up";
 
 // Data Access Layer for authentication. The JWT says who the caller claims to be; this checks
 // the database on every request so suspension, role changes and "sign out everywhere"
 // (sessionVersion bumps) take effect immediately. Layouts don't gate; every page, Server
 // Action and Route Handler calls one of these.
 
-export type VerifiedSession = { actor: Actor };
+export type VerifiedSession = { actor: Actor; sessionVersion: number };
 
 export const getSession = cache(async (): Promise<VerifiedSession | null> => {
   const session = await auth();
@@ -25,6 +26,7 @@ export const getSession = cache(async (): Promise<VerifiedSession | null> => {
   }
   return {
     actor: { userId: user.id, role: user.role, status: user.status, emailVerified: user.emailVerified !== null },
+    sessionVersion: user.sessionVersion,
   };
 });
 
@@ -39,5 +41,12 @@ export async function verifySession(): Promise<VerifiedSession> {
 export async function requireRole(...roles: Role[]): Promise<VerifiedSession> {
   const session = await verifySession();
   if (!roles.includes(session.actor.role)) forbidden();
+  return session;
+}
+
+/** Staff role plus a password confirmation from the last 10 minutes (sensitive admin actions). */
+export async function requireStaffStepUp(...roles: Role[]): Promise<VerifiedSession> {
+  const session = await requireRole(...(roles.length ? roles : (["staff", "super_admin"] as Role[])));
+  await requireStepUp({ userId: session.actor.userId, sessionVersion: session.sessionVersion });
   return session;
 }
