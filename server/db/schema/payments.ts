@@ -13,8 +13,10 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { TRAFFIC_SOURCES } from "../../../lib/traffic-source";
 import { users } from "./auth";
 import { createdAt, id, timestamps } from "./columns";
+import { socialPlatform } from "./creators";
 
 // Payments, contributions and the double-entry ledger (implementation.md Phase 4, §3).
 // All money columns are integer minor units of SLE.
@@ -34,6 +36,8 @@ export const feeSource = pgEnum("monime_fee_source", ["reported", "estimated"]);
 export const transferStatus = pgEnum("transfer_status", ["none", "pending", "completed", "failed"]);
 export const paymentEventSource = pgEnum("payment_event_source", ["app", "webhook", "poll", "cron", "admin"]);
 export const messageVisibility = pgEnum("message_visibility", ["public", "creator_only", "hidden_by_moderation"]);
+/** Where the payer arrived from (attribution only; see lib/traffic-source.ts). */
+export const trafficSource = pgEnum("traffic_source", TRAFFIC_SOURCES);
 
 export type PaymentStatus = (typeof paymentStatus.enumValues)[number];
 export type PaymentEventSource = (typeof paymentEventSource.enumValues)[number];
@@ -77,6 +81,7 @@ export const payments = pgTable(
     reviewHold: text(),
     /** Staff released this payment from review: limit holds don't apply to it again. */
     reviewApprovedAt: timestamp({ withTimezone: true }),
+    trafficSource: trafficSource(),
     settledAt: timestamp({ withTimezone: true }),
     /** True once money moved to the creator: the split can never change after this. */
     settlementFrozen: boolean().notNull().default(false),
@@ -109,8 +114,40 @@ export const contributions = pgTable("contributions", {
   message: text(),
   isAnonymous: boolean().notNull().default(false),
   messageVisibility: messageVisibility().notNull().default("creator_only"),
+  /** Self-declared, unverified social handle for shout-outs (lower-case, no @). */
+  socialPlatform: socialPlatform(),
+  socialHandle: text(),
+  /** The supporter agreed to be named in the creator's thank-you posts. */
+  shoutoutConsent: boolean().notNull().default(false),
+  shoutoutConsentAt: timestamp({ withTimezone: true }),
+  /** sha256 of the support claim cookie: lets the paying browser add a handle after checkout. */
+  claimHash: text(),
+  /** Included in (or reviewed for) a thank-you post the creator marked as posted. */
+  thankedAt: timestamp({ withTimezone: true }),
   createdAt: createdAt(),
-});
+}, (t) => [
+  index().on(t.creatorId, t.thankedAt),
+  check("contributions_handle_pair", sql`(${t.socialHandle} is null) = (${t.socialPlatform} is null)`),
+  check("contributions_anonymous_no_shoutout", sql`not (${t.isAnonymous} and ${t.shoutoutConsent})`),
+]);
+
+/** A thank-you post the creator generated and marked as posted. */
+export const shoutouts = pgTable(
+  "shoutouts",
+  {
+    id: id(),
+    creatorId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    period: text().notNull(),
+    platform: socialPlatform().notNull(),
+    includeTop: boolean().notNull().default(false),
+    /** Contributions named in the post. */
+    contributionIds: uuid().array().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index().on(t.creatorId, t.createdAt)],
+);
 
 /** Append-only audit of every payment status change. */
 export const paymentEvents = pgTable(
@@ -175,3 +212,4 @@ export const platformSettings = pgTable("platform_settings", {
 
 export type Payment = typeof payments.$inferSelect;
 export type Contribution = typeof contributions.$inferSelect;
+export type Shoutout = typeof shoutouts.$inferSelect;
