@@ -4,7 +4,7 @@
 
 DuMeGud ("do me good") is a creator-support and digital-commerce platform for Sierra Leone. Creators get a shareable page where supporters can send **one-off contributions** and buy **digital products**, paying with local mobile money (Orange Money, AfriMoney) through [Monime]. Supporters don't need an app or an account, just a browser.
 
-> **Status:** Phase 0 (foundations) is complete. Feature work starts at Phase 1 (authentication). See [`implementation.md`](./implementation.md) for the roadmap.
+> **Status:** Phases 0–3 (foundations, authentication, creator profile and wallet, Monime integration core) are complete. Next up is Phase 4 (one-off support). See [`implementation.md`](./implementation.md) for the roadmap.
 
 ## Documentation
 
@@ -43,13 +43,19 @@ cp .env.example .env.local   # then fill in the values for the current phase
 npm run dev                  # http://localhost:3000
 ```
 
-Minimum `.env.local` for Phase 0:
+Minimum `.env.local` (through Phase 2):
 
 | Variable | Notes |
 |---|---|
 | `APP_BASE_URL` | `http://localhost:3000` locally |
-| `DATABASE_URL` | Neon **pooled** connection string |
+| `DATABASE_URL` | Neon **pooled** connection string. Run `npm run db:migrate` once. |
 | `HASH_PEPPER` | Random secret, at least 32 chars (`openssl rand -base64 48`) |
+| `AUTH_SECRET` | Random secret, at least 32 chars (`openssl rand -base64 32`) |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Optional. The Google button only appears when both are set. Redirect URI: `{APP_BASE_URL}/api/auth/callback/google` |
+
+Monime defaults to `MONIME_ENVIRONMENT=fake` (an in-memory Monime), so wallets "provision" instantly in dev. With the fake, `POST /api/dev/monime-webhook` creates checkouts and fires signed webhooks at the app (see the route file for actions). Profile photos need the R2 variables (see `.env.example`); without them the upload control is hidden.
+
+With `EMAIL_ENABLED=false` (the default), emails aren't sent: in dev their text, including verify/reset links, is printed to the server console.
 
 `.env.example` lists every variable along with the phase that introduces it. Env vars are validated on first use (`server/env.ts`), so `npm run build` works without secrets.
 

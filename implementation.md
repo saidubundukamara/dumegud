@@ -500,6 +500,19 @@ export interface EmailService { send(msg: { to: string; subject: string; html: s
 - Unknown-email and wrong-password logins return the same message and similar timing.
 - A non-staff user hitting `/admin` → 403 page. A direct POST to an admin action → forbidden.
 
+### Implementation notes (as built)
+Where the build differs from the plan above:
+- **Proxy matcher** is `/dashboard/:path*` and `/admin/:path*` only, not every page: running Auth.js on public pages could add `Set-Cookie` and defeat CDN caching. The proxy never redirects signed-in users away from `/login`: with a revoked JWT that would loop with the DAL's redirect.
+- **Login rate limits** (`login:ip`, `login:email`) are enforced in `AuthService.verifyCredentials`, not the action, because `/api/auth/callback/credentials` is reachable directly. They also back a progressive DB lockout: 10 failures → 15 min, doubling, capped at 24 h.
+- **Emailed links never act on GET.** `/verify-email` and `/reset-password` show a button or form that POSTs the token, so link scanners can't consume it. Pages set `referrer: no-referrer`.
+- **Registration** hashes before checking the email. Both outcomes return the same message; the follow-up email (verification, or "you already have an account") is sent in `after()`. Registration doesn't sign the user in.
+- **Password reset** verifies the email (the link proves inbox control). Reset, change password and sign out everywhere all bump `sessionVersion`; change password then sends the user to `/login`.
+- **Google:** requires `email_verified`; `linkAccount` marks the user verified and logs `google_linked`. An existing password account with the same email gets `OAuthAccountNotLinked` (no auto-linking). The provider is registered only when `AUTH_GOOGLE_ID`/`SECRET` are set. CSP `form-action` now includes `https://accounts.google.com`, for the no-JS redirect.
+- **BotID** (`withBotId` + `instrumentation-client.ts`) protects `/login`, `/register` and `/forgot-password`. `assertNotBot()` is skipped off Vercel and fails open if BotID errors.
+- **Common-password list:** the 2,311 entries from SecLists' top-100k that meet the 10-char minimum (the top-10k has only 51).
+- **`ALLOW_MEMORY_RATE_LIMIT=true`** lets production builds run without Upstash in CI/E2E. It is refused when `VERCEL_ENV=production`.
+- **Not built yet:** admin step-up (Phase 8 with the admin actions), DB-backed integration tests (they need a Neon test branch), and a full register → verify → login E2E against a preview deployment.
+
 ---
 
 ## Phase 2 — Creator profile, handle & wallet provisioning
@@ -559,6 +572,18 @@ Presigned PUT to R2 under `avatars/{userId}/{uuid}` with `image/jpeg|png|webp` o
 - Two simultaneous provisioning calls create exactly one Monime account (same idempotency key + unique column).
 - Handle uniqueness is case-insensitive; reserved handles are rejected.
 - An unpublished page 404s; a published page is served from cache, and an edit shows immediately for the owner.
+
+### Implementation notes (as built)
+Where the build differs from the plan above:
+- **Naming:** `creator_wallets.user_id` (→ `users.id`, the money identity used by later phases) and `social_links.profile_id` (→ `creator_profiles.id`), instead of the plan's single `creatorId`. Added `handle_history` (old handle → profile, `released_at`) and `creator_profiles.handle_changed_at` / `creator_terms_accepted_at`.
+- **Monime core pulled forward from Phase 3:** `server/integrations/monime/{client,fake,types,index}.ts` with `unwrapResult` (single and double nesting), `MonimeApiError` (nested error parsing, `retryable`), `availableBalanceMinor`, and financial-account create/read only. Phase 3 adds the rest. `MONIME_ENVIRONMENT=fake` is the default and is refused when `VERCEL_ENV=production` (not `NODE_ENV`, so CI can run production builds against the fake).
+- **Wallet provisioning** runs from `AuthService.onUserCreated` (registration and Google `createUser`, both in `after()`). Failures are recorded and never thrown; after 5 attempts the wallet is `failed` and an error is logged (the admin alert table arrives in Phase 7). The dashboard offers "Try again"; the Phase 9 cron retries in the background. Rendering never provisions.
+- **Handles:** routes are blocked in code (`lib/handle.ts`) as well as by `reserved_handles` (seeded in migration `0002`, with the categories). The first handle is free; later changes start the 30-day cooldown. Casing-only edits don't count. Released handles redirect for 90 days and only their old owner can reclaim them.
+- **Public page:** `getCachedPublicProfile` (`server/queries/public-profile.ts`) is `'use cache'` + `cacheLife('hours')`, tagged `handle:{handle}` and `creator:{profileId}`. Actions call `updateTag` on both, so a newly claimed handle drops its cached "not found". Malformed handles are rejected before the cache or DB.
+- **Soft 404s:** with Partial Prefetching, `params` must be awaited inside `<Suspense>`, so unknown or unpublished handles render the not-found UI with HTTP 200 + `noindex` (a streamed `notFound()` can't change the status). Old-handle redirects are likewise streamed.
+- **Avatars:** the browser PUTs to a private `R2_UPLOADS_BUCKET` under `staging/avatars/{userId}/{uuid}` (content type and length are signed). `confirmAvatarUpload` checks key ownership and the 2 MB cap, re-encodes with sharp to a 400px WebP (EXIF stripped, 25 MP decode limit, JPEG/PNG/WebP only), writes `avatars/{userId}/{uuid}.webp` to the public bucket, and deletes the staging object and the old avatar. Upload is hidden until R2 is configured. CSP `img-src`/`connect-src` gain the R2 origins from env at build time; the S3 client uses path-style URLs so one `connect-src` origin covers every upload. Images use `next/image` with `unoptimized` (already small WebP).
+- **Creator terms:** accepted from the dashboard checklist; `/legal/creator-terms` is a draft placeholder until Phase 10.
+- **Not built yet:** the OG image (`opengraph-image.tsx`; metadata already sets the avatar as the OG image), the admin-managed offensive-handle deny-list (Phase 8), and admin-configurable suggested amounts (column default for now).
 
 ---
 
@@ -651,6 +676,15 @@ export async function POST(request: Request) {
 - Unit: signature valid/invalid/expired/future/malformed. Double-nested result unwrapping. `MonimeApiError` parses the nested error.
 - Replaying the same event 5× → one state change.
 - An unknown event → 200 and recorded.
+
+### Implementation notes (as built)
+- **Client:** every endpoint in the plan, in `server/integrations/monime/client.ts`. Tolerant readers live in `parse.ts`: `sumMonimeFees` (sums the array, `null` ≠ 0, also accepts the legacy `{ total }`), `resolveCheckoutSessionId` (`ownershipGraph.owner` first) and `describeMonimeFailure` (object/string `failureDetail`). Types are in `types.ts`.
+- **Fake = an in-memory Monime *server*** (`FakeMonimeServer`) plugged into the real client as its `fetch`, so unwrapping and error parsing run in every test. It double-nests checkout sessions, returns nested errors, emits a two-entry `fees[]`, produces both settlement events in either order (`completeCheckout(id, { order, fees })`), rejects zero-value transfers, overdrafts, >100-char line-item descriptions, non-string metadata and `+232…` payout numbers, charges payout fees on top (refunded on `payout.failed`), and stubs provider KYC (404 = unregistered). It also honours idempotency keys.
+- **Signatures:** `webhook.ts` splits the header on the *first* `=` (ib4me split on every `=` and only worked because decoding ignores missing padding), accepts several `v1` values for secret rotation, and uses a window of 300s old / 60s future. `MONIME_WEBHOOK_SECRET` is required unless fake; the fake uses a built-in dev secret.
+- **`webhook_events`** statuses: `processing` → `processed` | `ignored` | `failed` (500, reclaimable) | `dead` (200, never reprocessed; alert). A duplicate arriving while the event is `processing` gets a 500 so a crashed claim can't swallow it. Claims go stale after 10 min (above Vercel's 300s limit) and can then be reclaimed. Handlers must be idempotent anyway.
+- **`WebhookService`** takes an event-name → handler map (empty in Phase 3: every event is recorded as `ignored`, logged at warn). Handlers throw `WebhookRetryLater` (row not committed yet; becomes `dead` after 8 attempts) or `WebhookRejected` (permanent). Other exceptions count as transient. Handlers return cache tags; the route revalidates them with `revalidateTag(tag, 'max')`.
+- **Route:** 256 KB body cap (413), 401 on any signature failure (before the DB), 400 for a signed but malformed envelope, 500 when the DB is unavailable.
+- **Dev simulator** (`/api/dev/monime-webhook`) is available only with `MONIME_ENVIRONMENT=fake` (stricter than "not live"). Actions: `create_checkout`, `complete_checkout` (with `order`, `fees`, `repeat`), `end_checkout`, `settle_payout`, `raw`. It signs each event and POSTs it to the real webhook route.
 
 ---
 
