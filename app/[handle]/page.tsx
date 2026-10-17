@@ -146,6 +146,12 @@ function Profile({
         </section>
       ) : null}
 
+      <p className="text-center text-sm">
+        <Link href={`/report?type=creator&id=${profile.id}`} className="text-muted underline underline-offset-4" prefetch={false}>
+          Report this page
+        </Link>
+      </p>
+
       {supporters.length ? (
         <section aria-labelledby="supporters-heading" className="flex flex-col gap-2">
           <h2 id="supporters-heading" className="text-lg font-bold">

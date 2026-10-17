@@ -102,6 +102,11 @@ async function Product({ params }: Pick<Props, "params">) {
       </section>
 
       <BuyForm productId={product.id} priceMinor={product.priceMinor} />
+      <p className="text-center text-sm">
+        <Link href={`/report?type=product&id=${product.id}`} className="text-muted underline underline-offset-4" prefetch={false}>
+          Report this product
+        </Link>
+      </p>
     </article>
   );
 }
