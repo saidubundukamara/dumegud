@@ -3,11 +3,12 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { buttonClasses } from "@/components/ui/button-classes";
+import { SHARE_SOURCES, TRAFFIC_SOURCE_LABELS } from "@/lib/traffic-source";
 import { verifySession } from "@/server/dal/session";
 import { getEnv } from "@/server/env";
 import { services } from "@/server/services";
 import type { WalletDTO } from "@/server/services/WalletService";
-import { PublishControls, TermsForm, VerifyEmailBanner, WalletRetry } from "./forms";
+import { PublishControls, ShareLinks, TermsForm, VerifyEmailBanner, WalletRetry } from "./forms";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -21,11 +22,12 @@ export default function DashboardPage({ searchParams }: PageProps<"/dashboard">)
 
 async function Dashboard({ searchParams }: Pick<PageProps<"/dashboard">, "searchParams">) {
   const { actor } = await verifySession();
-  const [account, profile, wallet, checklist, { notice }] = await Promise.all([
+  const [account, profile, wallet, checklist, waiting, { notice }] = await Promise.all([
     services.auth.getAccount(actor),
     services.creators.getOwnProfile(actor),
     services.wallet.getWallet(actor),
     services.creators.getPublishChecklist(actor),
+    services.shoutouts.waitingCount(actor),
     searchParams,
   ]);
   if (!account) return null;
@@ -91,8 +93,48 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/dashboard">, "search
         )}
       </section>
 
+      {published && profile ? (
+        <>
+          <ThankYouCard waiting={waiting} />
+          <section className="flex flex-col gap-3 rounded-brand border border-border p-4 sm:p-6">
+            <h2 className="text-xl font-bold">Share your page</h2>
+            <p className="text-muted">
+              Use the link for the app you&apos;re posting on. Supporters can then add their username there to get a
+              shout-out from you, and you can see which app brings the most support.
+            </p>
+            <ShareLinks
+              links={SHARE_SOURCES.map((source) => ({
+                label: TRAFFIC_SOURCE_LABELS[source],
+                url: `${getEnv().APP_BASE_URL.replace(/\/$/, "")}/${profile.handle}?via=${source}`,
+              }))}
+            />
+          </section>
+        </>
+      ) : null}
+
       <WalletCard wallet={wallet} />
     </>
+  );
+}
+
+function ThankYouCard({ waiting }: { waiting: number }) {
+  return (
+    <section className="flex flex-col gap-3 rounded-brand border border-border p-4 sm:p-6">
+      <h2 className="text-xl font-bold">Thank your supporters</h2>
+      {waiting ? (
+        <p>
+          <strong>
+            {waiting === 1 ? "1 supporter is" : `${waiting} supporters are`} waiting for a thank-you.
+          </strong>{" "}
+          A shout-out takes a minute, and the people you tag often share it.
+        </p>
+      ) : (
+        <p className="text-muted">Everyone has been thanked. New supporters who want a shout-out will show up here.</p>
+      )}
+      <Link href="/dashboard/shoutouts" className={buttonClasses(waiting ? "primary" : "secondary", "self-start")}>
+        {waiting ? "Thank them now" : "Open shout-outs"}
+      </Link>
+    </section>
   );
 }
 

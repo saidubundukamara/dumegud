@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { formatSLE } from "@/lib/money";
+import { SHOUTOUT_PLATFORM_LABELS } from "@/lib/shoutout";
+import { TRAFFIC_SOURCE_LABELS } from "@/lib/traffic-source";
 import { verifySession } from "@/server/dal/session";
 import { services } from "@/server/services";
 import type { SupporterDTO } from "@/server/services/ContributionService";
@@ -20,7 +22,10 @@ export default function SupportersPage() {
 
 async function Supporters() {
   const { actor } = await verifySession();
-  const { succeeded, processing } = await services.contributions.listForCreator(actor);
+  const [{ succeeded, processing }, sources] = await Promise.all([
+    services.contributions.listForCreator(actor),
+    services.shoutouts.sourceTotals(actor),
+  ]);
 
   return (
     <>
@@ -33,6 +38,24 @@ async function Supporters() {
               <li key={s.paymentId} className="flex justify-between gap-4 rounded-brand border border-border px-4 py-3">
                 <span>{s.name ?? "Anonymous"}</span>
                 <span>{formatSLE(s.grossMinor)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {sources.length ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xl font-bold">Where your support comes from</h2>
+          <p className="text-sm text-muted">Support and sales, counted from your share links and the app people opened your page in.</p>
+          <ul className="flex flex-col gap-2">
+            {sources.map((r) => (
+              <li key={r.source ?? "unknown"} className="flex justify-between gap-4 rounded-brand bg-surface px-4 py-2">
+                <span>
+                  {r.source ? TRAFFIC_SOURCE_LABELS[r.source] : "Before tracking started"}
+                  <span className="ml-2 text-sm text-muted">{r.payments === 1 ? "1 payment" : `${r.payments} payments`}</span>
+                </span>
+                <span className="font-semibold">{formatSLE(r.grossMinor)}</span>
               </li>
             ))}
           </ul>
@@ -61,7 +84,17 @@ function SupporterCard({ supporter: s }: { supporter: SupporterDTO }) {
   return (
     <li className="flex flex-col gap-2 rounded-brand border border-border p-4">
       <div className="flex justify-between gap-4">
-        <span className="font-semibold">{s.name ?? "Anonymous"}</span>
+        <span className="flex flex-col">
+          <span className="font-semibold">{s.name ?? (s.shoutout ? `@${s.shoutout.handle}` : "Anonymous")}</span>
+          {s.shoutout ? (
+            <span className="text-sm text-muted">
+              @{s.shoutout.handle} on {SHOUTOUT_PLATFORM_LABELS[s.shoutout.platform]}
+              {s.thanked ? " · thanked" : ""}
+            </span>
+          ) : !s.isAnonymous ? (
+            <span className="text-sm text-muted">{s.shoutoutConsent ? "Happy to be named" : "Prefers no shout-out"}</span>
+          ) : null}
+        </span>
         <time dateTime={s.at.toISOString()} className="text-sm text-muted">
           {s.at.toISOString().slice(0, 10)}
         </time>

@@ -27,6 +27,9 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
           <Link href="/dashboard/supporters" className="px-3 py-2 font-semibold underline-offset-4 hover:underline">
             Supporters
           </Link>
+          <Link href="/dashboard/shoutouts" className="px-3 py-2 font-semibold underline-offset-4 hover:underline">
+            Shout-outs
+          </Link>
           <Link href="/dashboard/settings" className="px-3 py-2 font-semibold underline-offset-4 hover:underline">
             Settings
           </Link>

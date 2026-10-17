@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { SubmitButton } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
@@ -136,5 +136,36 @@ export function WalletRetry() {
         Try again
       </SubmitButton>
     </form>
+  );
+}
+
+/** One link per platform (`?via=`), so DuMeGud can tell where supporters come from. */
+export function ShareLinks({ links }: { links: Array<{ label: string; url: string }> }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  return (
+    <ul className="flex flex-col gap-2">
+      {links.map((l) => (
+        <li key={l.url} className="flex flex-wrap items-center justify-between gap-2 rounded-brand bg-surface px-4 py-2">
+          <span className="flex min-w-0 flex-col">
+            <span className="font-semibold">{l.label}</span>
+            <span className="truncate text-sm text-muted">{l.url}</span>
+          </span>
+          <button
+            type="button"
+            className="min-h-10 rounded-brand border border-border bg-background px-4 font-semibold hover:bg-surface"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(l.url);
+                setCopied(l.url);
+              } catch {
+                setCopied(null);
+              }
+            }}
+          >
+            {copied === l.url ? "Copied" : "Copy"}
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
