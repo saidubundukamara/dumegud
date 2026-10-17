@@ -5,6 +5,7 @@ import { verifySession } from "@/server/dal/session";
 import { services } from "@/server/services";
 import { signOutEverywhere } from "../actions";
 import { ChangePasswordForm } from "../forms";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -12,7 +13,7 @@ export default function SettingsPage() {
   return (
     <>
       <h1 className="text-title">Settings</h1>
-      <Suspense fallback={<p className="text-muted">Loading…</p>}>
+      <Suspense fallback={<PageSkeleton />}>
         <Settings />
       </Suspense>
     </>

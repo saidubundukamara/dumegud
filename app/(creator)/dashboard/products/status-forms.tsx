@@ -29,8 +29,8 @@ export function Unpublish({ productId }: { productId: string }) {
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="productId" value={productId} />
       {state.message ? <Alert tone={state.status === "error" ? "danger" : "success"}>{state.message}</Alert> : null}
-      <SubmitButton variant="secondary" className="self-start" pendingLabel="Unpublishing…">
-        Unpublish
+      <SubmitButton variant="secondary" className="self-start" pendingLabel="Hiding…">
+        Hide from my shop
       </SubmitButton>
     </form>
   );

@@ -9,7 +9,7 @@ export const FAQ_TOP: FaqItem[] = [
   },
   {
     q: "Do my fans need an app or an account?",
-    a: "No. They open your link, pick an amount and pay with Orange Money or Afrimoney. No sign-up, no app.",
+    a: "No. They open your link, pick an amount and pay with Orange Money or AfriMoney. No sign-up, no app.",
   },
   {
     q: "How do I get my money?",

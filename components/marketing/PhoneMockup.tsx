@@ -41,7 +41,7 @@ export function SampleCreatorScreen() {
         <span className="mt-2.5 flex h-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white">
           Send Le 50
         </span>
-        <p className="mt-2 text-[0.65rem] text-muted">Orange Money · Afrimoney</p>
+        <p className="mt-2 text-[0.65rem] text-muted">Orange Money · AfriMoney</p>
       </div>
     </div>
   );

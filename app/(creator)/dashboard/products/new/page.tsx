@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { verifySession } from "@/server/dal/session";
 import { services } from "@/server/services";
 import { ProductForm } from "../product-form";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 
 export const metadata: Metadata = { title: "New product" };
 
@@ -10,7 +11,7 @@ export default function NewProductPage() {
   return (
     <>
       <h1 className="text-title">New product</h1>
-      <Suspense fallback={<p className="text-muted">Loading…</p>}>
+      <Suspense fallback={<PageSkeleton />}>
         <NewProduct />
       </Suspense>
     </>

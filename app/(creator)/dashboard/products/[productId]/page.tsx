@@ -9,12 +9,13 @@ import { AssetManager } from "../asset-manager";
 import { PRODUCT_STATUS_LABELS } from "../labels";
 import { ProductForm } from "../product-form";
 import { SubmitForReview, Unpublish } from "../status-forms";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 
 export const metadata: Metadata = { title: "Edit product" };
 
 export default function EditProductPage({ params }: PageProps<"/dashboard/products/[productId]">) {
   return (
-    <Suspense fallback={<p className="text-muted">Loading…</p>}>
+    <Suspense fallback={<PageSkeleton />}>
       <EditProduct params={params} />
     </Suspense>
   );

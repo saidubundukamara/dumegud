@@ -5,6 +5,7 @@ import { getEnv } from "@/server/env";
 import { services } from "@/server/services";
 import { AvatarUploader } from "./avatar-uploader";
 import { ProfileForm } from "./profile-form";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 
 export const metadata: Metadata = { title: "Your page" };
 
@@ -12,7 +13,7 @@ export default function ProfilePage() {
   return (
     <>
       <h1 className="text-title">Your page</h1>
-      <Suspense fallback={<p className="text-muted">Loading…</p>}>
+      <Suspense fallback={<PageSkeleton />}>
         <ProfileEditor />
       </Suspense>
     </>

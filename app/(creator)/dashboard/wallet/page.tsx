@@ -68,7 +68,7 @@ async function Wallet() {
     ) : method.status === "cooling_off" ? (
       <>For your safety, withdrawals to {method.masked} open on {method.cooldownUntil?.toISOString().slice(0, 16).replace("T", " ")} UTC.</>
     ) : method.status === "needs_recheck" ? (
-      <>Our team is checking your payout number. We&apos;ll email you.</>
+      <>Our team is checking your mobile money number. We&apos;ll email you.</>
     ) : null;
 
   return (

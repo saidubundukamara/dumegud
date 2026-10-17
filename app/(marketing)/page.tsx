@@ -37,7 +37,7 @@ const STEPS = [
   },
   {
     title: "Get your money",
-    body: "Gifts go into your DuMeGud wallet. Send the money to your Orange Money or Afrimoney when you want.",
+    body: "Gifts go into your DuMeGud wallet. Send the money to your Orange Money or AfriMoney when you want.",
   },
 ];
 
@@ -84,7 +84,7 @@ function Hero() {
             Get paid by fans who <span className="text-primary">love</span> your work.
           </h1>
           <p className="max-w-lg animate-rise text-lg text-muted [animation-delay:120ms] sm:text-xl">
-            Make a free page and share the link. Your fans send you money with Orange Money or Afrimoney. They
+            Make a free page and share the link. Your fans send you money with Orange Money or AfriMoney. They
             don&apos;t need an app.
           </p>
           <div className="flex w-full animate-rise flex-col gap-3 [animation-delay:180ms] sm:w-auto sm:flex-row">
@@ -221,7 +221,7 @@ function WaysToEarn() {
                 </span>
                 <h3 className="text-2xl font-bold">Your money goes to your phone</h3>
                 <p className="max-w-md text-white/70">
-                  Withdraw to your own Orange Money or Afrimoney number. We check your ID once, so only you can take
+                  Withdraw to your own Orange Money or AfriMoney number. We check your ID once, so only you can take
                   your money out.
                 </p>
               </div>

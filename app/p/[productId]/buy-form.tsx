@@ -39,7 +39,7 @@ export function BuyForm({ productId, priceMinor }: { productId: string; priceMin
       </SubmitButton>
       <p className="flex items-center justify-center gap-1.5 text-center text-sm text-muted">
         <LockKeyIcon aria-hidden="true" className="size-4 shrink-0" />
-        Pay with Orange Money or Afrimoney. Safe checkout by Monime.
+        Pay with Orange Money or AfriMoney. Safe checkout by Monime.
       </p>
     </form>
   );

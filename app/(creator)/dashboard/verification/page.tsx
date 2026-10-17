@@ -1,18 +1,19 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Alert } from "@/components/ui/Alert";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { verifySession } from "@/server/dal/session";
 import { services } from "@/server/services";
 import { KycForm } from "../wallet/forms";
 
-export const metadata: Metadata = { title: "Verification" };
+export const metadata: Metadata = { title: "Verify your ID" };
 
 export default function VerificationPage() {
   return (
     <>
-      <h1 className="text-title">Verify your identity</h1>
-      <p className="text-muted">We verify every creator before they can withdraw. It keeps your money, and your supporters, safe.</p>
-      <Suspense fallback={<p className="text-muted">Loading…</p>}>
+      <h1 className="text-title">Verify your ID</h1>
+      <p className="text-muted">We check every creator once before they can withdraw. This keeps your money safe, and your fans too.</p>
+      <Suspense fallback={<Skeleton className="h-40 w-full !rounded-brand-lg" />}>
         <Verification />
       </Suspense>
     </>
@@ -22,17 +23,17 @@ export default function VerificationPage() {
 async function Verification() {
   const { actor } = await verifySession();
   const status = await services.kyc.getStatus(actor);
-  if (status.status === "approved") return <Alert tone="success">You&apos;re verified.</Alert>;
-  if (status.status === "pending") return <Alert tone="info">Your documents are waiting for review. We&apos;ll email you.</Alert>;
+  if (status.status === "approved") return <Alert tone="success">You&apos;re verified. You can withdraw your money.</Alert>;
+  if (status.status === "pending") return <Alert tone="info">Thanks! We&apos;re checking your documents now. We&apos;ll email you when it&apos;s done.</Alert>;
   return (
     <>
       {status.status === "rejected" || status.status === "needs_more_info" ? (
         <Alert tone="warning">
-          {status.status === "rejected" ? "We couldn't approve your last submission." : "We need a little more information."}
-          {status.note ? ` ${status.note}` : ""} Please submit again.
+          {status.status === "rejected" ? "We couldn't approve your documents." : "We need a bit more from you."}
+          {status.note ? ` ${status.note}` : ""} Please send them again.
         </Alert>
       ) : null}
-      {services.kyc.uploadsEnabled ? <KycForm /> : <p className="text-muted">Verification uploads aren&apos;t available yet.</p>}
+      {services.kyc.uploadsEnabled ? <KycForm /> : <p className="text-muted">ID checks aren&apos;t open yet. We&apos;ll email you when they are.</p>}
     </>
   );
 }

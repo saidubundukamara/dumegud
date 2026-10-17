@@ -6,6 +6,7 @@ import { TRAFFIC_SOURCE_LABELS } from "@/lib/traffic-source";
 import { verifySession } from "@/server/dal/session";
 import { services } from "@/server/services";
 import type { SupporterDTO } from "@/server/services/ContributionService";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 
 export const metadata: Metadata = { title: "Supporters" };
 
@@ -13,7 +14,7 @@ export default function SupportersPage() {
   return (
     <>
       <h1 className="text-title">Supporters</h1>
-      <Suspense fallback={<p className="text-muted">Loading…</p>}>
+      <Suspense fallback={<PageSkeleton />}>
         <Supporters />
       </Suspense>
     </>
@@ -31,7 +32,7 @@ async function Supporters() {
     <>
       {processing.length ? (
         <section className="flex flex-col gap-3">
-          <h2 className="text-xl font-bold">Processing</h2>
+          <h2 className="text-xl font-bold">Waiting to be confirmed</h2>
           <p className="text-sm text-muted">Not confirmed yet. These count only once the payment succeeds.</p>
           <ul className="flex flex-col gap-2">
             {processing.map((s) => (

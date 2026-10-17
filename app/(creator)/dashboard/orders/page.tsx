@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { formatSLE } from "@/lib/money";
 import { verifySession } from "@/server/dal/session";
 import { services } from "@/server/services";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 
 export const metadata: Metadata = { title: "Orders" };
 
@@ -10,7 +11,7 @@ export default function OrdersPage() {
   return (
     <>
       <h1 className="text-title">Orders</h1>
-      <Suspense fallback={<p className="text-muted">Loading…</p>}>
+      <Suspense fallback={<PageSkeleton />}>
         <Orders />
       </Suspense>
     </>

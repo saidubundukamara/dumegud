@@ -9,6 +9,7 @@ import { verifySession } from "@/server/dal/session";
 import { services } from "@/server/services";
 import { shoutoutOptionsSchema, type ShoutoutOptionsInput } from "@/server/validation/shoutout";
 import { CaptionEditor, MarkPostedForm } from "./forms";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 
 export const metadata: Metadata = { title: "Thank your supporters" };
 
@@ -22,13 +23,13 @@ export default function ShoutoutsPage({ searchParams }: PageProps<"/dashboard/sh
   return (
     <>
       <div className="flex flex-col gap-2">
-        <h1 className="text-title">Thank your supporters</h1>
+        <h1 className="text-title">Thank your fans</h1>
         <p className="text-muted">
           A shout-out makes supporters feel seen, and the people you tag often share it, which brings new supporters to your
           page. Only supporters who agreed to be mentioned appear here.
         </p>
       </div>
-      <Suspense fallback={<p className="text-muted">Loading…</p>}>
+      <Suspense fallback={<PageSkeleton />}>
         <Shoutouts searchParams={searchParams} />
       </Suspense>
     </>

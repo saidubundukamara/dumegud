@@ -51,7 +51,7 @@ export function ProductForm({
         inputMode="decimal"
         required
         defaultValue={initial.price}
-        hint="Buyers pay exactly this. Fees are deducted from it."
+        hint="Buyers pay this price. Our fee comes out of it."
         errors={state.fieldErrors?.price}
       />
       <SelectField label="Category" name="categoryId" defaultValue={initial.categoryId} errors={state.fieldErrors?.categoryId}>

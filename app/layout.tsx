@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     template: "%s · DuMeGud",
   },
   description:
-    "Make a free page, share your link, and get paid by your fans with Orange Money or Afrimoney. Sell your e-books, music and art too.",
+    "Make a free page, share your link, and get paid by your fans with Orange Money or AfriMoney. Sell your e-books, music and art too.",
   applicationName: "DuMeGud",
 };
 

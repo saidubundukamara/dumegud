@@ -79,7 +79,7 @@ export function ProfileForm({ initial, categories, appHost, handleLockedUntil, i
       {handleLockedUntil ? <input type="hidden" name="handle" value={values.handle} /> : null}
 
       <TextAreaField
-        label="Bio"
+        label="About you"
         name="bio"
         maxLength={BIO_MAX}
         rows={5}

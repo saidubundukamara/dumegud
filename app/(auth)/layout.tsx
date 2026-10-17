@@ -35,7 +35,7 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
             />
           </div>
         </div>
-        <p className="relative text-white/60">Paid with Orange Money and Afrimoney.</p>
+        <p className="relative text-white/60">Paid with Orange Money and AfriMoney.</p>
       </aside>
     </div>
   );

@@ -6,6 +6,7 @@ import { formatSLE } from "@/lib/money";
 import { verifySession } from "@/server/dal/session";
 import { services } from "@/server/services";
 import { PRODUCT_STATUS_LABELS } from "./labels";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 
 export const metadata: Metadata = { title: "Products" };
 
@@ -18,7 +19,7 @@ export default function ProductsPage() {
           New product
         </Link>
       </div>
-      <Suspense fallback={<p className="text-muted">Loading…</p>}>
+      <Suspense fallback={<PageSkeleton />}>
         <ProductList />
       </Suspense>
     </>

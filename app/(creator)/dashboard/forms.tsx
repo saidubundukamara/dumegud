@@ -110,16 +110,16 @@ export function PublishControls({ published, canPublish }: { published: boolean;
       {published ? (
         <form action={unpublish}>
           <SubmitButton variant="secondary" pendingLabel="Hiding…">
-            Unpublish my page
+            Hide my page
           </SubmitButton>
         </form>
       ) : (
         <form action={publish}>
-          <SubmitButton disabled={!canPublish} pendingLabel="Publishing…">
-            Publish my page
+          <SubmitButton disabled={!canPublish} pendingLabel="Going live…">
+            Make my page live
           </SubmitButton>
           {!canPublish ? (
-            <p className="mt-2 text-sm text-muted">Finish the checklist above to publish.</p>
+            <p className="mt-2 text-sm text-muted">Finish the steps above to go live.</p>
           ) : null}
         </form>
       )}
