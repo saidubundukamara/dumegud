@@ -1,0 +1,1 @@
+ALTER TABLE "payouts" ADD COLUMN "approvals" jsonb DEFAULT '[]'::jsonb NOT NULL;

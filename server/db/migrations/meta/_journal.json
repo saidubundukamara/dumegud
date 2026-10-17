@@ -57,6 +57,55 @@
       "when": 1792255244387,
       "tag": "0007_seed_product_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792256304235,
+      "tag": "0008_wallet",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792256304732,
+      "tag": "0009_seed_payout_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792257004556,
+      "tag": "0010_risk",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792257005030,
+      "tag": "0011_append_only_and_seed_risk",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792257739752,
+      "tag": "0012_payout_approvals",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792257740191,
+      "tag": "0013_seed_admin_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792259899045,
+      "tag": "0014_payment_review_approval",
+      "breakpoints": true
     }
   ]
 }

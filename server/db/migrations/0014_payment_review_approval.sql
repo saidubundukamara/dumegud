@@ -1,0 +1,1 @@
+ALTER TABLE "payments" ADD COLUMN "review_approved_at" timestamp with time zone;

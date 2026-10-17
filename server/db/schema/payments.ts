@@ -73,6 +73,10 @@ export const payments = pgTable(
     ipHash: text(),
     idempotencyKey: text().notNull().unique(),
     lastError: text(),
+    /** Set when a limit said "review" at checkout: settlement sends the payment to review, not success. */
+    reviewHold: text(),
+    /** Staff released this payment from review: limit holds don't apply to it again. */
+    reviewApprovedAt: timestamp({ withTimezone: true }),
     settledAt: timestamp({ withTimezone: true }),
     /** True once money moved to the creator: the split can never change after this. */
     settlementFrozen: boolean().notNull().default(false),

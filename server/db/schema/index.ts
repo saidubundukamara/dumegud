@@ -6,3 +6,5 @@ export * from "./creators";
 export * from "./webhooks";
 export * from "./payments";
 export * from "./products";
+export * from "./wallet";
+export * from "./risk";
