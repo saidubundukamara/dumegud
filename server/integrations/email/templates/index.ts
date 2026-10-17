@@ -105,3 +105,40 @@ export function passwordChangedTemplate(p: { resetUrl: string }): Rendered {
     }),
   };
 }
+
+export function orderReceiptTemplate(p: {
+  productTitle: string;
+  orderRef: string;
+  libraryUrl: string;
+  downloadLimit: number;
+  accessDays: number;
+}): Rendered {
+  return {
+    tag: "receipt-order",
+    subject: `Your download: ${p.productTitle.slice(0, 60)}`,
+    ...layout({
+      heading: "Thanks for your purchase",
+      paragraphs: [
+        `Order #${p.orderRef}: ${p.productTitle}.`,
+        `You can download it up to ${p.downloadLimit} times in the next ${p.accessDays} days. Keep this email: the link is your access.`,
+      ],
+      action: { label: "Open your downloads", url: p.libraryUrl },
+      footer: "Don't share this link: anyone with it can use your downloads.",
+    }),
+  };
+}
+
+export function libraryLinksTemplate(p: { items: { title: string; url: string }[]; recoverUrl: string }): Rendered {
+  return {
+    tag: "library-links",
+    subject: "Your DuMeGud downloads",
+    ...layout({
+      heading: "Your downloads",
+      paragraphs: [
+        "Here are the links to the things you bought on DuMeGud:",
+        ...p.items.map((i) => `${i.title}: ${i.url}`),
+      ],
+      footer: `You asked for these at ${p.recoverUrl}. If that wasn't you, you can ignore this email.`,
+    }),
+  };
+}

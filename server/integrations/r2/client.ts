@@ -2,7 +2,9 @@ import "server-only";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   NoSuchKey,
+  NotFound,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -56,5 +58,47 @@ export class R2Storage implements ObjectStorage {
 
   async deleteObject(bucket: string, key: string) {
     await this.s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  }
+
+  async headObject(bucket: string, key: string) {
+    try {
+      const res = await this.s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+      return { size: res.ContentLength ?? 0, contentType: res.ContentType };
+    } catch (err) {
+      if (err instanceof NotFound || err instanceof NoSuchKey) return null;
+      throw err;
+    }
+  }
+
+  async getRange(bucket: string, key: string, start: number, end: number) {
+    try {
+      const res = await this.s3.send(new GetObjectCommand({ Bucket: bucket, Key: key, Range: `bytes=${start}-${end}` }));
+      return await res.Body!.transformToByteArray();
+    } catch (err) {
+      if (err instanceof NoSuchKey) return null;
+      throw err;
+    }
+  }
+
+  async streamObject(bucket: string, key: string) {
+    try {
+      const res = await this.s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+      return res.Body as unknown as AsyncIterable<Uint8Array>;
+    } catch (err) {
+      if (err instanceof NoSuchKey) return null;
+      throw err;
+    }
+  }
+
+  presignGet({ bucket, key, expiresInSeconds, filename, contentType }: Parameters<ObjectStorage["presignGet"]>[0]) {
+    // RFC 6266: an ASCII fallback plus the UTF-8 name.
+    const ascii = filename.replace(/[^\x20-\x7e]|["\\]/g, "_");
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ResponseContentDisposition: `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      ResponseContentType: contentType,
+    });
+    return getSignedUrl(this.s3, command, { expiresIn: expiresInSeconds });
   }
 }
