@@ -117,4 +117,17 @@ export class CreatorProfileRepository extends BaseRepository {
       await db.insert(socialLinks).values(links.map((l, position) => ({ profileId, ...l, position })));
     }
   }
+
+  async setVerificationTier(userId: string, tier: CreatorProfile["verificationTier"], tx?: Executor): Promise<void> {
+    await this.exec(tx).update(creatorProfiles).set({ verificationTier: tier }).where(eq(creatorProfiles.userId, userId));
+  }
+
+  async setRiskTier(userId: string, tier: CreatorProfile["riskTier"], tx?: Executor): Promise<void> {
+    await this.exec(tx).update(creatorProfiles).set({ riskTier: tier }).where(eq(creatorProfiles.userId, userId));
+  }
+
+  async setStatusByStaff(profileId: string, status: ProfileStatus, tx?: Executor): Promise<CreatorProfile | null> {
+    const [row] = await this.exec(tx).update(creatorProfiles).set({ status }).where(eq(creatorProfiles.id, profileId)).returning();
+    return row ?? null;
+  }
 }

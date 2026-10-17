@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import { ledgerEntries, ledgerJournals } from "@/server/db/schema";
 import { BaseRepository } from "./BaseRepository";
@@ -32,5 +32,16 @@ export class LedgerRepository extends BaseRepository {
       .from(ledgerEntries)
       .where(eq(ledgerEntries.account, account));
     return Number(row?.total ?? 0);
+  }
+
+  /** Recent lines on one account with their journal kind (wallet history). */
+  async history(account: string, limit = 50, tx?: Executor) {
+    return this.exec(tx)
+      .select({ amountMinor: ledgerEntries.amountMinor, kind: ledgerJournals.kind, paymentId: ledgerJournals.paymentId, at: ledgerEntries.createdAt })
+      .from(ledgerEntries)
+      .innerJoin(ledgerJournals, eq(ledgerJournals.id, ledgerEntries.journalId))
+      .where(eq(ledgerEntries.account, account))
+      .orderBy(desc(ledgerEntries.createdAt))
+      .limit(Math.min(limit, 100));
   }
 }

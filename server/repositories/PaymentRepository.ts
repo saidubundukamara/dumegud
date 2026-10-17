@@ -171,4 +171,13 @@ export class PaymentRepository extends BaseRepository {
       .where(and(eq(payments.status, "succeeded"), isNull(payments.monimeFeeMinor), sql`${payments.settledAt} < ${olderThan}`))
       .limit(limit);
   }
+
+  /** Creator net of settled payments not yet moved to their wallet ("on its way"). */
+  async pendingTransferTotal(creatorId: string, tx?: Executor): Promise<number> {
+    const [row] = await this.exec(tx)
+      .select({ total: sql<string>`coalesce(sum(${payments.creatorNetMinor}), 0)` })
+      .from(payments)
+      .where(and(eq(payments.creatorId, creatorId), eq(payments.status, "succeeded"), eq(payments.settlementFrozen, false)));
+    return Number(row?.total ?? 0);
+  }
 }
