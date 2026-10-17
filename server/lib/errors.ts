@@ -45,6 +45,15 @@ export class ForbiddenError extends AppError {
   }
 }
 
+/** A sensitive admin action needs the password re-entered (step-up). */
+export class StepUpRequiredError extends AppError {
+  readonly code = "STEP_UP_REQUIRED";
+  readonly status = 403;
+  constructor(message = "Confirm your password to continue (sensitive action).") {
+    super(message);
+  }
+}
+
 export class NotFoundError extends AppError {
   readonly code = "NOT_FOUND";
   readonly status = 404;

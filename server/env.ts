@@ -69,6 +69,8 @@ const schema = z
     R2_PUBLIC_BASE_URL: optionalUrl,
     /** Private bucket for sellable files (and their watermarked copies). */
     R2_PRODUCTS_BUCKET: z.string().min(1).default("dumegud-products"),
+    /** Private bucket for identity documents; separate so its access can be audited and locked down. */
+    R2_KYC_BUCKET: z.string().min(1).default("dumegud-kyc"),
 
     // Field encryption (AES-256-GCM) for buyer emails and, later, KYC data. Base64, 32 bytes.
     // Set FIELD_ENCRYPTION_KEY_PREVIOUS while rotating so old values still decrypt.

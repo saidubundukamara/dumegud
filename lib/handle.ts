@@ -13,7 +13,7 @@ const HANDLE_RE = /^[a-z0-9](?:[a-z0-9_]{1,28}[a-z0-9])$/;
 export const ROUTE_HANDLES: ReadonlySet<string> = new Set([
   "about", "admin", "api", "auth", "dashboard", "dumegud", "forbidden", "forgot_password", "help",
   "legal", "library", "login", "logout", "monime", "p", "pricing", "privacy", "register",
-  "reset_password", "settings", "signin", "signup", "staff", "static", "support", "terms",
+  "report", "reset_password", "settings", "signin", "signup", "staff", "static", "support", "terms",
   "verify_email", "www",
 ]);
 

@@ -26,6 +26,8 @@ export const RATE_LIMIT_POLICIES = {
   "library-recovery:email": { limit: 3, window: "1 h" },
   "library-recovery:ip": { limit: 10, window: "1 h" },
   "provider-kyc:user": { limit: 5, window: "1 h" },
+  /** Each withdrawal attempt costs a Monime provider-KYC lookup. */
+  "payout:user": { limit: 10, window: "1 h" },
   "report:ip": { limit: 10, window: "1 h" },
 } as const satisfies Record<string, Policy>;
 
