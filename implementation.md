@@ -923,6 +923,17 @@ Checks, in order (each a typed error with a creator-friendly message):
 - Changing the number → 48h block + email.
 - A holder-name change at withdrawal → refused + flagged.
 
+### Implementation notes (as built)
+- **Ledger:** no new `ledger_entries` shape (Phase 4's journals are used). A payout posts `payout:{payoutId}`: Dr `creator_payable` / Cr `creator_wallet` for amount + fee, only on completion. Balance = min(Monime live, ledger `creator_wallet`), failing closed. Display falls back to the ledger with an "updating" flag, and drift between the two is logged.
+- **Unknown outcomes never become `failed`:** a network error or 5xx from `POST /payouts` leaves the payout `requested` (with `lastError`), and `PayoutService.dispatch` re-sends it with the same `payout-{id}` key. Only a definitive 4xx marks it `failed`; otherwise the creator could re-request and be paid twice. `dispatch` and `syncFromMonime` are the Phase 9 reconcile entry points.
+- **Completion:** looked up by Monime id, then `metadata.payoutId`, under a row lock with a `completionApplied` guard. Webhook, replay and reconcile can race safely. A `completed` after we marked `failed` is recorded, with an error logged; a `failed` after `completed` is ignored. The fee comes from `fees[]`, or the quoted fee flagged `estimated`.
+- **Open payout:** checked first for a clear message; the partial unique index is the real guard.
+- **KYC:** documents go only to `R2_KYC_BUCKET` (staging key → re-encoded JPEG, EXIF stripped → `kyc/{userId}/{uuid}/{doc}.jpg`). Legal name and date of birth are encrypted. The ID number is stored as `pepperedHash("kyc-id", type:number)` with a partial unique index on approved submissions. Staff view documents through the session-checked `/api/admin/kyc/[id]/[doc]` stream (no presigned URLs, `no-store`); views and decisions are logged, with audit log rows in Phase 7/8. A minimal staff queue lives at `/admin/kyc`.
+- **Payout method:** `lib/phone.ts` normalises to `232XXXXXXXX`. Operator prefixes are in `platform_settings` (**placeholder values; verify with Monime/MNOs**). Provider-KYC holder name vs legal name uses `matchNames` (token-based, accent-insensitive, initials-tolerant). A mismatch → `needs_recheck` while `kyc.nameMatchEnforced`. Cooldown is 24h on the first number and 48h plus an email on a change; promotion to `active` happens lazily on read. At withdrawal the holder is re-checked; any change flags the method and refuses (SIM swap).
+- **Review:** payouts above `payouts.autoApproveMax` (placeholder Le 1,000), or from high/restricted risk tiers, wait at `/admin/payouts` (release/reject; dual approval in Phase 8).
+- **Settings added** (migration `0009`, placeholders): payout fee estimate 100 bps, min payout Le 50, auto-approve max Le 1,000, kill-switch, cooldown hours, name-match enforcement, operator prefixes.
+- **Dev:** the simulator has `register_kyc` (`{ msisdn, holderName }`) so numbers can be bound against the fake Monime.
+
 ---
 
 ## Phase 7 — Risk, limits & compliance
@@ -957,6 +968,16 @@ Checks, in order (each a typed error with a creator-friendly message):
 - 10 rapid contributions from one fingerprint → an alert. Breaching the supporter→creator 24h limit → payment `under_review`, no transfer.
 - An `app_rw` attempt to UPDATE `audit_logs` → error.
 
+### Implementation notes (as built)
+- **Append-only by trigger:** migration `0011` installs `dumegud_reject_mutation()` as BEFORE UPDATE/DELETE triggers on `audit_logs`, `ledger_entries`, `ledger_journals`, `payment_events`, `download_events` and `platform_settings_history`, so it holds for every DB role (role grants are still worth adding in Neon). TRUNCATE stays available to the owner.
+- **Limits** (`transaction_limits`, seeded with the PRD §6.2 illustrative figures, **not approved**): `LimitService.precheck` before checkout (per-contribution, creator receipts, checkouts per IP) → `block` refuses with a neutral message; `review` stores `payments.review_hold` and settlement sends the payment to `under_review` instead of `succeeded`. `postcheck` runs **inside** the settlement transaction once the payer fingerprint is known (supporter→creator, supporter-global) and holds a succeeded, untransferred payment (`succeeded → under_review` was added to the state machine for this); alerts are raised **after** commit. `payoutCheck` caps withdrawals (`block` refuses, `review` → `in_review`). Totals are live SUM/COUNTs, no counter table.
+- **Risk rules** (`risk_rules`, parameters seeded as placeholders): RAPID_REPEAT, JUST_BELOW_THRESHOLD, SAME_PAYER_CONCENTRATION, NEW_CREATOR_SPIKE, PAYOUT_DETAIL_CHURN, FAILURE_SPIKE, SELF_FUNDING (payment network = a network the creator signed in from). They run after settlement and after payout-number changes. Each alert is deduplicated per rule and subject per day, and limit breaches become `LIMIT_*` alerts. A high-severity alert raises the risk tier (low → medium, medium → high on repeats) and never restricts.
+- **Cases:** `CaseService` opens cases from alerts and records decisions. Restrict = an `all` restriction; pause_feature = one feature; restore lifts restrictions. Restrict/pause/restore for a creator owed ≥ `risk.dualApprovalMinBalance` (placeholder Le 1,000) needs a second, different staff member (`pending_decision` → `awaiting_approval`). `RestrictionService.assertAllowed` gates receive (checkout), withdraw, publish (page and product) and upload.
+- **Audit:** `AuditService.log` is called by every staff decision (product, KYC decision and every document view, payouts release/reject, cases, reports, limits, settings) and by creator payout requests, payout-number changes and handle changes. Services take `audit`/`restrictions`/`limits`/`risk` as dependencies wired in `services/index.ts` (no-ops when omitted in unit tests).
+- **Settings history:** `AdminConfigService.updateSetting` (super_admin) validates with the same schema `PlatformSettingsService` reads, bumps `version`, appends `platform_settings_history` and audits. Limits are edited at `/admin/limits` (super_admin), with every change audited before/after. The settings editor UI is Phase 8.
+- **Reports:** `/report?type=creator|product&id=…` (BotID + `report:ip`), linked from creator and product pages. The `/admin/reports` queue can dismiss or take down (suspend + `moderation_actions` + audit + cache tags).
+- **Fix found by the integration test:** queries inside a transaction must use the transaction (`tx`). The first postcheck read profiles/limits on the root connection: a deadlock on PGlite, and on Neon a read outside the transaction (alerts could outlive a rolled-back settlement).
+
 ---
 
 ## Phase 8 — Admin dashboard
@@ -982,6 +1003,13 @@ Platform account IDs come from env; the admin page shows them read-only plus the
 ### Acceptance
 - A non-staff POST to any admin action → `forbidden()`.
 - Every mutation produces an `audit_logs` row.
+
+### Implementation notes (as built)
+- **Step-up:** `requireStaffStepUp()` (DAL) requires a `dmg_stepup` cookie: HMAC (key derived from `AUTH_SECRET`) over `userId|sessionVersion|exp`, 10 minutes, httpOnly, `SameSite=Strict`. It's set after `AuthService.confirmPassword` (rate-limited like login; staff without a password can't step up). Binding it to `sessionVersion` means "sign out everywhere", a role change or suspension voids it. Attempts are audited (`step_up.success/failure`). The admin layout shows a password field or a countdown. **Sensitive actions** call it inside `runForm`, so a missing step-up shows as a form error while non-staff still get `forbidden()`: limit edits, settings, risk rules, KYC approval, case restrict/pause/restore, payout release and re-dispatch, held-payment release, webhook replay, user status/role changes, and the audit CSV export.
+- **Dual approval:** payouts ≥ `payouts.dualApprovalMin` (placeholder Le 5,000) need two different staff (`payouts.approvals`). Case decisions already had it (Phase 7).
+- **Held payments:** `SettlementService.releaseFromReview` moves `under_review → succeeded` through the same fulfilment as a normal success (order entitlement), then sends the receipt and starts the transfer. It sets `payments.review_approved_at`, so neither a checkout review hold nor a replayed payment event's limit postcheck can hold it again. There is no "reverse" (no refund mechanism yet; see Phase 10).
+- **Modules** (`(admin)/admin/*`): overview (counts plus live platform balance), creators (search by handle prefix, exact email or id; detail; status and role changes, which bump `sessionVersion`; staff can't change staff, their own status or role, and only super admins can close accounts), transactions (filters, detail with Monime ids, `payment_events` timeline, ledger lines, re-sync, retry transfer, release from review), payouts (review queue, stuck list with re-send using the same key, or re-sync), KYC/products/reports/risk/limits (Phases 5–7), settings plus risk-rule editor (JSON values validated against the settings schema, versioned), audit viewer with filters plus a CSV export route (super admin, step-up, audited, formula-neutralised cells), webhook events with replay of `failed`/`dead` (`WebhookService.replay`, handlers are idempotent). The cron history and ledger-drift tiles are placeholders until Phase 9.
+- **Acceptance tests:** `tests/unit/admin-guards.test.ts` discovers every `actions.ts` under `app/(admin)` and asserts each export returns 403 for a signed-in creator, and that a sensitive action refuses staff without step-up before calling its service. `tests/integration/admin-flow.test.ts` covers held-payment release, payout dual approval, webhook replay, user status/role rules, creator search and the audit export.
 
 ---
 
