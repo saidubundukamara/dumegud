@@ -26,3 +26,8 @@ export function getDb(): DB {
   globalForDb.__dumegudDb ??= createDb();
   return globalForDb.__dumegudDb;
 }
+
+/** Test-only: point every repository at another Drizzle Postgres database (PGlite in tests). */
+export function setDbForTests(db: unknown): void {
+  globalForDb.__dumegudDb = db as DB;
+}
