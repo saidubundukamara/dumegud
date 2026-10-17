@@ -80,7 +80,7 @@ export function PaymentStatus({ back, retryLabel = "Try again", successTitle, su
     return (
       <div role="status" className="flex flex-col gap-6">
         <StatusBlock
-          tone="primary"
+          tone="success"
           title={successTitle}
           decoration={<Confetti />}
           icon={

@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function FaqPage() {
   return (
-    <main className="flex flex-1 flex-col px-4 pb-16 pt-28 sm:px-6 md:pt-40">
+    <main id="main" tabIndex={-1} className="flex flex-1 flex-col px-4 pb-16 pt-28 sm:px-6 md:pt-40">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-12">
         <header className="flex animate-rise flex-col gap-5">
           <Eyebrow>Questions</Eyebrow>

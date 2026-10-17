@@ -36,7 +36,7 @@ export const FAQ_MORE: FaqItem[] = [
   },
   {
     q: "Can fans stay anonymous?",
-    a: "Yes. They can tick \"Keep my name private\" and their name won't show on your page.",
+    a: "Yes. They can tick \"Hide my name\" and their name won't show on your page.",
   },
   {
     q: "What is a shout-out?",

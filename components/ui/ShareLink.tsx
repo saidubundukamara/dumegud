@@ -43,7 +43,7 @@ export function ShareLink({
 
   return (
     <div className={`flex flex-wrap gap-2 ${className}`}>
-      <button type="button" onClick={copy} className={buttonClasses(variant, "relative min-w-36")}>
+      <button type="button" onClick={copy} className={buttonClasses(share ? "secondary" : variant, "relative min-w-36")}>
         <AnimatePresence mode="popLayout" initial={false}>
           <m.span
             key={copied ? "done" : "copy"}
@@ -65,7 +65,7 @@ export function ShareLink({
         <button
           type="button"
           onClick={() => void navigator.share({ url, title, text }).catch(() => {})}
-          className={buttonClasses(variant === "primary" ? "dark" : "primary")}
+          className={buttonClasses(variant)}
         >
           <ShareNetworkIcon aria-hidden="true" className="size-5" />
           Share

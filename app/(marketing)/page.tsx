@@ -45,7 +45,7 @@ const CRAFTS: PhotoSlotKey[] = ["musician", "artist", "writer", "teacher", "come
 
 export default function Home() {
   return (
-    <main className="flex flex-1 flex-col">
+    <main id="main" tabIndex={-1} className="flex flex-1 flex-col">
       <Hero />
       <HowItWorks />
       <WaysToEarn />
@@ -148,8 +148,8 @@ function WaysToEarn() {
       <div className="mx-auto flex max-w-5xl flex-col gap-12">
         <Reveal className="flex max-w-2xl flex-col gap-4">
           <Eyebrow tone="neutral">What you can do</Eyebrow>
-          <h2 className="text-title">Two ways to earn, one link.</h2>
-          <p className="text-lg text-muted">Fans can send you a gift, or buy something you made. Both happen on your page.</p>
+          <h2 className="text-title">One link does it all.</h2>
+          <p className="text-lg text-muted">Fans send gifts or buy your work, you thank them, and the money goes to your phone.</p>
         </Reveal>
 
         <div className="grid gap-4 md:grid-cols-6 md:gap-5">
@@ -262,7 +262,7 @@ function WhoItsFor() {
         <h2 className="text-title max-w-2xl">If people enjoy what you make, this is for you.</h2>
       </Reveal>
       {/* Bleeds to the screen edge on phones so the rail reads as swipeable. */}
-      <ul className="no-scrollbar -mx-4 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-4 px-4 pb-4 sm:-mx-6 sm:scroll-px-6 sm:px-6 md:mx-auto md:max-w-5xl md:px-0">
+      <ul aria-label="Kinds of creators" className="no-scrollbar -mx-4 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-4 px-4 pb-4 sm:-mx-6 sm:scroll-px-6 sm:px-6 md:mx-auto md:max-w-5xl md:px-0">
         {CRAFTS.map((slot) => (
           <li key={slot} className="relative w-56 shrink-0 snap-start overflow-hidden rounded-brand-xl shadow-soft md:w-64">
             <PhotoSlot slot={slot} className="aspect-[4/5]" sizes="256px" />

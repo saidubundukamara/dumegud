@@ -11,15 +11,16 @@ import { defaultShoutoutPlatform, isShoutoutPlatform, type ShoutoutPlatform } fr
 import { detectSource } from "@/lib/traffic-source";
 import { addShoutout } from "../../actions";
 
-export function SupportStatus() {
+export function SupportStatus({ displayName }: { displayName: string | null }) {
   const { handle } = useParams<{ handle: string }>();
+  const name = displayName?.trim().split(/\s+/)[0] || `@${handle}`;
   return (
     <PaymentStatus
       back={{ href: `/${handle}`, label: `Back to @${handle}` }}
       successTitle="Thank you!"
       success={(_libraryUrl, { paymentId, canAddShoutout }) => (
         <>
-          <p>Your gift went through. It means a lot to @{handle}.</p>
+          <p>Your gift went through. {name} will love this.</p>
           {canAddShoutout ? <ShoutoutPrompt paymentId={paymentId} handle={handle} /> : null}
         </>
       )}

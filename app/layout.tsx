@@ -37,6 +37,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${uiFont.variable} ${displayFont.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
+        <a
+          href="#main"
+          className="sr-only z-[60] rounded-full bg-accent font-semibold text-white focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:px-5 focus:py-3"
+        >
+          Skip to content
+        </a>
         <MotionProvider>
           {/* Route changes are transitions, so this cross-fades pages (no-op where unsupported). */}
           <ViewTransition>{children}</ViewTransition>

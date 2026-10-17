@@ -10,7 +10,7 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
         <header className="relative px-4 pt-3 sm:px-6 sm:pt-4">
           <Wordmark />
         </header>
-        <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-4 pb-16 pt-8 sm:px-6">
+        <main id="main" tabIndex={-1} className="relative mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-4 pb-16 pt-8 sm:px-6">
           <div className="flex animate-rise flex-col gap-6">{children}</div>
         </main>
       </div>

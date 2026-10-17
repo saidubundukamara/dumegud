@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Creator terms" };
 // Placeholder until the reviewed legal text lands (implementation.md Phase 10, "Legal & content").
 export default function CreatorTermsPage() {
   return (
-    <main className="flex flex-1 flex-col px-4 pb-16 pt-28 sm:px-6 md:pt-40">
+    <main id="main" tabIndex={-1} className="flex flex-1 flex-col px-4 pb-16 pt-28 sm:px-6 md:pt-40">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
         <Eyebrow tone="neutral">Legal</Eyebrow>
         <h1 className="text-title">Creator terms</h1>

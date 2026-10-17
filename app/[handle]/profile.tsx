@@ -130,12 +130,12 @@ export function Profile({
       ) : null}
 
       <footer className="flex flex-col items-center gap-3 pt-6 text-center text-sm text-muted">
-        <Link href="/register" className="font-semibold text-text hover:text-primary">
+        <Link href="/register" className="inline-flex min-h-11 items-center font-semibold text-text hover:text-primary">
           Want a page like this? Make one for free
         </Link>
         <Link
           href={`/report?type=creator&id=${profile.id}`}
-          className="inline-flex min-h-10 items-center gap-1.5 underline-offset-4 hover:underline"
+          className="inline-flex min-h-11 items-center gap-1.5 underline-offset-4 hover:underline"
           prefetch={false}
         >
           <FlagIcon aria-hidden="true" className="size-4" />

@@ -22,7 +22,7 @@ const FREE = [
 
 export default function PricingPage() {
   return (
-    <main className="flex flex-1 flex-col px-4 pb-16 pt-28 sm:px-6 md:pt-40">
+    <main id="main" tabIndex={-1} className="flex flex-1 flex-col px-4 pb-16 pt-28 sm:px-6 md:pt-40">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-16">
         <header className="flex max-w-2xl animate-rise flex-col gap-5">
           <Eyebrow>Fees</Eyebrow>

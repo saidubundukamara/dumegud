@@ -16,6 +16,7 @@
   --color-surface-muted: var(--dmg-surface-muted);
   --color-border: var(--dmg-border);
   --color-border-strong: var(--dmg-border-strong);
+  --color-control-border: var(--dmg-control-border);
   --color-text: var(--dmg-text);
   --color-muted: var(--dmg-muted);
   --color-focus: var(--dmg-focus);
@@ -74,6 +75,11 @@ p {
 :focus-visible {
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+/* Skip-link targets take focus programmatically; no ring needed there. */
+main:focus {
+  outline: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {

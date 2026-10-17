@@ -27,6 +27,8 @@
   --dmg-surface-muted: #f3eee8;
   --dmg-border: rgb(26 21 20 / 0.08);
   --dmg-border-strong: rgb(26 21 20 / 0.16);
+  /* Form-control outline: ≥3.25:1 on the page, the input fill and white (WCAG 1.4.11). */
+  --dmg-control-border: #8c827b;
   --dmg-text: #1a1514;
   --dmg-muted: #6b615b;
   --dmg-focus: #1d4ed8;

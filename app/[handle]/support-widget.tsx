@@ -9,7 +9,7 @@ import { Field, TextAreaField } from "@/components/ui/Field";
 import { Card } from "@/components/ui/Card";
 import { quoteSplit } from "@/lib/fees";
 import { initialFormState } from "@/lib/form-state";
-import { formatSLE, MINOR_PER_MAJOR, parseMajorToMinor } from "@/lib/money";
+import { formatSLECompact, MINOR_PER_MAJOR, parseMajorToMinor } from "@/lib/money";
 import { defaultShoutoutPlatform, isShoutoutPlatform, type ShoutoutPlatform } from "@/lib/shoutout";
 import { detectSource, type TrafficSource } from "@/lib/traffic-source";
 import { startSupport } from "./actions";
@@ -117,11 +117,11 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
               required
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              hint={`From ${formatSLE(settings.minMinor)} to ${formatSLE(settings.maxMinor)}.`}
+              hint={`From ${formatSLECompact(settings.minMinor)} to ${formatSLECompact(settings.maxMinor)}.`}
               errors={state.fieldErrors?.amount}
               className="[&_input]:!min-h-14 [&_input]:!pl-12 [&_input]:text-xl [&_input]:font-bold"
             />
-            <span aria-hidden="true" className="pointer-events-none absolute left-4 top-[2.74rem] text-xl font-bold text-muted">
+            <span aria-hidden="true" className="pointer-events-none absolute left-4 top-[2.74rem] text-xl font-bold text-text">
               Le
             </span>
           </div>
@@ -143,16 +143,6 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
             </button>
             {/* Kept in the form while folded so nothing typed is ever lost. */}
             <div id="support-extras" hidden={!moreOpen} className="flex animate-rise flex-col gap-4 px-3 pb-3">
-              <label className="flex min-h-11 items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="isAnonymous"
-                  className="size-5 accent-primary"
-                  checked={anonymous}
-                  onChange={(e) => setAnonymous(e.target.checked)}
-                />
-                Keep my name private
-              </label>
               {!anonymous ? (
                 <Field
                   label="Your name"
@@ -164,6 +154,16 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
                   errors={state.fieldErrors?.supporterName}
                 />
               ) : null}
+              <label className="-mt-1 flex min-h-11 items-center gap-3">
+                <input
+                  type="checkbox"
+                  name="isAnonymous"
+                  className="size-5 accent-primary"
+                  checked={anonymous}
+                  onChange={(e) => setAnonymous(e.target.checked)}
+                />
+                Hide my name
+              </label>
 
               {supportMessageEnabled ? (
                 <TextAreaField
@@ -217,12 +217,12 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
             <p className="min-h-6 text-center text-sm text-muted" aria-live="polite">
               {quote ? (
                 <>
-                  {firstName} gets about <strong className="text-text">{formatSLE(quote.creatorNetMinor)}</strong> after fees.
+                  {firstName} gets about <strong className="text-text">{formatSLECompact(quote.creatorNetMinor)}</strong> after fees.
                 </>
               ) : null}
             </p>
             <SubmitButton disabled={!inRange} size="lg" pendingLabel="Opening checkout…" className="w-full">
-              {quote ? `Send ${formatSLE(quote.grossMinor)}` : "Pick an amount"}
+              {quote ? `Send ${formatSLECompact(quote.grossMinor)}` : "Pick an amount"}
             </SubmitButton>
             <p className="flex items-center justify-center gap-1.5 text-center text-sm text-muted">
               <LockKeyIcon aria-hidden="true" className="size-4 shrink-0" />

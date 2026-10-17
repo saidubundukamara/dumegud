@@ -1,16 +1,37 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { StatusPage } from "@/components/checkout/StatusScreen";
+import { handleFormatError, normalizeHandle } from "@/lib/handle";
+import { logger } from "@/server/lib/logger";
+import { getCachedPublicProfile } from "@/server/queries/public-profile";
 import { SupportStatus } from "./support-status";
 
 export const metadata: Metadata = { title: "Confirming your payment", robots: { index: false } };
 
-export default function SupportSuccessPage() {
+type Props = PageProps<"/[handle]/support/success">;
+
+export default function SupportSuccessPage({ params }: Props) {
   return (
     <StatusPage>
       <Suspense fallback={<h1 className="text-title text-center">Confirming your payment…</h1>}>
-        <SupportStatus />
+        <WithCreatorName params={params} />
       </Suspense>
     </StatusPage>
   );
+}
+
+/** The thank-you names the creator ("Aminata will love this"), not just the handle. */
+async function WithCreatorName({ params }: Pick<Props, "params">) {
+  const { handle } = await params;
+  let displayName: string | null = null;
+  if (!handleFormatError(normalizeHandle(handle))) {
+    try {
+      const result = await getCachedPublicProfile(handle);
+      if (result.kind === "found") displayName = result.profile.displayName;
+    } catch (error) {
+      // The name is a nicety: the status poll below is what matters.
+      logger.warn("support success: creator name unavailable", { error: String(error) });
+    }
+  }
+  return <SupportStatus displayName={displayName} />;
 }

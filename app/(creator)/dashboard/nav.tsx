@@ -62,7 +62,15 @@ function SignOut({ className = "" }: { className?: string }) {
  * the menu in a "More" sheet. Desktop: a fixed sidebar with everything.
  */
 export function DashboardNav() {
-  const pathname = usePathname();
+  return <DashboardNavView pathname={usePathname()} />;
+}
+
+/** Same nav with nothing marked active: the static shell shown while the path streams in. */
+export function DashboardNavFallback() {
+  return <DashboardNavView pathname="" />;
+}
+
+function DashboardNavView({ pathname }: { pathname: string }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const closeMore = useCallback(() => setMoreOpen(false), []);
   const moreActive = MORE.some((i) => isActive(pathname, i.href));

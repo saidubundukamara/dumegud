@@ -16,6 +16,8 @@ export function StatusPage({ children, align = "center" }: { children: ReactNode
       <PageGlow />
       <PublicHeader cta={false} />
       <main
+        id="main"
+        tabIndex={-1}
         className={`relative mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 pb-20 sm:px-6 ${align === "center" ? "justify-center pt-10" : "pt-10 sm:pt-16"}`}
       >
         {children}

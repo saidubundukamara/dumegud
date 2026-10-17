@@ -9,7 +9,7 @@ export function PublicHeader({ cta = true }: { cta?: boolean }) {
       {cta ? (
         <Link
           href="/register"
-          className="inline-flex min-h-10 items-center rounded-full bg-surface/80 px-4 text-sm font-semibold shadow-soft ring-1 ring-border backdrop-blur transition-colors hover:ring-border-strong"
+          className="inline-flex min-h-11 items-center rounded-full bg-surface/80 px-4 text-sm font-semibold shadow-soft ring-1 ring-border backdrop-blur transition-colors hover:ring-border-strong"
         >
           Make your own page
         </Link>

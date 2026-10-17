@@ -33,7 +33,7 @@ export function SiteNav() {
               <li key={l.href}>
                 <Link
                   href={l.href}
-                  className="rounded-full px-4 py-2 font-medium text-muted transition-colors duration-200 hover:bg-surface-muted hover:text-text"
+                  className="inline-flex min-h-11 items-center rounded-full px-4 font-medium text-muted transition-colors duration-200 hover:bg-surface-muted hover:text-text"
                 >
                   {l.label}
                 </Link>
@@ -43,11 +43,11 @@ export function SiteNav() {
           <div className="flex items-center gap-1">
             <Link
               href="/login"
-              className="hidden rounded-full px-4 py-2 font-medium text-muted transition-colors hover:text-text md:inline-flex"
+              className="hidden min-h-11 items-center rounded-full px-4 font-medium text-muted transition-colors hover:text-text md:inline-flex"
             >
               Log in
             </Link>
-            <Link href="/register" className={buttonClasses("primary", "!min-h-10 !px-4 text-[0.9375rem]")}>
+            <Link href="/register" className={buttonClasses("primary", "!min-h-11 !px-4 text-[0.9375rem]")}>
               Start free
             </Link>
             <button

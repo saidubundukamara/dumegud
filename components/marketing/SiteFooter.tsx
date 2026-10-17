@@ -4,7 +4,7 @@ import { Wordmark } from "@/components/brand/Wordmark";
 
 const COLUMNS: { title: string; links: { href: Route; label: string }[] }[] = [
   {
-    title: "DuMeGud",
+    title: "Learn more",
     links: [
       { href: "/#how", label: "How it works" },
       { href: "/pricing", label: "Fees" },
@@ -42,7 +42,7 @@ export function SiteFooter() {
             <ul className="flex flex-col">
               {col.links.map((l) => (
                 <li key={l.href}>
-                  <Link href={l.href} className="inline-flex min-h-10 items-center font-medium hover:text-primary">
+                  <Link href={l.href} className="inline-flex min-h-11 items-center font-medium hover:text-primary">
                     {l.label}
                   </Link>
                 </li>

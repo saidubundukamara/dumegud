@@ -5,7 +5,7 @@ type Common = { label: string; name: string; errors?: string[]; hint?: ReactNode
 
 // Filled control: no grey box, a soft ring that turns blue on focus and crimson when invalid.
 const CONTROL =
-  "w-full rounded-brand bg-surface-muted px-4 text-[1.0625rem] text-text ring-1 ring-transparent transition-[box-shadow,background-color] duration-200 ease-brand placeholder:text-muted/70 hover:ring-border-strong focus:bg-surface focus:outline-none focus:ring-2 focus:ring-focus aria-invalid:ring-2 aria-invalid:ring-danger disabled:opacity-60";
+  "w-full rounded-brand bg-surface-muted px-4 text-[1.0625rem] text-text ring-1 ring-control-border transition-[box-shadow,background-color] duration-200 ease-brand placeholder:text-muted hover:ring-text focus:bg-surface focus:outline-none focus:ring-2 focus:ring-focus aria-invalid:ring-2 aria-invalid:ring-danger disabled:opacity-60";
 
 /** Label, hint and errors wired to the control through aria-describedby. */
 function FieldShell({

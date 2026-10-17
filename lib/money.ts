@@ -43,6 +43,12 @@ const formatter = new Intl.NumberFormat("en-SL", {
   maximumFractionDigits: 2,
 });
 
+/** Like formatSLE but drops ".00" on whole amounts: 5000 → "Le 50", 125075 → "Le 1,250.75". */
+export function formatSLECompact(amount: Minor): string {
+  const full = formatSLE(amount);
+  return full.endsWith(".00") ? full.slice(0, -3) : full;
+}
+
 /** Format minor units for display, e.g. 125075 → "Le 1,250.75". */
 export function formatSLE(amount: Minor): string {
   assertMinor(amount);

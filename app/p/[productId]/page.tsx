@@ -37,7 +37,7 @@ export default function ProductPage({ params }: Props) {
     <div className="relative flex flex-1 flex-col">
       <PageGlow />
       <PublicHeader />
-      <main className="relative mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 px-4 pb-28 pt-8 sm:px-6 md:pb-16">
+      <main id="main" tabIndex={-1} className="relative mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 px-4 pb-28 pt-8 sm:px-6 md:pb-16">
         <Suspense
           fallback={
             <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading">

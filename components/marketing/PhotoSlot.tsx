@@ -1,9 +1,26 @@
+import {
+  BookOpenIcon,
+  CameraIcon,
+  ChalkboardTeacherIcon,
+  MaskHappyIcon,
+  MusicNotesIcon,
+  PaintBrushIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import Image from "next/image";
 import { MARKETING_PHOTOS, type PhotoSlotKey } from "@/lib/marketing-images";
 
+const CRAFT_ICONS: Partial<Record<PhotoSlotKey, typeof MusicNotesIcon>> = {
+  musician: MusicNotesIcon,
+  artist: PaintBrushIcon,
+  writer: BookOpenIcon,
+  teacher: ChalkboardTeacherIcon,
+  comedian: MaskHappyIcon,
+  photographer: CameraIcon,
+};
+
 /**
- * A marketing photo, or a warm branded placeholder until the real photo is supplied
- * (see lib/marketing-images.ts). The placeholder is decorative.
+ * A marketing photo, or a deliberate branded tile until the real photo is supplied
+ * (see lib/marketing-images.ts). The tile is decorative.
  */
 export function PhotoSlot({
   slot,
@@ -24,13 +41,22 @@ export function PhotoSlot({
       </div>
     );
   }
+  const Icon = CRAFT_ICONS[slot];
+  if (!Icon) {
+    // Person slot (e.g. the hero avatar): the same initial avatar real pages show without a photo.
+    return (
+      <div aria-hidden="true" className={`flex items-center justify-center bg-primary font-display font-bold text-white ${className}`}>
+        <span className="text-[2em]">{photo.name.slice(0, 1)}</span>
+      </div>
+    );
+  }
   return (
     <div
       aria-hidden="true"
-      className={`relative overflow-hidden bg-[radial-gradient(120%_90%_at_20%_10%,var(--color-primary-soft),transparent_60%),radial-gradient(90%_80%_at_90%_100%,color-mix(in_srgb,var(--color-celebrate),transparent_70%),transparent_60%)] bg-surface-muted ${className}`}
+      className={`relative flex items-center justify-center overflow-hidden bg-[radial-gradient(90%_70%_at_30%_20%,var(--color-primary-soft),transparent_70%)] bg-surface ${className}`}
     >
-      <span className="absolute inset-0 flex items-center justify-center font-display text-[min(30vw,7rem)] font-bold tracking-[-0.06em] text-primary/15">
-        {photo.name.slice(0, 1)}
+      <span className="flex size-20 items-center justify-center rounded-full bg-primary text-white shadow-primary">
+        <Icon weight="duotone" className="size-10" />
       </span>
     </div>
   );
