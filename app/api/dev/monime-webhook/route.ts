@@ -27,6 +27,8 @@ const bodySchema = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("end_checkout"), sessionId: z.string(), status: z.enum(["failed", "cancelled", "expired"]) }),
   z.object({ action: z.literal("settle_payout"), payoutId: z.string(), outcome: z.enum(["completed", "failed"]) }),
+  /** Make a number "registered" with a holder name in the fake provider KYC. */
+  z.object({ action: z.literal("register_kyc"), msisdn: z.string().regex(/^232\d{8}$/), holderName: z.string().min(1).max(120) }),
   z.object({
     action: z.literal("raw"),
     name: z.string(),
@@ -70,6 +72,9 @@ export async function POST(request: Request): Promise<Response> {
         return Response.json({ deliveries: await deliver([fake.endCheckout(input.sessionId, input.status)]) });
       case "settle_payout":
         return Response.json({ deliveries: await deliver([fake.settlePayout(input.payoutId, input.outcome)]) });
+      case "register_kyc":
+        fake.kyc.set(input.msisdn, input.holderName);
+        return Response.json({ registered: input.msisdn });
       case "raw":
         return Response.json({ deliveries: await deliver([envelope(input.name, input.object, input.data)]) });
     }

@@ -4,6 +4,8 @@ import { createEmailService, type EmailService } from "@/server/integrations/ema
 import { createMonime, type MonimeClient } from "@/server/integrations/monime";
 import { sharedFakeMonimeServer } from "@/server/integrations/monime/fake";
 import { R2Storage } from "@/server/integrations/r2/client";
+import { AdminRepository } from "@/server/repositories/AdminRepository";
+import { AuditRepository } from "@/server/repositories/AuditRepository";
 import { AuthEventRepository } from "@/server/repositories/AuthEventRepository";
 import { AuthTokenRepository } from "@/server/repositories/AuthTokenRepository";
 import { CategoryRepository } from "@/server/repositories/CategoryRepository";
@@ -11,20 +13,35 @@ import { CreatorProfileRepository } from "@/server/repositories/CreatorProfileRe
 import { CreatorWalletRepository } from "@/server/repositories/CreatorWalletRepository";
 import { HandleRepository } from "@/server/repositories/HandleRepository";
 import { LedgerRepository } from "@/server/repositories/LedgerRepository";
+import { KycRepository } from "@/server/repositories/KycRepository";
 import { OrderRepository } from "@/server/repositories/OrderRepository";
+import { PayoutMethodRepository } from "@/server/repositories/PayoutMethodRepository";
+import { PayoutRepository } from "@/server/repositories/PayoutRepository";
 import { PaymentRepository } from "@/server/repositories/PaymentRepository";
 import { PlatformSettingsRepository } from "@/server/repositories/PlatformSettingsRepository";
 import { ProductRepository } from "@/server/repositories/ProductRepository";
+import { RiskRepository } from "@/server/repositories/RiskRepository";
 import { UserRepository } from "@/server/repositories/UserRepository";
 import { WebhookEventRepository } from "@/server/repositories/WebhookEventRepository";
+import { AdminConfigService } from "./AdminConfigService";
+import { AdminService } from "./AdminService";
 import { AuthService } from "./AuthService";
 import { AvatarService } from "./AvatarService";
+import { BalanceService } from "./BalanceService";
+import { CaseService } from "./CaseService";
+import { AuditService, RestrictionService } from "./compliance";
 import { ContributionService } from "./ContributionService";
 import { CreatorService } from "./CreatorService";
 import { DownloadService } from "./DownloadService";
+import { KycService } from "./KycService";
+import { LimitService } from "./LimitService";
 import { OrderService } from "./OrderService";
+import { PayoutMethodService } from "./PayoutMethodService";
+import { PayoutService } from "./PayoutService";
 import { ProductReviewService } from "./ProductReviewService";
 import { ProductService } from "./ProductService";
+import { ReportService } from "./ReportService";
+import { RiskService } from "./RiskService";
 import { PlatformSettingsService } from "./PlatformSettingsService";
 import { SettlementService } from "./SettlementService";
 import { TransferService } from "./TransferService";
@@ -51,7 +68,19 @@ export const repos = {
   settings: new PlatformSettingsRepository(),
   products: new ProductRepository(),
   orders: new OrderRepository(),
+  kyc: new KycRepository(),
+  payoutMethods: new PayoutMethodRepository(),
+  payouts: new PayoutRepository(),
+  audit: new AuditRepository(),
+  risk: new RiskRepository(),
+  admin: new AdminRepository(),
 };
+
+// Compliance hooks shared by most services (stateless, safe to create at import).
+const audit = new AuditService(repos.audit);
+const restrictions = new RestrictionService(repos.risk);
+const limits = new LimitService(repos.risk);
+const risk = new RiskService(repos);
 
 let email: EmailService | undefined;
 let monime: MonimeClient | undefined;
@@ -69,6 +98,14 @@ let products: ProductService | undefined;
 let productReview: ProductReviewService | undefined;
 let orders: OrderService | undefined;
 let downloads: DownloadService | undefined;
+let kyc: KycService | undefined;
+let balances: BalanceService | undefined;
+let payoutMethods: PayoutMethodService | undefined;
+let payouts: PayoutService | undefined;
+let cases: CaseService | undefined;
+let reports: ReportService | undefined;
+let adminConfig: AdminConfigService | undefined;
+let admin: AdminService | undefined;
 
 /** Null while R2 isn't configured. */
 function getStorage(): R2Storage | null {
@@ -121,15 +158,19 @@ export const services = {
   get creators(): CreatorService {
     creators ??= new CreatorService({
       repos,
+      audit,
+      restrictions,
       publicAssetUrl,
     });
     return creators;
   },
   get webhooks(): WebhookService {
-    // Event name → handler. Phase 6 adds payouts. Unregistered events are recorded as
-    // `ignored` and answered 200.
+    // Event name → handler. Unregistered events are recorded as `ignored` and answered 200.
     if (!webhooks) {
-      const handlers: Partial<Record<string, WebhookHandler>> = { ...services.settlement.webhookHandlers() };
+      const handlers: Partial<Record<string, WebhookHandler>> = {
+        ...services.settlement.webhookHandlers(),
+        ...services.payouts.webhookHandlers(),
+      };
       webhooks = new WebhookService(repos.webhookEvents, handlers);
     }
     return webhooks;
@@ -145,6 +186,8 @@ export const services = {
   get settlement(): SettlementService {
     settlement ??= new SettlementService({
       repos,
+      limits,
+      risk,
       fulfilment: { order: services.orders },
       transfers: services.transfers,
       settings: services.settings,
@@ -155,6 +198,9 @@ export const services = {
   get contributions(): ContributionService {
     contributions ??= new ContributionService({
       repos,
+      restrictions,
+      limits,
+      risk,
       monime: getMonime(),
       settings: services.settings,
       platformAccountId,
@@ -166,6 +212,7 @@ export const services = {
     const env = getEnv();
     products ??= new ProductService({
       repos,
+      restrictions,
       settings: services.settings,
       storage: getStorage(),
       buckets: { products: env.R2_PRODUCTS_BUCKET, uploads: env.R2_UPLOADS_BUCKET, public: env.R2_PUBLIC_BUCKET },
@@ -174,13 +221,16 @@ export const services = {
     return products;
   },
   get productReview(): ProductReviewService {
-    productReview ??= new ProductReviewService(repos.products, repos.profiles);
+    productReview ??= new ProductReviewService(repos.products, repos.profiles, undefined, audit);
     return productReview;
   },
   get orders(): OrderService {
     const env = getEnv();
     orders ??= new OrderService({
       repos,
+      restrictions,
+      limits,
+      risk,
       products: services.products,
       monime: getMonime(),
       email: getEmail(),
@@ -195,6 +245,78 @@ export const services = {
     const env = getEnv();
     downloads ??= new DownloadService(repos, getStorage(), env.R2_PRODUCTS_BUCKET, env.DOWNLOAD_SIGNING_SECRET);
     return downloads;
+  },
+  get kyc(): KycService {
+    const env = getEnv();
+    kyc ??= new KycService({ repos, audit, storage: getStorage(), bucket: env.R2_KYC_BUCKET, email: getEmail(), appBaseUrl: env.APP_BASE_URL });
+    return kyc;
+  },
+  get balances(): BalanceService {
+    balances ??= new BalanceService(repos, getMonime(), services.settings);
+    return balances;
+  },
+  get payoutMethods(): PayoutMethodService {
+    payoutMethods ??= new PayoutMethodService({
+      repos,
+      audit,
+      risk,
+      kyc: services.kyc,
+      monime: getMonime(),
+      settings: services.settings,
+      email: getEmail(),
+      appBaseUrl: getEnv().APP_BASE_URL,
+    });
+    return payoutMethods;
+  },
+  get payouts(): PayoutService {
+    payouts ??= new PayoutService({
+      repos,
+      audit,
+      restrictions,
+      limits,
+      monime: getMonime(),
+      balances: services.balances,
+      methods: services.payoutMethods,
+      kyc: services.kyc,
+      settings: services.settings,
+      email: getEmail(),
+      appBaseUrl: getEnv().APP_BASE_URL,
+    });
+    return payouts;
+  },
+  get restrictions(): RestrictionService {
+    return restrictions;
+  },
+  get risk(): RiskService {
+    return risk;
+  },
+  get cases(): CaseService {
+    cases ??= new CaseService(repos, services.settings, audit);
+    return cases;
+  },
+  get reports(): ReportService {
+    reports ??= new ReportService(repos, audit);
+    return reports;
+  },
+  get adminConfig(): AdminConfigService {
+    adminConfig ??= new AdminConfigService(repos, audit);
+    return adminConfig;
+  },
+  get admin(): AdminService {
+    admin ??= new AdminService({
+      repos,
+      audit,
+      monime: getMonime(),
+      platformAccountId,
+      settlement: services.settlement,
+      transfers: services.transfers,
+      payouts: services.payouts,
+      webhooks: () => services.webhooks,
+    });
+    return admin;
+  },
+  get audit(): AuditService {
+    return audit;
   },
   /** Null while R2 isn't configured: the UI hides photo upload. */
   get avatars(): AvatarService | null {
