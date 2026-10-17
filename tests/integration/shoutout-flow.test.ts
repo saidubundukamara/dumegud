@@ -157,6 +157,7 @@ describe("shout-outs", () => {
 
     // Not paid yet → refused.
     expect(await contributions.canAddShoutout(started.paymentId, started.claim!)).toBe(false);
+    expect(await contributions.paidAmountForClaim(started.paymentId, started.claim!)).toBeNull();
     const payment = (await repos.payments.findById(started.paymentId))!;
     for (const e of monimeServer.completeCheckout(payment.monimeCheckoutSessionId!)) {
       await webhooks.handleMonime(parseMonimeEvent(JSON.stringify(e))!, e);
@@ -165,7 +166,13 @@ describe("shout-outs", () => {
     await expect(add(undefined)).rejects.toThrow(/expired/);
     await expect(add(`${started.paymentId}.wrong-secret`)).rejects.toThrow(/expired/);
     expect(await contributions.canAddShoutout(started.paymentId, started.claim!)).toBe(true);
+    // The thank-you amount is for the paying browser only.
+    expect(await contributions.paidAmountForClaim(started.paymentId, started.claim!)).toBe(payment.grossMinor);
+    expect(await contributions.paidAmountForClaim(started.paymentId, `${started.paymentId}.wrong-secret`)).toBeNull();
+    expect(await contributions.paidAmountForClaim(started.paymentId, undefined)).toBeNull();
     expect((await add(started.claim!)).tags).toHaveLength(1);
+    // Still theirs after adding a handle (the shout-out form closes, the thank-you stays).
+    expect(await contributions.paidAmountForClaim(started.paymentId, started.claim!)).toBe(payment.grossMinor);
     await expect(add(started.claim!, "someone_else")).rejects.toThrow(/expired/);
 
     const row = (await repos.shoutouts.findContributionByPaymentId(started.paymentId))!;

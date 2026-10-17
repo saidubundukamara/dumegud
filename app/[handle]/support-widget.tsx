@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState, useState, useSyncExternalStore } from "react";
-import { ShoutoutFields } from "@/components/shoutout/shoutout-fields";
+import { useActionState, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { CaretDownIcon, LockKeyIcon } from "@phosphor-icons/react/dist/ssr";
 import { Alert } from "@/components/ui/Alert";
 import { SubmitButton } from "@/components/ui/Button";
@@ -10,7 +9,6 @@ import { Card } from "@/components/ui/Card";
 import { quoteSplit } from "@/lib/fees";
 import { initialFormState } from "@/lib/form-state";
 import { formatSLECompact, MINOR_PER_MAJOR, parseMajorToMinor } from "@/lib/money";
-import { defaultShoutoutPlatform, isShoutoutPlatform, type ShoutoutPlatform } from "@/lib/shoutout";
 import { detectSource, type TrafficSource } from "@/lib/traffic-source";
 import { startSupport } from "./actions";
 
@@ -48,13 +46,8 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
   const [anonymous, setAnonymous] = useState(false);
   const [name, setName] = useState(state.values?.supporterName ?? "");
   const source = useSyncExternalStore(noSubscribe, detectBrowserSource, () => null);
-  const [pickedPlatform, setPlatform] = useState<ShoutoutPlatform | null>(null);
-  const echoedPlatform = state.values?.socialPlatform;
-  const platform = pickedPlatform ?? (isShoutoutPlatform(echoedPlatform) ? echoedPlatform : defaultShoutoutPlatform(source));
-  const [handle, setHandle] = useState(state.values?.socialHandle ?? "");
-  // Consent follows the username until the supporter decides for themselves.
-  const [consent, setConsent] = useState<boolean | null>(null);
-  const consentChecked = consent ?? handle.trim() !== "";
+  // Shout-out usernames are asked for after payment (thank-you page); here only name consent.
+  const [consent, setConsent] = useState(false);
 
   const minor = parseMajorToMinor(amount);
   const inRange = minor !== null && minor >= settings.minMinor && minor <= settings.maxMinor;
@@ -62,8 +55,7 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
   const errs = state.fieldErrors ?? {};
   const [moreOpen, setMoreOpen] = useState(
     Boolean(
-      errs.supporterName || errs.socialHandle || errs.socialPlatform || errs.message ||
-        state.values?.supporterName || state.values?.socialHandle || state.values?.message,
+      errs.supporterName || errs.message || state.values?.supporterName || state.values?.message,
     ),
   );
   const firstName = displayName.trim().split(/\s+/)[0] || displayName;
@@ -84,28 +76,11 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
           {state.status === "error" && state.message ? <Alert tone="danger">{state.message}</Alert> : null}
 
           {suggested.length ? (
-            <fieldset className="grid grid-cols-3 gap-2">
-              <legend className="sr-only">Suggested amounts</legend>
-              {suggested.map((a) => {
-                const text = toMajorText(a);
-                const selected = amount === text;
-                return (
-                  <button
-                    key={a}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => setAmount(text)}
-                    className={`min-h-14 rounded-brand px-2 text-lg font-bold transition-[background-color,box-shadow,transform,color] duration-300 ease-spring active:scale-95 ${
-                      selected
-                        ? "scale-[1.03] bg-primary-soft text-primary-pressed ring-2 ring-primary"
-                        : "bg-surface-muted text-text ring-1 ring-transparent hover:ring-border-strong"
-                    }`}
-                  >
-                    Le {text}
-                  </button>
-                );
-              })}
-            </fieldset>
+            <AmountPicker
+              options={suggested.map(toMajorText)}
+              value={amount}
+              onChange={setAmount}
+            />
           ) : null}
 
           <div className="relative">
@@ -177,38 +152,20 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
                 />
               ) : null}
 
-              {!anonymous ? (
-                <fieldset className="flex flex-col gap-3 rounded-brand bg-surface p-4 shadow-soft">
-                  <legend className="sr-only">Shout-out</legend>
-                  <div className="flex flex-col gap-1">
-                    <p className="font-semibold">Want a shout-out?</p>
-                    <p className="text-sm text-muted">
-                      {firstName} thanks fans in posts. Add your username so they can tag you.
-                    </p>
-                  </div>
-                  <ShoutoutFields
-                    platform={platform}
-                    onPlatformChange={setPlatform}
-                    handle={handle}
-                    onHandleChange={setHandle}
-                    errors={{ socialPlatform: state.fieldErrors?.socialPlatform, socialHandle: state.fieldErrors?.socialHandle }}
+              {!anonymous && name.trim() ? (
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    name="shoutoutConsent"
+                    className="mt-0.5 size-5 shrink-0 accent-primary"
+                    checked={consent}
+                    onChange={(e) => setConsent(e.target.checked)}
                   />
-                  {handle.trim() || name.trim() ? (
-                    <label className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        name="shoutoutConsent"
-                        className="mt-0.5 size-5 shrink-0 accent-primary"
-                        checked={consentChecked}
-                        onChange={(e) => setConsent(e.target.checked)}
-                      />
-                      <span>
-                        {firstName} can mention me in thank-you posts
-                        <span className="block text-sm text-muted">Untick to stay out of posts. Your gift still counts.</span>
-                      </span>
-                    </label>
-                  ) : null}
-                </fieldset>
+                  <span>
+                    {firstName} can thank me by name in posts
+                    <span className="block text-sm text-muted">You can add your TikTok or Instagram after paying.</span>
+                  </span>
+                </label>
               ) : null}
             </div>
           </div>
@@ -232,5 +189,53 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
         </form>
       </section>
     </Card>
+  );
+}
+
+/**
+ * Preset amounts as a radio group (WAI-ARIA pattern): one tab stop, arrow keys move and select.
+ * Typing a custom amount clears the selection.
+ */
+function AmountPicker({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const selected = options.indexOf(value);
+  const tabStop = selected >= 0 ? selected : 0;
+
+  function onKeyDown(e: KeyboardEvent<HTMLButtonElement>, i: number) {
+    const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = (i + step + options.length) % options.length;
+    onChange(options[next]);
+    refs.current[next]?.focus();
+  }
+
+  return (
+    <div role="radiogroup" aria-label="Pick an amount" className="grid grid-cols-3 gap-2">
+      {options.map((text, i) => {
+        const checked = i === selected;
+        return (
+          <button
+            key={text}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={checked}
+            tabIndex={i === tabStop ? 0 : -1}
+            onClick={() => onChange(text)}
+            onKeyDown={(e) => onKeyDown(e, i)}
+            className={`min-h-14 rounded-brand px-2 text-lg font-bold transition-[background-color,box-shadow,transform,color] duration-300 ease-spring active:scale-95 ${
+              checked
+                ? "scale-[1.03] bg-primary-soft text-primary-pressed ring-2 ring-primary"
+                : "bg-surface-muted text-text ring-1 ring-transparent hover:ring-border-strong"
+            }`}
+          >
+            Le {text}
+          </button>
+        );
+      })}
+    </div>
   );
 }

@@ -1,8 +1,12 @@
 "use client";
 
+import { CheckIcon } from "@phosphor-icons/react/dist/ssr";
+import { m } from "motion/react";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useActionState, useState } from "react";
 import { PaymentStatus } from "@/components/checkout/payment-status";
+import { CountUp } from "@/components/motion/CountUp";
 import { ShoutoutFields } from "@/components/shoutout/shoutout-fields";
 import { Alert } from "@/components/ui/Alert";
 import { SubmitButton } from "@/components/ui/Button";
@@ -11,25 +15,61 @@ import { defaultShoutoutPlatform, isShoutoutPlatform, type ShoutoutPlatform } fr
 import { detectSource } from "@/lib/traffic-source";
 import { addShoutout } from "../../actions";
 
-export function SupportStatus({ displayName }: { displayName: string | null }) {
+type Creator = { displayName: string; avatarUrl: string | null } | null;
+
+export function SupportStatus({ creator }: { creator: Creator }) {
   const { handle } = useParams<{ handle: string }>();
-  const name = displayName?.trim().split(/\s+/)[0] || `@${handle}`;
+  const name = creator?.displayName.trim().split(/\s+/)[0] || `@${handle}`;
   return (
     <PaymentStatus
       back={{ href: `/${handle}`, label: `Back to @${handle}` }}
       successTitle="Thank you!"
-      success={(_libraryUrl, { paymentId, canAddShoutout }) => (
+      successIcon={creator ? <CreatorBadge creator={creator} /> : undefined}
+      success={(_libraryUrl, { paymentId, canAddShoutout, amountMinor }) => (
         <>
-          <p>Your gift went through. {name} will love this.</p>
-          {canAddShoutout ? <ShoutoutPrompt paymentId={paymentId} handle={handle} /> : null}
+          <p>
+            {amountMinor ? (
+              <>
+                You sent <CountUp compact minor={amountMinor} className="font-semibold text-text" /> to {name}.{" "}
+              </>
+            ) : (
+              "Your gift went through. "
+            )}
+            {name} will love this.
+          </p>
+          {canAddShoutout ? <ShoutoutPrompt paymentId={paymentId} name={name} /> : null}
         </>
       )}
     />
   );
 }
 
+/** The creator's photo (or initial) with a green "done" badge. */
+function CreatorBadge({ creator }: { creator: NonNullable<Creator> }) {
+  return (
+    <m.span
+      className="relative block size-20"
+      initial={{ scale: 0.6, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: "spring", stiffness: 300, damping: 16 }}
+    >
+      {creator.avatarUrl ? (
+        // Already a 400px WebP from our pipeline; skip the optimizer round-trip.
+        <Image src={creator.avatarUrl} alt="" width={80} height={80} unoptimized className="size-20 rounded-full object-cover ring-4 ring-surface" />
+      ) : (
+        <span className="flex size-20 items-center justify-center rounded-full bg-primary font-display text-3xl font-bold text-white ring-4 ring-surface">
+          {creator.displayName.slice(0, 1).toUpperCase()}
+        </span>
+      )}
+      <span className="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full bg-success text-white ring-4 ring-background">
+        <CheckIcon weight="bold" className="size-4" />
+      </span>
+    </m.span>
+  );
+}
+
 /** Shown only to the browser that paid, when it gave no username at checkout. */
-function ShoutoutPrompt({ paymentId, handle }: { paymentId: string; handle: string }) {
+function ShoutoutPrompt({ paymentId, name }: { paymentId: string; name: string }) {
   const [state, action] = useActionState(addShoutout, initialFormState);
   const initial = state.values?.socialPlatform;
   const [platform, setPlatform] = useState<ShoutoutPlatform>(() =>
@@ -51,7 +91,7 @@ function ShoutoutPrompt({ paymentId, handle }: { paymentId: string; handle: stri
           Want a shout-out?
         </h2>
         <p className="text-sm text-muted">
-          @{handle} thanks fans in posts. Add your username so they can tag you. Or skip it, that&apos;s fine too.
+          {name} thanks fans in posts. Add your username so they can tag you. Or skip it, that&apos;s fine too.
         </p>
       </div>
       <form action={action} className="flex flex-col gap-3" noValidate>
@@ -64,7 +104,7 @@ function ShoutoutPrompt({ paymentId, handle }: { paymentId: string; handle: stri
           onHandleChange={setUsername}
           errors={{ socialPlatform: state.fieldErrors?.socialPlatform, socialHandle: state.fieldErrors?.socialHandle }}
         />
-        <p className="text-sm text-muted">By adding it, you agree @{handle} can mention you in thank-you posts.</p>
+        <p className="text-sm text-muted">By adding it, you agree {name} can mention you in thank-you posts.</p>
         <SubmitButton pendingLabel="Saving…" className="w-full">
           Add me to the shout-out
         </SubmitButton>

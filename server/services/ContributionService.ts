@@ -216,12 +216,29 @@ export class ContributionService {
     return { tags: profile ? [creatorTag(profile.id)] : [] };
   }
 
-  private async claimable(paymentId: string, claimCookie: string | undefined) {
+  /**
+   * Thank-you page: what the paying browser (claim cookie) gave, for a succeeded support payment.
+   * Never shown to anyone else, so a shared success link reveals no amount.
+   */
+  async paidAmountForClaim(paymentId: string, claimCookie: string | undefined): Promise<number | null> {
+    if (!(await this.claimOwns(paymentId, claimCookie))) return null;
+    const payment = await this.repos.payments.findById(paymentId);
+    return payment?.status === "succeeded" ? payment.grossMinor : null;
+  }
+
+  /** The claim cookie belongs to this payment's checkout. Returns its contribution, or null. */
+  private async claimOwns(paymentId: string, claimCookie: string | undefined) {
     if (!claimCookie) return null;
     const [cookiePaymentId, secret] = claimCookie.split(".");
     if (cookiePaymentId !== paymentId || !secret) return null;
     const contribution = await this.repos.shoutouts.findContributionByPaymentId(paymentId);
     if (!contribution?.claimHash || contribution.claimHash !== sha256(secret)) return null;
+    return contribution;
+  }
+
+  private async claimable(paymentId: string, claimCookie: string | undefined) {
+    const contribution = await this.claimOwns(paymentId, claimCookie);
+    if (!contribution) return null;
     if (contribution.isAnonymous || contribution.socialHandle) return null;
     const payment = await this.repos.payments.findById(paymentId);
     if (payment?.status !== "succeeded") return null;

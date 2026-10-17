@@ -21,23 +21,29 @@ type Props = {
   retryLabel?: string;
   /** Heading shown once the payment is verified. */
   successTitle: string;
+  /** Replaces the check icon on success (e.g. the creator's avatar). */
+  successIcon?: ReactNode;
   /**
    * Shown under the heading once the payment is verified. Receives the library link for
    * purchases, and whether this browser may still add a shout-out username for support (both
    * from the claim cookies).
    */
-  success: (libraryUrl: string | null, extra: { paymentId: string; canAddShoutout: boolean }) => ReactNode;
+  success: (
+    libraryUrl: string | null,
+    extra: { paymentId: string; canAddShoutout: boolean; amountMinor: number | null },
+  ) => ReactNode;
 };
 
 /**
  * Polls the payment status. Success appears only once the server has a verified payment
  * (webhook, or Monime itself when polled): arriving on this URL proves nothing.
  */
-export function PaymentStatus({ back, retryLabel = "Try again", successTitle, success }: Props) {
+export function PaymentStatus({ back, retryLabel = "Try again", successTitle, successIcon, success }: Props) {
   const paymentId = useSearchParams().get("p");
   const [status, setStatus] = useState<Status>(paymentId ? "processing" : "unknown");
   const [libraryUrl, setLibraryUrl] = useState<string | null>(null);
   const [canAddShoutout, setCanAddShoutout] = useState(false);
+  const [amountMinor, setAmountMinor] = useState<number | null>(null);
   const [slow, setSlow] = useState(false);
 
   useEffect(() => {
@@ -50,10 +56,16 @@ export function PaymentStatus({ back, retryLabel = "Try again", successTitle, su
           const res = await fetch(`/api/payments/${encodeURIComponent(paymentId!)}/status`, { cache: "no-store" });
           if (res.status === 404) return setStatus("unknown");
           if (res.ok) {
-            const body = (await res.json()) as { status: Status; libraryUrl?: string; canAddShoutout?: boolean };
+            const body = (await res.json()) as {
+              status: Status;
+              libraryUrl?: string;
+              canAddShoutout?: boolean;
+              amountMinor?: number;
+            };
             if (body.status !== "processing") {
               setLibraryUrl(body.libraryUrl ?? null);
               setCanAddShoutout(body.canAddShoutout === true);
+              setAmountMinor(typeof body.amountMinor === "number" ? body.amountMinor : null);
               return setStatus(body.status);
             }
           }
@@ -84,7 +96,7 @@ export function PaymentStatus({ back, retryLabel = "Try again", successTitle, su
           title={successTitle}
           decoration={<Confetti />}
           icon={
-            <m.span
+            successIcon ?? <m.span
               initial={{ scale: 0, rotate: -30 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 14, delay: 0.1 }}
@@ -93,7 +105,7 @@ export function PaymentStatus({ back, retryLabel = "Try again", successTitle, su
             </m.span>
           }
         >
-          {success(libraryUrl, { paymentId: paymentId!, canAddShoutout })}
+          {success(libraryUrl, { paymentId: paymentId!, canAddShoutout, amountMinor })}
         </StatusBlock>
         {backLink("secondary")}
       </div>

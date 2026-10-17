@@ -2,13 +2,14 @@
 
 import { animate, useInView, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { formatSLE } from "@/lib/money";
+import { formatSLE, formatSLECompact } from "@/lib/money";
 
 /**
  * Counts a money amount up from zero when it scrolls into view. The final value is rendered on the
  * server and kept for screen readers, so nothing is lost without JS.
  */
-export function CountUp({ minor, className }: { minor: number; className?: string }) {
+export function CountUp({ minor, className, compact = false }: { minor: number; className?: string; compact?: boolean }) {
+  const format = compact ? formatSLECompact : formatSLE;
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true });
   const reduce = useReducedMotion();
@@ -26,8 +27,8 @@ export function CountUp({ minor, className }: { minor: number; className?: strin
 
   return (
     <span ref={ref} className={className}>
-      <span aria-hidden="true">{formatSLE(shown)}</span>
-      <span className="sr-only">{formatSLE(minor)}</span>
+      <span aria-hidden="true">{format(shown)}</span>
+      <span className="sr-only">{format(minor)}</span>
     </span>
   );
 }

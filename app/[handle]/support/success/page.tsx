@@ -20,18 +20,18 @@ export default function SupportSuccessPage({ params }: Props) {
   );
 }
 
-/** The thank-you names the creator ("Aminata will love this"), not just the handle. */
+/** The thank-you shows the creator (name and photo), not just the handle. */
 async function WithCreatorName({ params }: Pick<Props, "params">) {
   const { handle } = await params;
-  let displayName: string | null = null;
+  let creator: { displayName: string; avatarUrl: string | null } | null = null;
   if (!handleFormatError(normalizeHandle(handle))) {
     try {
       const result = await getCachedPublicProfile(handle);
-      if (result.kind === "found") displayName = result.profile.displayName;
+      if (result.kind === "found") creator = { displayName: result.profile.displayName, avatarUrl: result.profile.avatarUrl };
     } catch (error) {
       // The name is a nicety: the status poll below is what matters.
       logger.warn("support success: creator name unavailable", { error: String(error) });
     }
   }
-  return <SupportStatus displayName={displayName} />;
+  return <SupportStatus creator={creator} />;
 }
