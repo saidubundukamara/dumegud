@@ -1,7 +1,7 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { normalizeHandle } from "@/lib/handle";
-import { creatorTag, handleTag } from "@/server/lib/cache-tags";
+import { creatorTag, handleTag, productTag, SETTINGS_TAG } from "@/server/lib/cache-tags";
 import { services } from "@/server/services";
 import type { PublicProfileResult } from "@/server/services/CreatorService";
 
@@ -20,4 +20,44 @@ export async function getCachedPublicProfile(handle: string): Promise<PublicProf
   if (result.kind === "found") cacheTag(creatorTag(result.profile.id));
   else if (result.kind !== "not_found") cacheTag(creatorTag(result.profileId));
   return result;
+}
+
+/** Names for the "recent supporters" list. Refreshed by settlement via the creator tag. */
+export async function getCachedRecentSupporters(profileId: string): Promise<string[]> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(creatorTag(profileId));
+  return services.contributions.recentSupportersForProfile(profileId);
+}
+
+/** Fee rates and amount limits for the support widget's quote. */
+export async function getCachedSupportSettings() {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(SETTINGS_TAG);
+  const s = await services.settings.get();
+  return {
+    minMinor: s.minContributionMinor,
+    maxMinor: s.maxContributionMinor,
+    platformFeeBps: s.contributionFeeBps,
+    monimeBpsEstimate: s.monimeCollectionBpsEstimate,
+  };
+}
+
+/** Published products for a creator's shop grid. */
+export async function getCachedShop(profileId: string, creatorUserId: string) {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(creatorTag(profileId));
+  return services.products.listPublicForCreator(creatorUserId);
+}
+
+/** Public product page data, or null. Callers check the id format first. */
+export async function getCachedProduct(productId: string) {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(productTag(productId));
+  const product = await services.products.getPublic(productId);
+  if (product) cacheTag(creatorTag(product.creator.profileId));
+  return product;
 }

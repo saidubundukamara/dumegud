@@ -47,7 +47,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     switch (input.action) {
       case "create_checkout": {
-        // Into a dev "platform" account (Phase 4 uses MONIME_PLATFORM_ACCOUNT_ID instead).
+        // A bare checkout into the dev platform account (real ones come from the support widget).
         const platform = fake.accounts.get("fac-dev-platform") ?? fake.seedAccount({ id: "fac-dev-platform", name: "Dev platform" });
         const session = await getMonime().createCheckoutSession(
           {
