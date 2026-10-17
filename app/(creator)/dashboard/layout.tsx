@@ -21,6 +21,9 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
           <Link href="/dashboard/orders" className="px-3 py-2 font-semibold underline-offset-4 hover:underline">
             Orders
           </Link>
+          <Link href="/dashboard/wallet" className="px-3 py-2 font-semibold underline-offset-4 hover:underline">
+            Wallet
+          </Link>
           <Link href="/dashboard/supporters" className="px-3 py-2 font-semibold underline-offset-4 hover:underline">
             Supporters
           </Link>
