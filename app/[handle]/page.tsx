@@ -5,8 +5,10 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { Suspense } from "react";
 import { handleFormatError, normalizeHandle } from "@/lib/handle";
 import { PLATFORM_LABELS } from "@/lib/social";
-import { getCachedPublicProfile } from "@/server/queries/public-profile";
+import { formatSLE } from "@/lib/money";
+import { getCachedPublicProfile, getCachedRecentSupporters, getCachedShop, getCachedSupportSettings } from "@/server/queries/public-profile";
 import type { PublicProfileDTO } from "@/server/services/CreatorService";
+import { SupportWidget } from "./support-widget";
 
 type Props = PageProps<"/[handle]">;
 
@@ -60,12 +62,28 @@ async function CreatorProfile({ params }: Pick<Props, "params">) {
           <p className="text-muted">It can&apos;t be viewed right now.</p>
         </div>
       );
-    case "found":
-      return <Profile profile={result.profile} />;
+    case "found": {
+      const [settings, supporters, shop] = await Promise.all([
+        getCachedSupportSettings(),
+        getCachedRecentSupporters(result.profile.id),
+        getCachedShop(result.profile.id, result.profile.ownerId),
+      ]);
+      return <Profile profile={result.profile} settings={settings} supporters={supporters} shop={shop} />;
+    }
   }
 }
 
-function Profile({ profile }: { profile: PublicProfileDTO }) {
+function Profile({
+  profile,
+  settings,
+  supporters,
+  shop,
+}: {
+  profile: PublicProfileDTO;
+  settings: Awaited<ReturnType<typeof getCachedSupportSettings>>;
+  supporters: string[];
+  shop: Awaited<ReturnType<typeof getCachedShop>>;
+}) {
   return (
     <article className="flex flex-col gap-6">
       <div className="flex flex-col items-center gap-3 text-center">
@@ -98,10 +116,50 @@ function Profile({ profile }: { profile: PublicProfileDTO }) {
         </ul>
       ) : null}
 
-      {/* Phase 4 replaces this with the support widget; until then don't imply payments work. */}
-      <p className="rounded-brand bg-surface px-4 py-3 text-center text-muted">
-        Supporting creators on DuMeGud is coming soon.
-      </p>
+      {/* Published pages always have an active wallet (publish checklist); start() re-checks. */}
+      <SupportWidget
+        handle={profile.handle}
+        displayName={profile.displayName}
+        suggestedAmountsMinor={profile.suggestedAmountsMinor}
+        supportMessageEnabled={profile.supportMessageEnabled}
+        settings={settings}
+      />
+
+      {shop.length ? (
+        <section aria-labelledby="shop-heading" className="flex flex-col gap-3">
+          <h2 id="shop-heading" className="text-xl font-bold">
+            Shop
+          </h2>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {shop.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={`/p/${p.id}`}
+                  className="flex h-full flex-col gap-1 rounded-brand border border-border p-4 hover:bg-surface"
+                >
+                  <span className="font-semibold">{p.title}</span>
+                  <span className="text-muted">{formatSLE(p.priceMinor)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {supporters.length ? (
+        <section aria-labelledby="supporters-heading" className="flex flex-col gap-2">
+          <h2 id="supporters-heading" className="text-lg font-bold">
+            Recent supporters
+          </h2>
+          <ul className="flex flex-wrap gap-2">
+            {supporters.map((name, i) => (
+              <li key={`${name}-${i}`} className="rounded-brand bg-surface px-3 py-1">
+                {name}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </article>
   );
 }
