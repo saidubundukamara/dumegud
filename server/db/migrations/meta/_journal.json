@@ -29,6 +29,34 @@
       "when": 1792253935036,
       "tag": "0003_webhook_events",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792254413858,
+      "tag": "0004_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792254414358,
+      "tag": "0005_seed_platform_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792255243976,
+      "tag": "0006_products",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792255244387,
+      "tag": "0007_seed_product_settings",
+      "breakpoints": true
     }
   ]
 }

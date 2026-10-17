@@ -4,3 +4,5 @@
 export * from "./auth";
 export * from "./creators";
 export * from "./webhooks";
+export * from "./payments";
+export * from "./products";
