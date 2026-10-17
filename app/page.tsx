@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { buttonClasses } from "@/components/ui/button-classes";
+
 export default function Home() {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-6 px-6 py-24">
@@ -7,10 +10,13 @@ export default function Home() {
         Share your DuMeGud link, get support for your work, and sell your digital creations — no app
         needed for your audience.
       </p>
-      <div>
-        <span className="inline-flex h-12 items-center rounded-brand bg-primary px-6 font-semibold text-primary-foreground">
-          Support creators. Fuel good.
-        </span>
+      <div className="flex flex-wrap gap-3">
+        <Link href="/register" className={buttonClasses("primary")}>
+          Create your DuMeGud
+        </Link>
+        <Link href="/login" className={buttonClasses("secondary")}>
+          Sign in
+        </Link>
       </div>
     </main>
   );
