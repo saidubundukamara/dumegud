@@ -156,6 +156,19 @@ export function createMemoryStorage() {
     deleteObject: async (bucket, key) => {
       objects.delete(k(bucket, key));
     },
+    headObject: async (bucket, key) => {
+      const o = objects.get(k(bucket, key));
+      return o ? { size: o.body.byteLength, contentType: o.contentType } : null;
+    },
+    getRange: async (bucket, key, start, end) => objects.get(k(bucket, key))?.body.slice(start, end + 1) ?? null,
+    streamObject: async (bucket, key) => {
+      const o = objects.get(k(bucket, key));
+      if (!o) return null;
+      return (async function* () {
+        for (let i = 0; i < o.body.byteLength; i += 64 * 1024) yield o.body.slice(i, i + 64 * 1024);
+      })();
+    },
+    presignGet: async ({ bucket, key, filename }) => `https://r2.test/${bucket}/${key}?download=${encodeURIComponent(filename)}&signed`,
   };
   return { storage, objects, put: (bucket: string, key: string, body: Uint8Array) => objects.set(k(bucket, key), { body }) };
 }

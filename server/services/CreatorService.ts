@@ -16,6 +16,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type PublicProfileDTO = {
   id: string;
+  /** Internal: lets server code load the creator's shop. Never render it. */
+  ownerId: string;
   handle: string;
   displayName: string;
   bio: string;
@@ -244,6 +246,7 @@ export class CreatorService {
         kind: "found",
         profile: {
           id: profile.id,
+          ownerId: profile.userId,
           handle: profile.handle,
           displayName: profile.displayName,
           bio: profile.bio,

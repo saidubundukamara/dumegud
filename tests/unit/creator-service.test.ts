@@ -180,7 +180,7 @@ describe("getPublicProfile", () => {
     const result = await service.getPublicProfile("@Aminata");
     if (result.kind !== "found") throw new Error("expected found");
     expect(Object.keys(result.profile).sort()).toEqual(
-      ["avatarUrl", "bio", "categoryName", "displayName", "handle", "id", "links", "suggestedAmountsMinor", "supportMessageEnabled"].sort(),
+      ["avatarUrl", "bio", "categoryName", "displayName", "handle", "id", "links", "ownerId", "suggestedAmountsMinor", "supportMessageEnabled"].sort(),
     );
     expect(result.profile.avatarUrl).toBe("https://cdn.dumegud.test/avatars/u1/a.webp");
   });
