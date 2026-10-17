@@ -1,12 +1,15 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useSyncExternalStore } from "react";
+import { ShoutoutFields } from "@/components/shoutout/shoutout-fields";
 import { Alert } from "@/components/ui/Alert";
 import { SubmitButton } from "@/components/ui/Button";
 import { Field, TextAreaField } from "@/components/ui/Field";
 import { quoteSplit } from "@/lib/fees";
 import { initialFormState } from "@/lib/form-state";
 import { formatSLE, MINOR_PER_MAJOR, parseMajorToMinor } from "@/lib/money";
+import { defaultShoutoutPlatform, isShoutoutPlatform, type ShoutoutPlatform } from "@/lib/shoutout";
+import { detectSource, type TrafficSource } from "@/lib/traffic-source";
 import { startSupport } from "./actions";
 
 type Props = {
@@ -20,12 +23,36 @@ type Props = {
 const toMajorText = (minor: number) =>
   minor % MINOR_PER_MAJOR === 0 ? String(minor / MINOR_PER_MAJOR) : (minor / MINOR_PER_MAJOR).toFixed(2);
 
+const noSubscribe = () => () => {};
+
+/**
+ * Read in the browser so the public page stays cached. In-app browsers rarely send a referrer,
+ * so the creator's `?via=` share link is the main signal.
+ */
+function detectBrowserSource(): TrafficSource {
+  return detectSource({
+    via: new URLSearchParams(window.location.search).get("via"),
+    userAgent: navigator.userAgent,
+    referrer: document.referrer,
+    ownHost: window.location.hostname,
+  });
+}
+
 /** The page's only client island. The quote uses the same fee math the server settles with. */
-export function SupportWidget({ handle, displayName, suggestedAmountsMinor, supportMessageEnabled, settings }: Props) {
+export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmountsMinor, supportMessageEnabled, settings }: Props) {
   const [state, action] = useActionState(startSupport, initialFormState);
   const suggested = suggestedAmountsMinor.filter((a) => a >= settings.minMinor && a <= settings.maxMinor);
   const [amount, setAmount] = useState(state.values?.amount ?? (suggested[1] ? toMajorText(suggested[1]) : ""));
   const [anonymous, setAnonymous] = useState(false);
+  const [name, setName] = useState(state.values?.supporterName ?? "");
+  const source = useSyncExternalStore(noSubscribe, detectBrowserSource, () => null);
+  const [pickedPlatform, setPlatform] = useState<ShoutoutPlatform | null>(null);
+  const echoedPlatform = state.values?.socialPlatform;
+  const platform = pickedPlatform ?? (isShoutoutPlatform(echoedPlatform) ? echoedPlatform : defaultShoutoutPlatform(source));
+  const [handle, setHandle] = useState(state.values?.socialHandle ?? "");
+  // Consent follows the username until the supporter decides for themselves.
+  const [consent, setConsent] = useState<boolean | null>(null);
+  const consentChecked = consent ?? handle.trim() !== "";
 
   const minor = parseMajorToMinor(amount);
   const inRange = minor !== null && minor >= settings.minMinor && minor <= settings.maxMinor;
@@ -37,7 +64,8 @@ export function SupportWidget({ handle, displayName, suggestedAmountsMinor, supp
         Support {displayName}
       </h2>
       <form action={action} className="flex flex-col gap-4" noValidate>
-        <input type="hidden" name="handle" value={handle} />
+        <input type="hidden" name="handle" value={creatorHandle} />
+        {source ? <input type="hidden" name="source" value={source} /> : null}
         {state.status === "error" && state.message ? <Alert tone="danger">{state.message}</Alert> : null}
 
         {suggested.length ? (
@@ -91,9 +119,44 @@ export function SupportWidget({ handle, displayName, suggestedAmountsMinor, supp
             name="supporterName"
             maxLength={60}
             autoComplete="name"
-            defaultValue={state.values?.supporterName}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             errors={state.fieldErrors?.supporterName}
           />
+        ) : null}
+
+        {!anonymous ? (
+          <fieldset className="flex flex-col gap-3 rounded-brand bg-surface p-4">
+            <legend className="sr-only">Shout-out</legend>
+            <div className="flex flex-col gap-1">
+              <p className="font-semibold">Get a shout-out 🎉</p>
+              <p className="text-sm text-muted">
+                {displayName} thanks supporters in posts. Add your username so they can tag you.
+              </p>
+            </div>
+            <ShoutoutFields
+              platform={platform}
+              onPlatformChange={setPlatform}
+              handle={handle}
+              onHandleChange={setHandle}
+              errors={{ socialPlatform: state.fieldErrors?.socialPlatform, socialHandle: state.fieldErrors?.socialHandle }}
+            />
+            {handle.trim() || name.trim() ? (
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  name="shoutoutConsent"
+                  className="mt-0.5 size-5 shrink-0"
+                  checked={consentChecked}
+                  onChange={(e) => setConsent(e.target.checked)}
+                />
+                <span>
+                  {displayName} can mention me in thank-you posts
+                  <span className="block text-sm text-muted">Untick to stay off shout-outs. Your support still counts.</span>
+                </span>
+              </label>
+            ) : null}
+          </fieldset>
         ) : null}
         {supportMessageEnabled ? (
           <TextAreaField

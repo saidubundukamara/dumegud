@@ -12,8 +12,11 @@ const GIVE_UP_MS = 3 * 60_000;
 
 type Props = {
   back: { href: string; label: string };
-  /** Shown once the payment is verified. Receives the library link for purchases (claim cookie). */
-  success: (libraryUrl: string | null) => ReactNode;
+  /**
+   * Shown once the payment is verified. Receives the library link for purchases, and whether this
+   * browser may still add a shout-out username for support (both from the claim cookies).
+   */
+  success: (libraryUrl: string | null, extra: { paymentId: string; canAddShoutout: boolean }) => ReactNode;
 };
 
 /**
@@ -24,6 +27,7 @@ export function PaymentStatus({ back, success }: Props) {
   const paymentId = useSearchParams().get("p");
   const [status, setStatus] = useState<Status>(paymentId ? "processing" : "unknown");
   const [libraryUrl, setLibraryUrl] = useState<string | null>(null);
+  const [canAddShoutout, setCanAddShoutout] = useState(false);
   const [slow, setSlow] = useState(false);
 
   useEffect(() => {
@@ -36,9 +40,10 @@ export function PaymentStatus({ back, success }: Props) {
           const res = await fetch(`/api/payments/${encodeURIComponent(paymentId!)}/status`, { cache: "no-store" });
           if (res.status === 404) return setStatus("unknown");
           if (res.ok) {
-            const body = (await res.json()) as { status: Status; libraryUrl?: string };
+            const body = (await res.json()) as { status: Status; libraryUrl?: string; canAddShoutout?: boolean };
             if (body.status !== "processing") {
               setLibraryUrl(body.libraryUrl ?? null);
+              setCanAddShoutout(body.canAddShoutout === true);
               return setStatus(body.status);
             }
           }
@@ -64,7 +69,7 @@ export function PaymentStatus({ back, success }: Props) {
   if (status === "succeeded") {
     return (
       <div role="status" className="flex flex-col gap-3">
-        {success(libraryUrl)}
+        {success(libraryUrl, { paymentId: paymentId!, canAddShoutout })}
         {backLink}
       </div>
     );

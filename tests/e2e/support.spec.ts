@@ -31,3 +31,10 @@ test("the status endpoint rejects malformed ids without a lookup", async ({ requ
   const res = await request.get("/api/payments/not-a-uuid/status");
   expect(res.status()).toBe(404);
 });
+
+test("the shout-out card and page are for signed-in creators only", async ({ page, request }) => {
+  const res = await request.get("/api/shoutouts/image?platform=tiktok&size=story");
+  expect(res.status()).toBe(401);
+  await page.goto("/dashboard/shoutouts");
+  await expect(page).toHaveURL(/\/login/);
+});

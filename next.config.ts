@@ -65,6 +65,8 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   typedRoutes: true,
+  // The shout-out card reads brand colours from the token file at runtime (server/lib/brand-tokens.ts).
+  outputFileTracingIncludes: { "/api/shoutouts/image": ["./styles/tokens.css"] },
   poweredByHeader: false,
   turbopack: {
     // Pin the root: a stray lockfile higher up the filesystem would otherwise be picked up.
