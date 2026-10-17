@@ -5,12 +5,17 @@
 @theme inline {
   --color-primary: var(--dmg-primary);
   --color-primary-hover: var(--dmg-primary-hover);
+  --color-primary-pressed: var(--dmg-primary-pressed);
   --color-primary-foreground: var(--dmg-primary-foreground);
+  --color-primary-soft: var(--dmg-primary-soft);
   --color-accent: var(--dmg-accent);
   --color-accent-foreground: var(--dmg-accent-foreground);
+  --color-celebrate: var(--dmg-celebrate);
   --color-background: var(--dmg-background);
   --color-surface: var(--dmg-surface);
+  --color-surface-muted: var(--dmg-surface-muted);
   --color-border: var(--dmg-border);
+  --color-border-strong: var(--dmg-border-strong);
   --color-text: var(--dmg-text);
   --color-muted: var(--dmg-muted);
   --color-focus: var(--dmg-focus);
@@ -21,22 +26,168 @@
   --color-danger: var(--dmg-danger);
   --color-danger-surface: var(--dmg-danger-surface);
   --radius-brand: var(--dmg-radius);
+  --radius-brand-sm: var(--dmg-radius-sm);
+  --radius-brand-lg: var(--dmg-radius-lg);
+  --radius-brand-xl: var(--dmg-radius-xl);
+  --shadow-soft: var(--dmg-shadow-soft);
+  --shadow-lift: var(--dmg-shadow-lift);
+  --shadow-primary: var(--dmg-shadow-primary);
+  --ease-brand: var(--dmg-ease-out);
+  --ease-spring: var(--dmg-ease-spring);
   --font-sans: var(--font-ui);
+  --font-display: var(--font-display-face);
 }
 
 /* Light mode only for the MVP (PRD §1A). */
 html {
   color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   background: var(--color-background);
   color: var(--color-text);
   font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 1.0625rem; /* 17px, the HIG body size */
+  line-height: 1.55;
   font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+::selection {
+  background: var(--color-primary-soft);
+  color: var(--color-text);
 }
 
 :focus-visible {
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Fluid display sizes, mobile first. */
+@utility text-display {
+  font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+  font-size: clamp(2.5rem, 9vw, 5.25rem);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  font-weight: 700;
+}
+
+@utility text-title {
+  font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+  font-size: clamp(1.875rem, 5.5vw, 3.25rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+/* Safe-area padding for fixed bars on notched phones. */
+@utility pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+/* Hide scrollbars on horizontal chip rails while keeping them scrollable. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/*
+ * CSS-only entry animation for above-the-fold content (hero, creator name). It runs without JS so
+ * the LCP element is never held back by hydration; JS reveals are for content below the fold.
+ */
+@keyframes dmg-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@utility animate-rise {
+  animation: dmg-rise 700ms var(--dmg-ease-out) both;
+}
+
+@keyframes dmg-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@utility animate-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-surface-muted) 0%,
+    var(--color-surface) 50%,
+    var(--color-surface-muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: dmg-shimmer 1.6s linear infinite;
+}
+
+/* Route cross-fades through React <ViewTransition> (see app/layout.tsx). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 260ms;
+  animation-timing-function: var(--dmg-ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* Slow float for decorative hero cards. */
+@keyframes dmg-float {
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@utility animate-float {
+  animation: dmg-float 6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* Native <details> accordions that open smoothly where the browser supports it. */
+@utility details-smooth {
+  interpolate-size: allow-keywords;
+  &::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition:
+      block-size 400ms var(--dmg-ease-out),
+      content-visibility 400ms allow-discrete;
+  }
+  &[open]::details-content {
+    block-size: auto;
+  }
 }

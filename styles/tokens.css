@@ -1,36 +1,52 @@
 /*
  * DuMeGud design tokens — the ONLY place brand colours are defined.
  *
- * TEMPORARY palette: PRD §1A "Direction A" (coral / charcoal / warm off-white). No direction is
- * approved yet; swap values here and every component follows. Components must use the semantic
- * names below (via Tailwind: bg-primary, text-muted, border-border …), never raw hex.
+ * Palette (October 2026): Ferrari red primary on a warm "porcelain" white, warm-ink text and a
+ * small gold spark for celebrations. Components must use the semantic names below (via Tailwind:
+ * bg-primary, text-muted, bg-surface-muted …), never raw hex.
  *
  * Financial-state colours (success / warning / danger) are deliberately brand-independent and
- * must never be the only signal of a payment state — always pair with text or an icon.
+ * must never be the only signal of a payment state — always pair with text or an icon. Danger is
+ * a crimson-rose, darker and cooler than the brand red, so an error never reads as a call to action.
  *
- * Contrast notes: coral #FF7F63 fails AA with white text, so primary buttons use charcoal text
- * (≈6:1). Body text #2E2E2E on #FFFFFF ≈ 13:1; muted #5C5C5C on #FFFFFF ≈ 6.7:1.
+ * Contrast notes: white on primary #CE202A ≈ 5.4:1 (AA). Text #1A1514 on #FBF8F4 ≈ 17:1; muted
+ * #6B615B on #FBF8F4 ≈ 5.9:1 and on #FFFFFF ≈ 6.2:1. Celebrate gold is decoration only, never text.
  */
 :root {
-  --dmg-primary: #ff7f63;
-  --dmg-primary-hover: #ff6a4a;
-  --dmg-primary-foreground: #2e2e2e;
-  --dmg-accent: #2e2e2e;
+  --dmg-primary: #ce202a;
+  --dmg-primary-hover: #b51b24;
+  --dmg-primary-pressed: #8f141b;
+  --dmg-primary-foreground: #ffffff;
+  --dmg-primary-soft: #fdecea;
+  --dmg-accent: #1a1514;
   --dmg-accent-foreground: #ffffff;
+  --dmg-celebrate: #f5b83d;
 
-  --dmg-background: #ffffff;
-  --dmg-surface: #f8f1e7;
-  --dmg-border: #e4dccf;
-  --dmg-text: #2e2e2e;
-  --dmg-muted: #5c5c5c;
+  --dmg-background: #fbf8f4;
+  --dmg-surface: #ffffff;
+  --dmg-surface-muted: #f3eee8;
+  --dmg-border: rgb(26 21 20 / 0.08);
+  --dmg-border-strong: rgb(26 21 20 / 0.16);
+  --dmg-text: #1a1514;
+  --dmg-muted: #6b615b;
   --dmg-focus: #1d4ed8;
 
   --dmg-success: #15803d;
   --dmg-success-surface: #dcfce7;
   --dmg-warning: #b45309;
   --dmg-warning-surface: #fef3c7;
-  --dmg-danger: #b91c1c;
-  --dmg-danger-surface: #fee2e2;
+  --dmg-danger: #9f1239;
+  --dmg-danger-surface: #ffe4e6;
 
-  --dmg-radius: 0.75rem;
+  --dmg-radius: 1rem;
+  --dmg-radius-sm: 0.625rem;
+  --dmg-radius-lg: 1.5rem;
+  --dmg-radius-xl: 2rem;
+
+  --dmg-shadow-soft: 0 1px 2px rgb(26 21 20 / 0.04), 0 12px 32px -12px rgb(26 21 20 / 0.12);
+  --dmg-shadow-lift: 0 2px 4px rgb(26 21 20 / 0.04), 0 24px 48px -16px rgb(26 21 20 / 0.18);
+  --dmg-shadow-primary: 0 10px 24px -10px rgb(206 32 42 / 0.55);
+
+  --dmg-ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --dmg-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }

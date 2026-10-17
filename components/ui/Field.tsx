@@ -1,9 +1,11 @@
+import { WarningCircleIcon } from "@phosphor-icons/react/dist/ssr";
 import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 type Common = { label: string; name: string; errors?: string[]; hint?: ReactNode; className?: string };
 
+// Filled control: no grey box, a soft ring that turns blue on focus and crimson when invalid.
 const CONTROL =
-  "rounded-brand border border-border bg-background px-3 text-base aria-invalid:border-danger disabled:opacity-60";
+  "w-full rounded-brand bg-surface-muted px-4 text-[1.0625rem] text-text ring-1 ring-transparent transition-[box-shadow,background-color] duration-200 ease-brand placeholder:text-muted/70 hover:ring-border-strong focus:bg-surface focus:outline-none focus:ring-2 focus:ring-focus aria-invalid:ring-2 aria-invalid:ring-danger disabled:opacity-60";
 
 /** Label, hint and errors wired to the control through aria-describedby. */
 function FieldShell({
@@ -23,7 +25,7 @@ function FieldShell({
 
   return (
     <div className={`flex flex-col gap-1.5 ${className ?? ""}`}>
-      <label htmlFor={id} className="font-semibold">
+      <label htmlFor={id} className="text-[0.9375rem] font-semibold">
         {label}
       </label>
       {children({ id, describedBy, invalid: hasError || undefined })}
@@ -33,9 +35,12 @@ function FieldShell({
         </p>
       ) : null}
       {hasError ? (
-        <ul id={errorId} className="text-sm text-danger">
+        <ul id={errorId} className="flex flex-col gap-0.5 text-sm font-medium text-danger">
           {errors!.map((e) => (
-            <li key={e}>{e}</li>
+            <li key={e} className="flex items-start gap-1.5">
+              <WarningCircleIcon aria-hidden="true" weight="fill" className="mt-0.5 size-4 shrink-0" />
+              {e}
+            </li>
           ))}
         </ul>
       ) : null}
@@ -52,7 +57,7 @@ export function Field({ label, name, errors, hint, className, ...input }: Common
           name={name}
           aria-invalid={invalid}
           aria-describedby={describedBy}
-          className={`min-h-12 ${CONTROL}`}
+          className={`min-h-13 ${CONTROL}`}
           {...input}
         />
       )}
@@ -76,7 +81,7 @@ export function TextAreaField({
           name={name}
           aria-invalid={invalid}
           aria-describedby={describedBy}
-          className={`min-h-32 py-2 ${CONTROL}`}
+          className={`min-h-32 py-3 ${CONTROL}`}
           {...textarea}
         />
       )}
@@ -101,7 +106,7 @@ export function SelectField({
           name={name}
           aria-invalid={invalid}
           aria-describedby={describedBy}
-          className={`min-h-12 ${CONTROL}`}
+          className={`min-h-13 ${CONTROL}`}
           {...select}
         >
           {children}

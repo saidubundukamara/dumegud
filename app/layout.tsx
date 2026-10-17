@@ -1,33 +1,47 @@
 import type { Metadata, Viewport } from "next";
-import { Source_Sans_3 } from "next/font/google";
+import { Bricolage_Grotesque, Plus_Jakarta_Sans } from "next/font/google";
+import { ViewTransition } from "react";
+import { MotionProvider } from "@/components/motion/MotionProvider";
 import "./globals.css";
 
-// UI typeface (humanist sans, clear numerals, wide language support). Logo typography is a
-// separate, still-open brand decision (PRD §1A) and must not be derived from this.
-const uiFont = Source_Sans_3({
+// UI typeface: friendly geometric-humanist sans with clear numerals.
+const uiFont = Plus_Jakarta_Sans({
   variable: "--font-ui",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+// Display face for headings and the text wordmark. The final logo is still open (PRD §1A).
+const displayFont = Bricolage_Grotesque({
+  variable: "--font-display-face",
   subsets: ["latin"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "DuMeGud — Support creators. Fuel good.",
+    default: "DuMeGud: get paid by the people who love your work",
     template: "%s · DuMeGud",
   },
   description:
-    "Support Sierra Leonean creators with a one-off contribution or buy their digital work — straight from your browser.",
+    "Make a free page, share your link, and get paid by your fans with Orange Money or Afrimoney. Sell your e-books, music and art too.",
   applicationName: "DuMeGud",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff",
+  themeColor: "#fbf8f4",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${uiFont.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">{children}</body>
+    <html lang="en" className={`${uiFont.variable} ${displayFont.variable} h-full antialiased`}>
+      <body className="flex min-h-full flex-col">
+        <MotionProvider>
+          {/* Route changes are transitions, so this cross-fades pages (no-op where unsupported). */}
+          <ViewTransition>{children}</ViewTransition>
+        </MotionProvider>
+      </body>
     </html>
   );
 }

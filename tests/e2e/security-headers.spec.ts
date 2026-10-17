@@ -7,7 +7,7 @@ test("home page renders with the DuMeGud brand and no CSP violations", async ({ 
   });
   await page.goto("/");
   await page.waitForLoadState("networkidle");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("DuMeGud");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Get paid by fans");
   await expect(page).toHaveTitle(/DuMeGud/);
   expect(violations).toEqual([]);
 });
