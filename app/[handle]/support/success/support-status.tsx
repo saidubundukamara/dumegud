@@ -16,10 +16,10 @@ export function SupportStatus() {
   return (
     <PaymentStatus
       back={{ href: `/${handle}`, label: `Back to @${handle}` }}
+      successTitle="Thank you!"
       success={(_libraryUrl, { paymentId, canAddShoutout }) => (
         <>
-          <h1 className="text-3xl font-bold tracking-tight">Thank you!</h1>
-          <p>Your support went through. It means a lot.</p>
+          <p>Your gift went through. It means a lot to @{handle}.</p>
           {canAddShoutout ? <ShoutoutPrompt paymentId={paymentId} handle={handle} /> : null}
         </>
       )}
@@ -41,13 +41,16 @@ function ShoutoutPrompt({ paymentId, handle }: { paymentId: string; handle: stri
   if (state.status === "success") return <Alert tone="success">{state.message}</Alert>;
 
   return (
-    <section aria-labelledby="shoutout-heading" className="flex flex-col gap-3 rounded-brand bg-surface p-4">
+    <section
+      aria-labelledby="shoutout-heading"
+      className="flex w-full flex-col gap-4 rounded-brand-xl bg-surface p-5 text-left text-base text-text shadow-soft ring-1 ring-border"
+    >
       <div className="flex flex-col gap-1">
         <h2 id="shoutout-heading" className="text-lg font-bold">
-          Want a shout-out? 🎉
+          Want a shout-out?
         </h2>
         <p className="text-sm text-muted">
-          @{handle} thanks supporters in posts. Add your username and they can tag you. Skip it to stay off shout-outs.
+          @{handle} thanks fans in posts. Add your username so they can tag you. Or skip it, that&apos;s fine too.
         </p>
       </div>
       <form action={action} className="flex flex-col gap-3" noValidate>
@@ -61,7 +64,7 @@ function ShoutoutPrompt({ paymentId, handle }: { paymentId: string; handle: stri
           errors={{ socialPlatform: state.fieldErrors?.socialPlatform, socialHandle: state.fieldErrors?.socialHandle }}
         />
         <p className="text-sm text-muted">By adding it, you agree @{handle} can mention you in thank-you posts.</p>
-        <SubmitButton pendingLabel="Saving…" className="self-start">
+        <SubmitButton pendingLabel="Saving…" className="w-full">
           Add me to the shout-out
         </SubmitButton>
       </form>

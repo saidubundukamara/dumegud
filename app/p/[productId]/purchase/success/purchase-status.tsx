@@ -1,6 +1,7 @@
 "use client";
 
 import type { Route } from "next";
+import { DownloadSimpleIcon } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PaymentStatus } from "@/components/checkout/payment-status";
@@ -11,15 +12,16 @@ export function PurchaseStatus() {
   return (
     <PaymentStatus
       back={{ href: `/p/${productId}`, label: "Back to the product" }}
+      successTitle="It's yours!"
       success={(libraryUrl) => (
         <>
-          <h1 className="text-3xl font-bold tracking-tight">Thank you for your purchase!</h1>
+          <p>We also emailed you a receipt with your download link. Keep that email: the link is how you get your file.</p>
           {libraryUrl ? (
-            <Link href={new URL(libraryUrl).pathname as Route} className={buttonClasses("primary", "self-start")}>
-              Open your downloads
+            <Link href={new URL(libraryUrl).pathname as Route} className={buttonClasses("primary", "w-full", "lg")}>
+              <DownloadSimpleIcon aria-hidden="true" weight="bold" className="size-5" />
+              Get your download
             </Link>
           ) : null}
-          <p>We&apos;ve emailed you a receipt with your download link. Keep it: the link is your access.</p>
         </>
       )}
     />

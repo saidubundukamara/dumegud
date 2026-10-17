@@ -2,9 +2,11 @@
 
 import { useActionState, useState, useSyncExternalStore } from "react";
 import { ShoutoutFields } from "@/components/shoutout/shoutout-fields";
+import { CaretDownIcon, LockKeyIcon } from "@phosphor-icons/react/dist/ssr";
 import { Alert } from "@/components/ui/Alert";
 import { SubmitButton } from "@/components/ui/Button";
 import { Field, TextAreaField } from "@/components/ui/Field";
+import { Card } from "@/components/ui/Card";
 import { quoteSplit } from "@/lib/fees";
 import { initialFormState } from "@/lib/form-state";
 import { formatSLE, MINOR_PER_MAJOR, parseMajorToMinor } from "@/lib/money";
@@ -56,132 +58,179 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
 
   const minor = parseMajorToMinor(amount);
   const inRange = minor !== null && minor >= settings.minMinor && minor <= settings.maxMinor;
+  // Optional extras stay folded away unless the visitor opens them or the server sent one back.
+  const errs = state.fieldErrors ?? {};
+  const [moreOpen, setMoreOpen] = useState(
+    Boolean(
+      errs.supporterName || errs.socialHandle || errs.socialPlatform || errs.message ||
+        state.values?.supporterName || state.values?.socialHandle || state.values?.message,
+    ),
+  );
+  const firstName = displayName.trim().split(/\s+/)[0] || displayName;
   const quote = inRange ? quoteSplit(minor, settings.monimeBpsEstimate, settings.platformFeeBps) : null;
 
   return (
-    <section aria-labelledby="support-heading" className="flex flex-col gap-4 rounded-brand border border-border p-4 sm:p-6">
-      <h2 id="support-heading" className="text-xl font-bold">
-        Support {displayName}
-      </h2>
-      <form action={action} className="flex flex-col gap-4" noValidate>
-        <input type="hidden" name="handle" value={creatorHandle} />
-        {source ? <input type="hidden" name="source" value={source} /> : null}
-        {state.status === "error" && state.message ? <Alert tone="danger">{state.message}</Alert> : null}
+    <Card inner="p-5 sm:p-7">
+      <section id="support" className="flex scroll-mt-6 flex-col gap-5" aria-labelledby="support-heading">
+        <div className="flex flex-col gap-1">
+          <h2 id="support-heading" className="text-2xl font-bold">
+            Support {firstName}
+          </h2>
+          <p className="text-muted">Send a gift to say thank you. Pick an amount.</p>
+        </div>
+        <form action={action} className="flex flex-col gap-5" noValidate>
+          <input type="hidden" name="handle" value={creatorHandle} />
+          {source ? <input type="hidden" name="source" value={source} /> : null}
+          {state.status === "error" && state.message ? <Alert tone="danger">{state.message}</Alert> : null}
 
-        {suggested.length ? (
-          <fieldset className="flex flex-wrap gap-2">
-            <legend className="sr-only">Suggested amounts</legend>
-            {suggested.map((a) => {
-              const text = toMajorText(a);
-              const selected = amount === text;
-              return (
-                <button
-                  key={a}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => setAmount(text)}
-                  className={`min-h-12 rounded-brand border px-4 font-semibold ${
-                    selected ? "border-text bg-primary text-primary-foreground" : "border-border hover:bg-surface"
-                  }`}
-                >
-                  {formatSLE(a)}
-                </button>
-              );
-            })}
-          </fieldset>
-        ) : null}
+          {suggested.length ? (
+            <fieldset className="grid grid-cols-3 gap-2">
+              <legend className="sr-only">Suggested amounts</legend>
+              {suggested.map((a) => {
+                const text = toMajorText(a);
+                const selected = amount === text;
+                return (
+                  <button
+                    key={a}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setAmount(text)}
+                    className={`min-h-14 rounded-brand px-2 text-lg font-bold transition-[background-color,box-shadow,transform,color] duration-300 ease-spring active:scale-95 ${
+                      selected
+                        ? "scale-[1.03] bg-primary-soft text-primary-pressed ring-2 ring-primary"
+                        : "bg-surface-muted text-text ring-1 ring-transparent hover:ring-border-strong"
+                    }`}
+                  >
+                    Le {text}
+                  </button>
+                );
+              })}
+            </fieldset>
+          ) : null}
 
-        <Field
-          label="Amount (Le)"
-          name="amount"
-          inputMode="decimal"
-          autoComplete="off"
-          required
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          hint={`Between ${formatSLE(settings.minMinor)} and ${formatSLE(settings.maxMinor)}.`}
-          errors={state.fieldErrors?.amount}
-        />
-
-        <label className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            name="isAnonymous"
-            className="size-5"
-            checked={anonymous}
-            onChange={(e) => setAnonymous(e.target.checked)}
-          />
-          Support anonymously
-        </label>
-        {!anonymous ? (
-          <Field
-            label="Your name (optional)"
-            name="supporterName"
-            maxLength={60}
-            autoComplete="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            errors={state.fieldErrors?.supporterName}
-          />
-        ) : null}
-
-        {!anonymous ? (
-          <fieldset className="flex flex-col gap-3 rounded-brand bg-surface p-4">
-            <legend className="sr-only">Shout-out</legend>
-            <div className="flex flex-col gap-1">
-              <p className="font-semibold">Get a shout-out 🎉</p>
-              <p className="text-sm text-muted">
-                {displayName} thanks supporters in posts. Add your username so they can tag you.
-              </p>
-            </div>
-            <ShoutoutFields
-              platform={platform}
-              onPlatformChange={setPlatform}
-              handle={handle}
-              onHandleChange={setHandle}
-              errors={{ socialPlatform: state.fieldErrors?.socialPlatform, socialHandle: state.fieldErrors?.socialHandle }}
+          <div className="relative">
+            <Field
+              label={suggested.length ? "Or type your own amount" : "Amount"}
+              name="amount"
+              inputMode="decimal"
+              autoComplete="off"
+              required
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              hint={`From ${formatSLE(settings.minMinor)} to ${formatSLE(settings.maxMinor)}.`}
+              errors={state.fieldErrors?.amount}
+              className="[&_input]:!min-h-14 [&_input]:!pl-12 [&_input]:text-xl [&_input]:font-bold"
             />
-            {handle.trim() || name.trim() ? (
-              <label className="flex items-start gap-3">
+            <span aria-hidden="true" className="pointer-events-none absolute left-4 top-[2.74rem] text-xl font-bold text-muted">
+              Le
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-4 rounded-brand bg-surface-muted/60 p-1">
+            <button
+              type="button"
+              aria-expanded={moreOpen}
+              aria-controls="support-extras"
+              onClick={() => setMoreOpen((o) => !o)}
+              className="flex min-h-12 items-center justify-between gap-3 rounded-[calc(var(--radius-brand)-0.25rem)] px-4 text-left font-semibold"
+            >
+              Add your name or a message
+              <CaretDownIcon
+                aria-hidden="true"
+                weight="bold"
+                className={`size-4 transition-transform duration-300 ease-brand ${moreOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            {/* Kept in the form while folded so nothing typed is ever lost. */}
+            <div id="support-extras" hidden={!moreOpen} className="flex animate-rise flex-col gap-4 px-3 pb-3">
+              <label className="flex min-h-11 items-center gap-3">
                 <input
                   type="checkbox"
-                  name="shoutoutConsent"
-                  className="mt-0.5 size-5 shrink-0"
-                  checked={consentChecked}
-                  onChange={(e) => setConsent(e.target.checked)}
+                  name="isAnonymous"
+                  className="size-5 accent-primary"
+                  checked={anonymous}
+                  onChange={(e) => setAnonymous(e.target.checked)}
                 />
-                <span>
-                  {displayName} can mention me in thank-you posts
-                  <span className="block text-sm text-muted">Untick to stay off shout-outs. Your support still counts.</span>
-                </span>
+                Keep my name private
               </label>
-            ) : null}
-          </fieldset>
-        ) : null}
-        {supportMessageEnabled ? (
-          <TextAreaField
-            label="Message (optional)"
-            name="message"
-            maxLength={280}
-            rows={3}
-            defaultValue={state.values?.message}
-            hint={`Only ${displayName} sees it.`}
-            errors={state.fieldErrors?.message}
-          />
-        ) : null}
+              {!anonymous ? (
+                <Field
+                  label="Your name"
+                  name="supporterName"
+                  maxLength={60}
+                  autoComplete="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  errors={state.fieldErrors?.supporterName}
+                />
+              ) : null}
 
-        {quote ? (
-          <p className="rounded-brand bg-surface px-4 py-3" aria-live="polite">
-            You pay <strong>{formatSLE(quote.grossMinor)}</strong>. {displayName} receives about{" "}
-            <strong>{formatSLE(quote.creatorNetMinor)}</strong> after fees.
-          </p>
-        ) : null}
+              {supportMessageEnabled ? (
+                <TextAreaField
+                  label="Message"
+                  name="message"
+                  maxLength={280}
+                  rows={3}
+                  defaultValue={state.values?.message}
+                  hint={`Only ${firstName} can see it.`}
+                  errors={state.fieldErrors?.message}
+                />
+              ) : null}
 
-        <SubmitButton disabled={!inRange} pendingLabel="Opening checkout…">
-          {quote ? `Support with ${formatSLE(quote.grossMinor)}` : "Support"}
-        </SubmitButton>
-        <p className="text-sm text-muted">You&apos;ll pay with Orange Money or AfriMoney on Monime&apos;s secure checkout.</p>
-      </form>
-    </section>
+              {!anonymous ? (
+                <fieldset className="flex flex-col gap-3 rounded-brand bg-surface p-4 shadow-soft">
+                  <legend className="sr-only">Shout-out</legend>
+                  <div className="flex flex-col gap-1">
+                    <p className="font-semibold">Want a shout-out?</p>
+                    <p className="text-sm text-muted">
+                      {firstName} thanks fans in posts. Add your username so they can tag you.
+                    </p>
+                  </div>
+                  <ShoutoutFields
+                    platform={platform}
+                    onPlatformChange={setPlatform}
+                    handle={handle}
+                    onHandleChange={setHandle}
+                    errors={{ socialPlatform: state.fieldErrors?.socialPlatform, socialHandle: state.fieldErrors?.socialHandle }}
+                  />
+                  {handle.trim() || name.trim() ? (
+                    <label className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        name="shoutoutConsent"
+                        className="mt-0.5 size-5 shrink-0 accent-primary"
+                        checked={consentChecked}
+                        onChange={(e) => setConsent(e.target.checked)}
+                      />
+                      <span>
+                        {firstName} can mention me in thank-you posts
+                        <span className="block text-sm text-muted">Untick to stay out of posts. Your gift still counts.</span>
+                      </span>
+                    </label>
+                  ) : null}
+                </fieldset>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <p className="min-h-6 text-center text-sm text-muted" aria-live="polite">
+              {quote ? (
+                <>
+                  {firstName} gets about <strong className="text-text">{formatSLE(quote.creatorNetMinor)}</strong> after fees.
+                </>
+              ) : null}
+            </p>
+            <SubmitButton disabled={!inRange} size="lg" pendingLabel="Opening checkout…" className="w-full">
+              {quote ? `Send ${formatSLE(quote.grossMinor)}` : "Pick an amount"}
+            </SubmitButton>
+            <p className="flex items-center justify-center gap-1.5 text-center text-sm text-muted">
+              <LockKeyIcon aria-hidden="true" className="size-4 shrink-0" />
+              Pay with Orange Money or Afrimoney. Safe checkout by Monime.
+            </p>
+          </div>
+        </form>
+      </section>
+    </Card>
   );
 }

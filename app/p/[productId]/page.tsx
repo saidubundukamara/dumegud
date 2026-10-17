@@ -5,6 +5,11 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { formatSLE } from "@/lib/money";
 import { getCachedProduct } from "@/server/queries/public-profile";
+import { ClockIcon, FileIcon, FlagIcon, ScrollIcon, StampIcon } from "@phosphor-icons/react/dist/ssr";
+import { PageGlow, PublicHeader } from "@/components/public/PublicHeader";
+import { StickyAction } from "@/components/public/StickyAction";
+import { Card, Panel } from "@/components/ui/Card";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { BuyForm } from "./buy-form";
 
 type Props = PageProps<"/p/[productId]">;
@@ -29,14 +34,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default function ProductPage({ params }: Props) {
   return (
-    <div className="flex flex-1 flex-col">
-      <header className="px-4 py-4 sm:px-6">
-        <Link href="/" className="text-xl font-bold tracking-tight">
-          DuMeGud
-        </Link>
-      </header>
-      <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 px-4 pb-16 pt-4 sm:px-6">
-        <Suspense fallback={<div className="h-64 rounded-brand bg-surface" aria-busy="true" />}>
+    <div className="relative flex flex-1 flex-col">
+      <PageGlow />
+      <PublicHeader />
+      <main className="relative mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 px-4 pb-28 pt-8 sm:px-6 md:pb-16">
+        <Suspense
+          fallback={
+            <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading">
+              <Skeleton className="aspect-[4/3] w-full !rounded-brand-xl" />
+              <Skeleton className="h-9 w-3/4" />
+              <Skeleton className="h-6 w-1/3" />
+            </div>
+          }
+        >
           <Product params={params} />
         </Suspense>
       </main>
@@ -53,60 +63,93 @@ async function Product({ params }: Pick<Props, "params">) {
   if (!product) notFound();
 
   return (
-    <article className="flex flex-col gap-6">
-      {product.previews[0] ? (
-        <Image
-          src={product.previews[0]}
-          alt=""
-          width={1200}
-          height={900}
-          unoptimized
-          fetchPriority="high"
-          className="h-auto w-full rounded-brand border border-border object-cover"
-        />
-      ) : null}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">{product.title}</h1>
-        <p className="text-muted">
-          by{" "}
-          <Link href={`/${product.creator.handle}`} className="font-semibold text-text underline underline-offset-4">
-            {product.creator.displayName}
+    <article className="flex flex-col gap-8">
+      <header className="flex animate-rise flex-col gap-5">
+        {product.previews[0] ? (
+          <Image
+            src={product.previews[0]}
+            alt=""
+            width={1200}
+            height={900}
+            unoptimized
+            fetchPriority="high"
+            className="h-auto w-full rounded-brand-xl object-cover shadow-lift"
+          />
+        ) : null}
+        <div className="flex flex-col gap-3">
+          <Link
+            href={`/${product.creator.handle}`}
+            className="w-fit rounded-full bg-surface px-3 py-1 text-sm font-semibold shadow-soft ring-1 ring-border hover:ring-border-strong"
+          >
+            by {product.creator.displayName}
           </Link>
-        </p>
-        <p className="text-2xl font-bold">{formatSLE(product.priceMinor)}</p>
-      </div>
-
-      {product.description ? <p className="whitespace-pre-line leading-7">{product.description}</p> : null}
+          <h1 className="text-title">{product.title}</h1>
+          <p className="font-display text-3xl font-bold tracking-tight text-primary">{formatSLE(product.priceMinor)}</p>
+        </div>
+        {product.description ? <p className="whitespace-pre-line text-lg leading-relaxed">{product.description}</p> : null}
+      </header>
 
       {/* PRD §4.3: format, size, terms, limits and watermarking are shown before purchase. */}
-      <section className="flex flex-col gap-2 rounded-brand bg-surface p-4" aria-labelledby="what-you-get">
-        <h2 id="what-you-get" className="font-bold">
+      <Panel as="section" className="flex flex-col gap-4 p-5 sm:p-6">
+        <h2 id="what-you-get" className="text-xl font-bold">
           What you get
         </h2>
-        <ul className="list-inside list-disc">
+        <ul className="flex flex-col gap-3" aria-labelledby="what-you-get">
           {product.files.map((f, i) => (
-            <li key={i}>
+            <Row key={i} icon={<FileIcon weight="duotone" className="size-5" />}>
               {f.format} file, {size(f.sizeBytes)}
-            </li>
+            </Row>
           ))}
+          <Row icon={<ClockIcon weight="duotone" className="size-5" />}>
+            Download up to {product.downloadLimit} times within {product.accessDays} days
+          </Row>
+          {product.watermarked ? (
+            <Row icon={<StampIcon weight="duotone" className="size-5" />}>
+              PDFs carry your order number (not your name or email)
+            </Row>
+          ) : null}
+          <Row icon={<ScrollIcon weight="duotone" className="size-5" />}>
+            <span className="font-semibold">Licence: {product.license.label}</span>
+            <span className="block text-sm text-muted">{product.license.summary}</span>
+            {product.license.extra ? <span className="block whitespace-pre-line text-sm text-muted">{product.license.extra}</span> : null}
+          </Row>
         </ul>
-        <p>
-          Download up to {product.downloadLimit} times within {product.accessDays} days of purchase.
-        </p>
-        {product.watermarked ? (
-          <p className="text-sm text-muted">PDFs are marked with your order number (not your name or email).</p>
-        ) : null}
-        <h3 className="mt-2 font-bold">Licence: {product.license.label}</h3>
-        <p className="text-sm">{product.license.summary}</p>
-        {product.license.extra ? <p className="whitespace-pre-line text-sm">{product.license.extra}</p> : null}
-      </section>
+      </Panel>
 
-      <BuyForm productId={product.id} priceMinor={product.priceMinor} />
+      <Card inner="p-5 sm:p-7">
+        <section id="buy" aria-labelledby="buy-heading" className="flex scroll-mt-6 flex-col gap-5">
+          <div className="flex flex-col gap-1">
+            <h2 id="buy-heading" className="text-2xl font-bold">
+              Get it now
+            </h2>
+            <p className="text-muted">Pay on your phone. Your download is ready right after.</p>
+          </div>
+          <BuyForm productId={product.id} priceMinor={product.priceMinor} />
+        </section>
+      </Card>
+      <StickyAction targetId="buy" label={`Buy for ${formatSLE(product.priceMinor)}`} />
+
       <p className="text-center text-sm">
-        <Link href={`/report?type=product&id=${product.id}`} className="text-muted underline underline-offset-4" prefetch={false}>
+        <Link
+          href={`/report?type=product&id=${product.id}`}
+          className="inline-flex min-h-10 items-center gap-1.5 text-muted underline-offset-4 hover:underline"
+          prefetch={false}
+        >
+          <FlagIcon aria-hidden="true" className="size-4" />
           Report this product
         </Link>
       </p>
     </article>
+  );
+}
+
+function Row({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-3">
+      <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+        {icon}
+      </span>
+      <span className="pt-1.5">{children}</span>
+    </li>
   );
 }
