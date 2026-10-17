@@ -9,7 +9,7 @@ type Fields = Record<string, unknown>;
 const LEVELS: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 
 const SENSITIVE_KEY =
-  /pass(word)?|secret|token|authorization|cookie|api[-_]?key|email|phone|msisdn|pin|otp|pepper|signature|card/i;
+  /pass(word)?|secret|token|authorization|cookie|api[-_]?key|email|phone|msisdn|pin|otp|pepper|signature|card|social[-_]?handle/i;
 
 const REDACTED = "[REDACTED]";
 const MAX_DEPTH = 6;

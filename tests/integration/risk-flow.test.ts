@@ -8,6 +8,7 @@ import { CreatorProfileRepository } from "@/server/repositories/CreatorProfileRe
 import { CreatorWalletRepository } from "@/server/repositories/CreatorWalletRepository";
 import { LedgerRepository } from "@/server/repositories/LedgerRepository";
 import { PaymentRepository } from "@/server/repositories/PaymentRepository";
+import { ShoutoutRepository } from "@/server/repositories/ShoutoutRepository";
 import { PlatformSettingsRepository } from "@/server/repositories/PlatformSettingsRepository";
 import { ProductRepository } from "@/server/repositories/ProductRepository";
 import { RiskRepository } from "@/server/repositories/RiskRepository";
@@ -44,6 +45,7 @@ const repos = {
   profiles: new CreatorProfileRepository(),
   wallets: new CreatorWalletRepository(),
   payments: new PaymentRepository(),
+  shoutouts: new ShoutoutRepository(),
   ledger: new LedgerRepository(),
   settings: new PlatformSettingsRepository(),
   webhookEvents: new WebhookEventRepository(),

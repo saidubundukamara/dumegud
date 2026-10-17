@@ -21,6 +21,7 @@ import { PaymentRepository } from "@/server/repositories/PaymentRepository";
 import { PlatformSettingsRepository } from "@/server/repositories/PlatformSettingsRepository";
 import { ProductRepository } from "@/server/repositories/ProductRepository";
 import { RiskRepository } from "@/server/repositories/RiskRepository";
+import { ShoutoutRepository } from "@/server/repositories/ShoutoutRepository";
 import { UserRepository } from "@/server/repositories/UserRepository";
 import { WebhookEventRepository } from "@/server/repositories/WebhookEventRepository";
 import { AdminConfigService } from "./AdminConfigService";
@@ -44,6 +45,7 @@ import { ReportService } from "./ReportService";
 import { RiskService } from "./RiskService";
 import { PlatformSettingsService } from "./PlatformSettingsService";
 import { SettlementService } from "./SettlementService";
+import { ShoutoutService } from "./ShoutoutService";
 import { TransferService } from "./TransferService";
 import { WalletService } from "./WalletService";
 import { WebhookService, type WebhookHandler } from "./WebhookService";
@@ -74,6 +76,7 @@ export const repos = {
   audit: new AuditRepository(),
   risk: new RiskRepository(),
   admin: new AdminRepository(),
+  shoutouts: new ShoutoutRepository(),
 };
 
 // Compliance hooks shared by most services (stateless, safe to create at import).
@@ -93,6 +96,7 @@ let settings: PlatformSettingsService | undefined;
 let transfers: TransferService | undefined;
 let settlement: SettlementService | undefined;
 let contributions: ContributionService | undefined;
+let shoutouts: ShoutoutService | undefined;
 let storage: R2Storage | null | undefined;
 let products: ProductService | undefined;
 let productReview: ProductReviewService | undefined;
@@ -207,6 +211,10 @@ export const services = {
       appBaseUrl: getEnv().APP_BASE_URL,
     });
     return contributions;
+  },
+  get shoutouts(): ShoutoutService {
+    shoutouts ??= new ShoutoutService({ repos, audit, appBaseUrl: getEnv().APP_BASE_URL, publicAssetUrl });
+    return shoutouts;
   },
   get products(): ProductService {
     const env = getEnv();

@@ -3,6 +3,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { normalizeHandle } from "@/lib/handle";
 import { creatorTag, handleTag, productTag, SETTINGS_TAG } from "@/server/lib/cache-tags";
 import { services } from "@/server/services";
+import type { PublicSupporterDTO } from "@/server/services/ContributionService";
 import type { PublicProfileResult } from "@/server/services/CreatorService";
 
 /**
@@ -22,8 +23,8 @@ export async function getCachedPublicProfile(handle: string): Promise<PublicProf
   return result;
 }
 
-/** Names for the "recent supporters" list. Refreshed by settlement via the creator tag. */
-export async function getCachedRecentSupporters(profileId: string): Promise<string[]> {
+/** The "recent supporters" list. Refreshed by settlement via the creator tag. */
+export async function getCachedRecentSupporters(profileId: string): Promise<PublicSupporterDTO[]> {
   "use cache";
   cacheLife("hours");
   cacheTag(creatorTag(profileId));

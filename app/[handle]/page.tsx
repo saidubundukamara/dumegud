@@ -4,9 +4,11 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Suspense } from "react";
 import { handleFormatError, normalizeHandle } from "@/lib/handle";
+import { SHOUTOUT_PLATFORM_LABELS } from "@/lib/shoutout";
 import { PLATFORM_LABELS } from "@/lib/social";
 import { formatSLE } from "@/lib/money";
 import { getCachedPublicProfile, getCachedRecentSupporters, getCachedShop, getCachedSupportSettings } from "@/server/queries/public-profile";
+import type { PublicSupporterDTO } from "@/server/services/ContributionService";
 import type { PublicProfileDTO } from "@/server/services/CreatorService";
 import { SupportWidget } from "./support-widget";
 
@@ -81,7 +83,7 @@ function Profile({
 }: {
   profile: PublicProfileDTO;
   settings: Awaited<ReturnType<typeof getCachedSupportSettings>>;
-  supporters: string[];
+  supporters: PublicSupporterDTO[];
   shop: Awaited<ReturnType<typeof getCachedShop>>;
 }) {
   return (
@@ -158,9 +160,15 @@ function Profile({
             Recent supporters
           </h2>
           <ul className="flex flex-wrap gap-2">
-            {supporters.map((name, i) => (
-              <li key={`${name}-${i}`} className="rounded-brand bg-surface px-3 py-1">
-                {name}
+            {supporters.map((s, i) => (
+              <li key={i} className="rounded-brand bg-surface px-3 py-1">
+                {s.handle && s.platform ? (
+                  <>
+                    @{s.handle} <span className="text-sm text-muted">· {SHOUTOUT_PLATFORM_LABELS[s.platform]}</span>
+                  </>
+                ) : (
+                  s.name
+                )}
               </li>
             ))}
           </ul>

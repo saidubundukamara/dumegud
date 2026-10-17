@@ -7,6 +7,7 @@ import { CreatorProfileRepository } from "@/server/repositories/CreatorProfileRe
 import { CreatorWalletRepository } from "@/server/repositories/CreatorWalletRepository";
 import { LedgerRepository } from "@/server/repositories/LedgerRepository";
 import { PaymentRepository } from "@/server/repositories/PaymentRepository";
+import { ShoutoutRepository } from "@/server/repositories/ShoutoutRepository";
 import { PlatformSettingsRepository } from "@/server/repositories/PlatformSettingsRepository";
 import { UserRepository } from "@/server/repositories/UserRepository";
 import { WebhookEventRepository } from "@/server/repositories/WebhookEventRepository";
@@ -33,6 +34,7 @@ const repos = {
   profiles: new CreatorProfileRepository(),
   wallets: new CreatorWalletRepository(),
   payments: new PaymentRepository(),
+  shoutouts: new ShoutoutRepository(),
   ledger: new LedgerRepository(),
   settings: new PlatformSettingsRepository(),
   webhookEvents: new WebhookEventRepository(),
@@ -292,7 +294,7 @@ describe("creator views", () => {
     expect(list.processing).toHaveLength(1);
     expect(list.processing[0].name).toBeNull();
 
-    expect(await contributions.recentSupporters(creatorId)).toEqual(["Kadiatu"]);
+    expect(await contributions.recentSupporters(creatorId)).toEqual([{ name: "Kadiatu", platform: null, handle: null }]);
     const other = { ...actor, userId: crypto.randomUUID() };
     expect((await contributions.listForCreator(other)).succeeded).toHaveLength(0);
   });

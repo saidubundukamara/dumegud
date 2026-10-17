@@ -1,16 +1,20 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { formatSLE } from "@/lib/money";
+import { isShoutoutPlatform, type ShoutoutPlatform } from "@/lib/shoutout";
 import { handleFormatError, normalizeHandle } from "@/lib/handle";
 import type { MonimeClient } from "@/server/integrations/monime";
-import { ConflictError, NotFoundError, ValidationError } from "@/server/lib/errors";
+import { creatorTag } from "@/server/lib/cache-tags";
+import { randomToken, sha256 } from "@/server/lib/crypto";
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/server/lib/errors";
 import { pepperedHash } from "@/server/lib/hash";
 import { enforceRateLimit, type RateLimitPolicy } from "@/server/lib/rate-limit";
 import type { CreatorProfileRepository } from "@/server/repositories/CreatorProfileRepository";
 import type { CreatorWalletRepository } from "@/server/repositories/CreatorWalletRepository";
 import type { PaymentRepository } from "@/server/repositories/PaymentRepository";
+import type { ShoutoutRepository } from "@/server/repositories/ShoutoutRepository";
 import type { UserRepository } from "@/server/repositories/UserRepository";
-import type { StartSupportInput } from "@/server/validation/support";
+import type { AddShoutoutInput, StartSupportInput } from "@/server/validation/support";
 import type { Actor, RequestContext } from "./actor";
 import { noRestrictions, type RestrictionGuard } from "./compliance";
 import type { LimitService } from "./LimitService";
@@ -21,12 +25,15 @@ import { runInTransaction } from "./transaction";
 
 /** Same supporter, creator and amount within this window → reuse the open checkout (double taps, retries). */
 const CHECKOUT_DEDUPE_MS = 60_000;
+/** How long after paying the Thank-you page may still add a shout-out handle (= claim cookie life). */
+export const SHOUTOUT_CLAIM_MS = 24 * 60 * 60 * 1000;
 
 type ContributionRepos = {
   payments: PaymentRepository;
   profiles: CreatorProfileRepository;
   wallets: CreatorWalletRepository;
   users: UserRepository;
+  shoutouts: ShoutoutRepository;
 };
 
 export type ContributionServiceDeps = {
@@ -55,7 +62,14 @@ export type SupporterDTO = {
   creatorNetMinor: number | null;
   status: "succeeded" | "processing";
   at: Date;
+  /** Shown only when the supporter agreed to shout-outs. */
+  shoutout: { platform: ShoutoutPlatform; handle: string } | null;
+  shoutoutConsent: boolean;
+  thanked: boolean;
 };
+
+/** Public "recent supporters" entry. */
+export type PublicSupporterDTO = { name: string | null; platform: ShoutoutPlatform | null; handle: string | null };
 
 export class ContributionService {
   private readonly repos: ContributionRepos;
@@ -85,7 +99,10 @@ export class ContributionService {
    * checkout *outside* the transaction and move to `pending`. Returns where to send the supporter.
    * Nothing here marks anything paid: only verified webhooks (or a Monime poll) do that.
    */
-  async start(input: StartSupportInput, ctx: RequestContext): Promise<{ paymentId: string; redirectUrl: string }> {
+  async start(
+    input: StartSupportInput,
+    ctx: RequestContext,
+  ): Promise<{ paymentId: string; redirectUrl: string; claim: string | null }> {
     const settings = await this.settings.get();
     if (input.amount < settings.minContributionMinor || input.amount > settings.maxContributionMinor) {
       throw new ValidationError(undefined, {
@@ -120,8 +137,14 @@ export class ContributionService {
     if (ipHash) {
       const since = new Date(this.now().getTime() - CHECKOUT_DEDUPE_MS);
       const open = await this.repos.payments.findRecentOpenCheckout(ipHash, profile.userId, input.amount, since);
-      if (open?.checkoutUrl) return { paymentId: open.id, redirectUrl: open.checkoutUrl };
+      // The first attempt's claim cookie is still in this browser.
+      if (open?.checkoutUrl) return { paymentId: open.id, redirectUrl: open.checkoutUrl, claim: null };
     }
+
+    // Shout-outs: never for anonymous support, and a handle is kept only with consent.
+    const consent = !input.isAnonymous && Boolean(input.shoutoutConsent) && Boolean(input.socialHandle || input.supporterName);
+    const handle = consent && input.socialHandle && input.socialPlatform ? { socialPlatform: input.socialPlatform, socialHandle: input.socialHandle } : null;
+    const claimSecret = randomToken();
 
     const payment = await this.transaction((tx) =>
       this.repos.payments.insertContribution(
@@ -133,11 +156,16 @@ export class ContributionService {
           idempotencyKey: randomUUID(),
           ipHash,
           reviewHold: limit.outcome === "review" ? limit.breaches.map((b) => `${b.scope}/${b.window}`).join(",") : null,
+          trafficSource: input.source ?? null,
         },
         {
           supporterName: input.isAnonymous ? null : input.supporterName,
           message: profile.supportMessageEnabled ? input.message : null,
           isAnonymous: input.isAnonymous,
+          ...(handle ?? {}),
+          shoutoutConsent: consent,
+          shoutoutConsentAt: consent ? this.now() : null,
+          claimHash: sha256(claimSecret),
           // Shown to the creator only until moderation exists (Phase 7).
           messageVisibility: "creator_only",
         },
@@ -161,7 +189,45 @@ export class ContributionService {
         metadata: { kind: "contribution", creatorId: profile.userId },
       },
     );
-    return { paymentId: payment.id, redirectUrl };
+    return { paymentId: payment.id, redirectUrl, claim: `${payment.id}.${claimSecret}` };
+  }
+
+  /** Thank-you page: may this browser (claim cookie) still add a shout-out handle? */
+  async canAddShoutout(paymentId: string, claimCookie: string | undefined): Promise<boolean> {
+    return (await this.claimable(paymentId, claimCookie)) !== null;
+  }
+
+  /**
+   * Thank-you page: the paying browser adds a shout-out handle (which also records consent).
+   * Once only, within a day of paying, never for anonymous support. Returns the cache tags to refresh.
+   */
+  async addShoutout(input: AddShoutoutInput, claimCookie: string | undefined, ctx: RequestContext): Promise<{ tags: string[] }> {
+    await this.rateLimit("shoutout:ip", ctx.ip);
+    const claimed = await this.claimable(input.paymentId, claimCookie);
+    if (!claimed) throw new ForbiddenError("This shout-out link has expired.");
+    if (!input.socialPlatform || !input.socialHandle) throw new ValidationError(undefined, { socialHandle: ["Enter your username."] });
+    const row = await this.repos.shoutouts.setHandleOnce(input.paymentId, {
+      socialPlatform: input.socialPlatform,
+      socialHandle: input.socialHandle,
+      at: this.now(),
+    });
+    if (!row) throw new ConflictError("You've already added your username.");
+    const profile = await this.repos.profiles.findByUserId(claimed.creatorId);
+    return { tags: profile ? [creatorTag(profile.id)] : [] };
+  }
+
+  private async claimable(paymentId: string, claimCookie: string | undefined) {
+    if (!claimCookie) return null;
+    const [cookiePaymentId, secret] = claimCookie.split(".");
+    if (cookiePaymentId !== paymentId || !secret) return null;
+    const contribution = await this.repos.shoutouts.findContributionByPaymentId(paymentId);
+    if (!contribution?.claimHash || contribution.claimHash !== sha256(secret)) return null;
+    if (contribution.isAnonymous || contribution.socialHandle) return null;
+    const payment = await this.repos.payments.findById(paymentId);
+    if (payment?.status !== "succeeded") return null;
+    const paidAt = payment.settledAt ?? payment.createdAt;
+    if (this.now().getTime() - paidAt.getTime() > SHOUTOUT_CLAIM_MS) return null;
+    return { creatorId: payment.creatorId };
   }
 
   /** Dashboard "Supporters": the creator's own contributions only. */
@@ -183,20 +249,32 @@ export class ContributionService {
         creatorNetMinor: payment.creatorNetMinor,
         status,
         at: payment.settledAt ?? payment.createdAt,
+        shoutout:
+          contribution.shoutoutConsent && contribution.socialHandle && isShoutoutPlatform(contribution.socialPlatform)
+            ? { platform: contribution.socialPlatform, handle: contribution.socialHandle }
+            : null,
+        shoutoutConsent: contribution.shoutoutConsent,
+        thanked: contribution.thankedAt !== null,
       });
     return { succeeded: done.map(toDTO("succeeded")), processing: open.map(toDTO("processing")) };
   }
 
   /** Public "recent supporters" for a profile (see recentSupporters). */
-  async recentSupportersForProfile(profileId: string): Promise<string[]> {
+  async recentSupportersForProfile(profileId: string): Promise<PublicSupporterDTO[]> {
     const profile = await this.repos.profiles.findById(profileId);
     return profile ? this.recentSupporters(profile.userId) : [];
   }
 
-  /** Public "recent supporters": succeeded, non-anonymous names only (no messages until moderation). */
-  async recentSupporters(creatorUserId: string): Promise<string[]> {
+  /**
+   * Public "recent supporters": succeeded and non-anonymous only (no messages until moderation).
+   * Handles appear only for supporters who agreed to shout-outs.
+   */
+  async recentSupporters(creatorUserId: string): Promise<PublicSupporterDTO[]> {
     const rows = await this.repos.payments.recentPublicSupporters(creatorUserId, 5);
-    return rows.map((r) => r.name).filter((n): n is string => Boolean(n));
+    return rows.map((r) => {
+      const handle = r.handle && isShoutoutPlatform(r.platform) ? { platform: r.platform, handle: r.handle } : null;
+      return { name: r.name, platform: handle?.platform ?? null, handle: handle?.handle ?? null };
+    });
   }
 }
 

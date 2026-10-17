@@ -145,10 +145,18 @@ export class PaymentRepository extends BaseRepository {
       .limit(Math.min(limit, 100));
   }
 
-  /** Names for the public "recent supporters" list: succeeded and not anonymous only. */
+  /**
+   * Names for the public "recent supporters" list: succeeded and not anonymous only. The handle
+   * is returned only when the supporter agreed to shout-outs.
+   */
   async recentPublicSupporters(creatorId: string, limit: number, tx?: Executor) {
     return this.exec(tx)
-      .select({ name: contributions.supporterName, at: payments.settledAt })
+      .select({
+        name: contributions.supporterName,
+        platform: sql<string | null>`case when ${contributions.shoutoutConsent} then ${contributions.socialPlatform}::text end`,
+        handle: sql<string | null>`case when ${contributions.shoutoutConsent} then ${contributions.socialHandle} end`,
+        at: payments.settledAt,
+      })
       .from(payments)
       .innerJoin(contributions, eq(contributions.paymentId, payments.id))
       .where(
@@ -156,7 +164,7 @@ export class PaymentRepository extends BaseRepository {
           eq(payments.creatorId, creatorId),
           eq(payments.status, "succeeded"),
           eq(contributions.isAnonymous, false),
-          isNotNull(contributions.supporterName),
+          sql`(${contributions.supporterName} is not null or (${contributions.shoutoutConsent} and ${contributions.socialHandle} is not null))`,
         ),
       )
       .orderBy(desc(payments.settledAt))

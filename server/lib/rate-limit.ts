@@ -29,6 +29,7 @@ export const RATE_LIMIT_POLICIES = {
   /** Each withdrawal attempt costs a Monime provider-KYC lookup. */
   "payout:user": { limit: 10, window: "1 h" },
   "report:ip": { limit: 10, window: "1 h" },
+  "shoutout:ip": { limit: 10, window: "1 h" },
 } as const satisfies Record<string, Policy>;
 
 export type RateLimitPolicy = keyof typeof RATE_LIMIT_POLICIES;
