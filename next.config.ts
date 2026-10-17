@@ -1,7 +1,23 @@
 import path from "node:path";
+import { withBotId } from "botid/next/config";
 import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === "production";
+
+function originOf(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+// R2 origins are read at build time (Next loads .env files before this config). Browsers PUT
+// avatar uploads straight to R2, and public images are served from the public bucket's domain.
+const r2UploadOrigin = process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : null;
+const publicAssetsOrigin = originOf(process.env.R2_PUBLIC_BASE_URL);
+const withOrigins = (base: string, ...origins: (string | null)[]) => [base, ...origins.filter(Boolean)].join(" ");
 
 // Static CSP (no nonce). A nonce-based CSP forces every page to render dynamically and is
 // incompatible with Partial Prerendering (node_modules/next/dist/docs/01-app/02-guides/
@@ -13,12 +29,14 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  withOrigins("img-src 'self' data: blob:", publicAssetsOrigin),
   "font-src 'self'",
-  "connect-src 'self'",
+  withOrigins("connect-src 'self'", r2UploadOrigin),
   "object-src 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  // Google sign-in: without JS the server action answers the form POST with a redirect to
+  // Google, and form-action also governs redirects that follow a form submission.
+  "form-action 'self' https://accounts.google.com",
   "frame-ancestors 'none'",
   ...(isProd ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
@@ -61,4 +79,5 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// withBotId adds the same-origin rewrites the BotID client script loads through (CSP-safe).
+export default withBotId(nextConfig);

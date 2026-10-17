@@ -17,6 +17,10 @@ jobs:
       APP_BASE_URL: http://localhost:3000
       DATABASE_URL: postgres://ci:ci@localhost:5432/dumegud_ci
       HASH_PEPPER: ci-pepper-ci-pepper-ci-pepper-ci-pepper-00
+      AUTH_SECRET: ci-auth-secret-ci-auth-secret-ci-auth-secret-00
+      AUTH_TRUST_HOST: "true"
+      # E2E runs a production build without Upstash.
+      ALLOW_MEMORY_RATE_LIMIT: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

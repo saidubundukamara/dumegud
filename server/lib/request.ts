@@ -13,3 +13,8 @@ export function getClientIp(headers: Headers): string {
   }
   return headers.get("x-real-ip")?.trim() || "unknown";
 }
+
+/** IP + user agent for auth_events / rate limiting. */
+export function getRequestContext(headers: Headers): { ip: string; userAgent: string | null } {
+  return { ip: getClientIp(headers), userAgent: headers.get("user-agent")?.slice(0, 256) ?? null };
+}

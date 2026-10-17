@@ -16,6 +16,7 @@ export const RATE_LIMIT_POLICIES = {
   "login:ip": { limit: 20, window: "15 m" },
   "register:ip": { limit: 5, window: "1 h" },
   "password-reset:email": { limit: 3, window: "1 h" },
+  "verify-email:user": { limit: 3, window: "1 h" },
   "checkout:ip": { limit: 10, window: "10 m" },
   "checkout:creator": { limit: 30, window: "10 m" },
   "upload:user": { limit: 30, window: "1 h" },

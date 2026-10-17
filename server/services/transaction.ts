@@ -1,6 +1,8 @@
 import "server-only";
 import { getDb, type Tx } from "@/server/db/client";
 
+export type { Tx };
+
 /**
  * Run `fn` in a database transaction.
  *

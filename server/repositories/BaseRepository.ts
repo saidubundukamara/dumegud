@@ -18,3 +18,11 @@ export abstract class BaseRepository {
     return tx ?? getDb();
   }
 }
+
+/** True for a Postgres unique-constraint violation (23505), however the driver wraps it. */
+export function isUniqueViolation(err: unknown): boolean {
+  for (let e: unknown = err, depth = 0; e && depth < 4; e = (e as { cause?: unknown }).cause, depth++) {
+    if ((e as { code?: unknown }).code === "23505") return true;
+  }
+  return false;
+}
