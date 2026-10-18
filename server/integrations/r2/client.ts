@@ -11,7 +11,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ObjectTooLargeError, type ObjectStorage } from "./storage";
 
-export type R2Credentials = { accountId: string; accessKeyId: string; secretAccessKey: string };
+export type R2Credentials = { endpoint: string; accessKeyId: string; secretAccessKey: string };
 
 /** R2 through its S3-compatible API. Never called inside a DB transaction. */
 export class R2Storage implements ObjectStorage {
@@ -23,7 +23,7 @@ export class R2Storage implements ObjectStorage {
       // Path-style URLs (https://<account>.r2.cloudflarestorage.com/<bucket>/<key>) keep every
       // presigned upload on one origin, which is what the CSP connect-src allows.
       forcePathStyle: true,
-      endpoint: `https://${creds.accountId}.r2.cloudflarestorage.com`,
+      endpoint: creds.endpoint,
       credentials: { accessKeyId: creds.accessKeyId, secretAccessKey: creds.secretAccessKey },
     });
   }

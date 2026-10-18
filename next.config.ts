@@ -15,7 +15,10 @@ function originOf(url: string | undefined): string | null {
 
 // R2 origins are read at build time (Next loads .env files before this config). Browsers PUT
 // avatar uploads straight to R2, and public images are served from the public bucket's domain.
-const r2UploadOrigin = process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : null;
+// R2_ENDPOINT overrides the R2 account endpoint (local MinIO).
+const r2UploadOrigin =
+  originOf(process.env.R2_ENDPOINT) ??
+  (process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : null);
 const publicAssetsOrigin = originOf(process.env.R2_PUBLIC_BASE_URL);
 const withOrigins = (base: string, ...origins: (string | null)[]) => [base, ...origins.filter(Boolean)].join(" ");
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getEnv, getMonimeWebhookSecret, resetEnvForTests } from "@/server/env";
+import { getEnv, getMonimeWebhookSecret, getR2Config, resetEnvForTests } from "@/server/env";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -30,6 +30,13 @@ describe("getEnv", () => {
     vi.stubEnv("EMAIL_PROVIDER", "cloudflare");
     resetEnvForTests();
     expect(() => getEnv()).toThrow(/CLOUDFLARE_ACCOUNT_ID[\s\S]*CLOUDFLARE_EMAIL_API_TOKEN/);
+  });
+
+  it("requires SMTP_URL when the SMTP email provider is enabled", () => {
+    vi.stubEnv("EMAIL_ENABLED", "true");
+    vi.stubEnv("EMAIL_PROVIDER", "smtp");
+    resetEnvForTests();
+    expect(() => getEnv()).toThrow(/SMTP_URL/);
   });
 
   it("defaults email to disabled", () => {
@@ -68,5 +75,36 @@ describe("getEnv", () => {
     vi.stubEnv("MONIME_SPACE_ID", "s");
     resetEnvForTests();
     expect(() => getEnv()).toThrow(/MONIME_WEBHOOK_SECRET/);
+  });
+});
+
+describe("getR2Config", () => {
+  const creds = () => {
+    vi.stubEnv("R2_ACCESS_KEY_ID", "key");
+    vi.stubEnv("R2_SECRET_ACCESS_KEY", "secret");
+    vi.stubEnv("R2_PUBLIC_BASE_URL", "https://cdn.example.com/");
+  };
+
+  it("is null without an account id or endpoint", () => {
+    creds();
+    vi.stubEnv("R2_ACCOUNT_ID", "");
+    vi.stubEnv("R2_ENDPOINT", "");
+    expect(getR2Config()).toBeNull();
+  });
+
+  it("derives the endpoint from the R2 account id", () => {
+    creds();
+    vi.stubEnv("R2_ACCOUNT_ID", "acc1");
+    expect(getR2Config()).toMatchObject({
+      endpoint: "https://acc1.r2.cloudflarestorage.com",
+      publicBaseUrl: "https://cdn.example.com",
+    });
+  });
+
+  it("prefers an explicit endpoint (local MinIO)", () => {
+    creds();
+    vi.stubEnv("R2_ACCOUNT_ID", "acc1");
+    vi.stubEnv("R2_ENDPOINT", "http://localhost:9000/");
+    expect(getR2Config()?.endpoint).toBe("http://localhost:9000");
   });
 });

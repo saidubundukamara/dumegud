@@ -42,10 +42,12 @@ const schema = z
       .enum(["true", "false"])
       .default("false")
       .transform((v) => v === "true"),
-    EMAIL_PROVIDER: z.enum(["cloudflare", "console"]).default("console"),
+    EMAIL_PROVIDER: z.enum(["cloudflare", "smtp", "console"]).default("console"),
     EMAIL_FROM: z.string().min(3).default("DuMeGud <no-reply@dumegud.com>"),
     CLOUDFLARE_ACCOUNT_ID: optionalString,
     CLOUDFLARE_EMAIL_API_TOKEN: optionalString,
+    /** SMTP server for EMAIL_PROVIDER=smtp (local Mailpit: smtp://localhost:1025). */
+    SMTP_URL: optionalUrl,
 
     // Monime. `fake` = in-memory client for dev/tests (never on Vercel production).
     MONIME_ENVIRONMENT: z.enum(["fake", "test", "live"]).default("fake"),
@@ -62,6 +64,8 @@ const schema = z
     R2_ACCOUNT_ID: optionalString,
     R2_ACCESS_KEY_ID: optionalString,
     R2_SECRET_ACCESS_KEY: optionalString,
+    /** S3 endpoint override (local MinIO: http://localhost:9000). Defaults to the R2 account endpoint. */
+    R2_ENDPOINT: optionalUrl,
     /** Private bucket where browsers PUT raw uploads before the server validates them. */
     R2_UPLOADS_BUCKET: z.string().min(1).default("dumegud-uploads"),
     /** Public bucket for re-encoded images (avatars), served from R2_PUBLIC_BASE_URL. */
@@ -87,6 +91,9 @@ const schema = z
       for (const key of ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_EMAIL_API_TOKEN"] as const) {
         if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: "Required when EMAIL_PROVIDER=cloudflare" });
       }
+    }
+    if (env.EMAIL_ENABLED && env.EMAIL_PROVIDER === "smtp" && !env.SMTP_URL) {
+      ctx.addIssue({ code: "custom", path: ["SMTP_URL"], message: "Required when EMAIL_PROVIDER=smtp" });
     }
     if (env.MONIME_ENVIRONMENT !== "fake") {
       for (const key of ["MONIME_ACCESS_TOKEN", "MONIME_SPACE_ID", "MONIME_WEBHOOK_SECRET", "MONIME_PLATFORM_ACCOUNT_ID"] as const) {
@@ -136,10 +143,11 @@ export function resetEnvForTests() {
 
 /** R2 credentials and public URL, or null while R2 isn't configured. */
 export function getR2Config(env: Env = getEnv()) {
-  const { R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_PUBLIC_BASE_URL } = env;
-  if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_PUBLIC_BASE_URL) return null;
+  const { R2_ACCOUNT_ID, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_PUBLIC_BASE_URL } = env;
+  const endpoint = R2_ENDPOINT ?? (R2_ACCOUNT_ID && `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`);
+  if (!endpoint || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_PUBLIC_BASE_URL) return null;
   return {
-    accountId: R2_ACCOUNT_ID,
+    endpoint: endpoint.replace(/\/$/, ""),
     accessKeyId: R2_ACCESS_KEY_ID,
     secretAccessKey: R2_SECRET_ACCESS_KEY,
     uploadsBucket: env.R2_UPLOADS_BUCKET,

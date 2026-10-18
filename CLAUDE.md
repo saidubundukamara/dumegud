@@ -14,6 +14,7 @@ DuMeGud is a creator-support and digital-commerce platform for Sierra Leone (one
 ## Commands
 
 ```bash
+docker compose up -d   # local Postgres, MinIO, Mailpit (rate limiting stays in-memory in dev)
 npm run dev            # next dev (Turbopack is the default; no flag needed)
 npm run build          # next build (does NOT run lint in Next 16)
 npm run lint           # ESLint CLI with flat config (`next lint` no longer exists)
@@ -28,7 +29,7 @@ npm run db:generate    # drizzle-kit: schema → SQL migration in server/db/migr
 npm run db:migrate     # apply migrations (uses DATABASE_URL_MIGRATOR, falls back to DATABASE_URL)
 ```
 
-Env: copy `.env.example` → `.env.local`. `server/env.ts` validates lazily (first `getEnv()` call), so `build` works without secrets. Add new variables to both files when a phase needs them. `tests/setup.ts` stubs `server-only` and sets test env values.
+Env: copy `.env.example` → `.env.local` (its header lists the local Docker values; Mailpit UI http://localhost:8025, MinIO console http://localhost:9001). `server/env.ts` validates lazily (first `getEnv()` call), so `build` works without secrets. Add new variables to both files when a phase needs them. `tests/setup.ts` stubs `server-only` and sets test env values.
 
 ## Next.js 16.4 specifics in this repo
 

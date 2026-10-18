@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { CloudflareEmailService, parseFromAddress } from "@/server/integrations/email/cloudflare";
+import { SmtpEmailService } from "@/server/integrations/email/smtp";
 import { escapeHtml, verifyEmailTemplate } from "@/server/integrations/email/templates";
 import { ExternalServiceError } from "@/server/lib/errors";
 
@@ -51,6 +52,25 @@ describe("CloudflareEmailService", () => {
       Response.json({ success: false, errors: [{ code: 10001, message: "bad" }], result: null }, { status: 400 }),
     );
     const svc = new CloudflareEmailService({ accountId: "a", apiToken: "t", from: "n@d.com", fetch: fetchMock });
+    await expect(svc.send(message)).rejects.toBeInstanceOf(ExternalServiceError);
+  });
+});
+
+describe("SmtpEmailService", () => {
+  const message = { to: "x@example.com", subject: "S", html: "<p>h</p>", text: "t", tag: "verify-email" };
+
+  it("sends the message from EMAIL_FROM", async () => {
+    const sendMail = vi.fn(async () => ({}));
+    const svc = new SmtpEmailService({ url: "smtp://localhost:1025", from: "DuMeGud <n@d.com>", transport: { sendMail } });
+    await svc.send(message);
+    expect(sendMail).toHaveBeenCalledWith({ from: "DuMeGud <n@d.com>", to: "x@example.com", subject: "S", html: "<p>h</p>", text: "t" });
+  });
+
+  it("throws ExternalServiceError when the SMTP server fails", async () => {
+    const sendMail = vi.fn(async () => {
+      throw new Error("ECONNREFUSED");
+    });
+    const svc = new SmtpEmailService({ url: "smtp://localhost:1025", from: "n@d.com", transport: { sendMail } });
     await expect(svc.send(message)).rejects.toBeInstanceOf(ExternalServiceError);
   });
 });

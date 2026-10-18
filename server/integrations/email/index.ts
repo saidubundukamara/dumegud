@@ -2,6 +2,7 @@ import "server-only";
 import type { Env } from "@/server/env";
 import { CloudflareEmailService } from "./cloudflare";
 import { ConsoleEmailService } from "./console";
+import { SmtpEmailService } from "./smtp";
 import type { EmailService } from "./EmailService";
 
 export type { EmailMessage, EmailService } from "./EmailService";
@@ -13,6 +14,9 @@ export function createEmailService(env: Env): EmailService {
       apiToken: env.CLOUDFLARE_EMAIL_API_TOKEN!,
       from: env.EMAIL_FROM,
     });
+  }
+  if (env.EMAIL_ENABLED && env.EMAIL_PROVIDER === "smtp") {
+    return new SmtpEmailService({ url: env.SMTP_URL!, from: env.EMAIL_FROM });
   }
   return new ConsoleEmailService(env.NODE_ENV !== "production");
 }
