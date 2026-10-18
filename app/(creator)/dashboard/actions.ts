@@ -1,6 +1,6 @@
 "use server";
 
-import { updateTag } from "next/cache";
+import { refresh, updateTag } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
@@ -61,6 +61,8 @@ export async function acceptCreatorTerms(_prev: FormState, formData: FormData): 
   }
   return runForm(async () => {
     await services.creators.acceptCreatorTerms(actor);
+    // Owner-only data, no cache tag to update: re-render the dashboard so the form goes away.
+    refresh();
     return { status: "success" };
   });
 }
@@ -87,6 +89,7 @@ export async function retryWalletSetup(): Promise<FormState> {
   const { actor } = await verifySession();
   return runForm(async () => {
     const wallet = await services.wallet.retryForActor(actor);
+    if (wallet.ready) refresh();
     return wallet.ready
       ? { status: "success", message: "Your wallet is ready." }
       : { status: "error", message: "We couldn't set up your wallet yet. We'll keep trying automatically." };
