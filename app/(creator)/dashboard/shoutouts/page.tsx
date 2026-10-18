@@ -48,6 +48,17 @@ async function Shoutouts({ searchParams }: Pick<PageProps<"/dashboard/shoutouts"
   const raw = await searchParams;
   const opts = shoutoutOptionsSchema.parse(raw);
   const posted = typeof raw.posted === "string" ? Number(raw.posted) : null;
+  if (!(await services.creators.getOwnProfile(actor))) {
+    return (
+      <section className="flex flex-col gap-2 rounded-brand-lg bg-surface p-5 shadow-soft ring-1 ring-border sm:p-6">
+        <h2 className="text-xl font-bold">Set up your page first</h2>
+        <p className="text-muted">Once your page is live and supporters start giving, you can thank them here.</p>
+        <Link href="/dashboard/profile" className={buttonClasses("primary", "self-start")}>
+          Set up your page
+        </Link>
+      </section>
+    );
+  }
   const preview = await services.shoutouts.preview(actor, opts);
   const included = preview.people.filter((p) => !p.excluded);
   const platformLabel = SHOUTOUT_PLATFORM_LABELS[opts.platform];
