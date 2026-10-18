@@ -27,6 +27,7 @@ npm run test:e2e       # Playwright: builds + starts the app itself (or set E2E_
 PW_CHANNEL=chrome npm run test:e2e          # use installed Chrome if the Playwright browser download fails
 npm run db:generate    # drizzle-kit: schema → SQL migration in server/db/migrations
 npm run db:migrate     # apply migrations (uses DATABASE_URL_MIGRATOR, falls back to DATABASE_URL)
+ADMIN_EMAIL=… ADMIN_PASSWORD=… npm run db:seed:admin   # create (or promote) a super_admin; idempotent, audited
 ```
 
 Env: copy `.env.example` → `.env.local` (its header lists the local Docker values; Mailpit UI http://localhost:8025, MinIO console http://localhost:9001). `server/env.ts` validates lazily (first `getEnv()` call), so `build` works without secrets. Add new variables to both files when a phase needs them. `tests/setup.ts` stubs `server-only` and sets test env values.
