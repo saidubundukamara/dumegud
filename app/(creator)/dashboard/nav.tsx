@@ -1,8 +1,9 @@
 "use client";
 
 import {
-  BankIcon,
   CaretRightIcon,
+  CheckIcon,
+  DeviceMobileIcon,
   DotsThreeCircleIcon,
   GearSixIcon,
   HouseIcon,
@@ -33,14 +34,33 @@ const PRIMARY: Item[] = [
   { href: "/dashboard/wallet", label: "Wallet", Icon: WalletIcon },
 ];
 
-const MORE: Item[] = [
-  { href: "/dashboard/supporters", label: "Supporters", Icon: UsersThreeIcon },
-  { href: "/dashboard/shoutouts", label: "Shout-outs", Icon: MegaphoneIcon },
-  { href: "/dashboard/orders", label: "Orders", Icon: ReceiptIcon },
-  { href: "/dashboard/verification", label: "Verify your ID", Icon: IdentificationCardIcon },
-  { href: "/dashboard/payout-method", label: "My mobile money", Icon: BankIcon },
-  { href: "/dashboard/settings", label: "Settings", Icon: GearSixIcon },
+const ITEMS = {
+  supporters: { href: "/dashboard/supporters", label: "Supporters", Icon: UsersThreeIcon },
+  shoutouts: { href: "/dashboard/shoutouts", label: "Shout-outs", Icon: MegaphoneIcon },
+  orders: { href: "/dashboard/orders", label: "Orders", Icon: ReceiptIcon },
+  verification: { href: "/dashboard/verification", label: "Verify your ID", Icon: IdentificationCardIcon },
+  payoutMethod: { href: "/dashboard/payout-method", label: "My mobile money", Icon: DeviceMobileIcon },
+  settings: { href: "/dashboard/settings", label: "Settings", Icon: GearSixIcon },
+} satisfies Record<string, Item>;
+
+const [home, myPage, products, wallet] = PRIMARY;
+
+/** The sidebar in four small groups, so ten destinations read as four decisions. */
+const GROUPS: { label: string; items: Item[] }[] = [
+  { label: "Your page", items: [home, myPage, products] },
+  { label: "Fans", items: [ITEMS.supporters, ITEMS.shoutouts, ITEMS.orders] },
+  { label: "Money", items: [wallet, ITEMS.verification, ITEMS.payoutMethod] },
+  { label: "Account", items: [ITEMS.settings] },
 ];
+
+/** Phones: what the tab bar doesn't hold, grouped the same way. */
+const MORE_GROUPS: { label: string; items: Item[] }[] = [
+  { label: "Fans", items: [ITEMS.supporters, ITEMS.shoutouts, ITEMS.orders] },
+  { label: "Money", items: [ITEMS.verification, ITEMS.payoutMethod] },
+  { label: "Account", items: [ITEMS.settings] },
+];
+
+const MORE: Item[] = MORE_GROUPS.flatMap((g) => g.items);
 
 function isActive(pathname: string, href: string) {
   return href === "/dashboard" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
@@ -87,23 +107,31 @@ function DashboardNavView({ pathname }: { pathname: string }) {
         <div className="px-3">
           <Wordmark href="/dashboard" />
         </div>
-        <nav aria-label="Dashboard" className="flex flex-1 flex-col gap-1 overflow-y-auto">
-          {[...PRIMARY, ...MORE].map(({ href, label, Icon }) => {
-            const active = isActive(pathname, href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className={`flex min-h-11 items-center gap-3 rounded-full px-3 font-semibold transition-colors duration-200 ${
-                  active ? "bg-primary-soft text-primary-pressed" : "text-muted hover:bg-surface-muted hover:text-text"
-                }`}
-              >
-                <Icon aria-hidden="true" weight={active ? "fill" : "regular"} className="size-5" />
-                {label}
-              </Link>
-            );
-          })}
+        <nav aria-label="Dashboard" className="flex flex-1 flex-col gap-5 overflow-y-auto">
+          {GROUPS.map((group) => (
+            <div key={group.label} className="flex flex-col gap-0.5">
+              <p className="px-3 pb-1 text-xs font-semibold text-muted">{group.label}</p>
+              <ul className="flex flex-col gap-0.5">
+                {group.items.map(({ href, label, Icon }) => {
+                  const active = isActive(pathname, href);
+                  return (
+                    <li key={href}>
+                      <Link
+                        href={href}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex min-h-11 items-center gap-3 rounded-full px-3 font-semibold transition-colors duration-200 ${
+                          active ? "bg-primary-soft text-primary-pressed" : "text-muted hover:bg-surface-muted hover:text-text"
+                        }`}
+                      >
+                        <Icon aria-hidden="true" weight={active ? "fill" : "regular"} className="size-5" />
+                        {label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
         <SignOut />
       </aside>
@@ -121,12 +149,12 @@ function DashboardNavView({ pathname }: { pathname: string }) {
                 <Link
                   href={href}
                   aria-current={active ? "page" : undefined}
-                  className={`flex min-h-12 flex-col items-center justify-center gap-0.5 text-[0.6875rem] font-semibold transition-colors ${
+                  className={`flex min-h-12 flex-col items-center justify-center gap-0.5 text-xs font-semibold transition-colors ${
                     active ? "text-primary" : "text-muted"
                   }`}
                 >
                   <span
-                    className={`flex h-7 w-12 items-center justify-center rounded-full transition-[background-color,transform] duration-300 ease-spring ${active ? "scale-105 bg-primary-soft" : ""}`}
+                    className={`flex h-7 w-12 items-center justify-center rounded-full transition-[background-color,transform] duration-200 ease-brand ${active ? "scale-105 bg-primary-soft" : ""}`}
                   >
                     <Icon aria-hidden="true" weight={active ? "fill" : "regular"} className="size-[1.375rem]" />
                   </span>
@@ -140,7 +168,7 @@ function DashboardNavView({ pathname }: { pathname: string }) {
               type="button"
               onClick={() => setMoreOpen(true)}
               aria-expanded={moreOpen}
-              className={`flex min-h-12 w-full flex-col items-center justify-center gap-0.5 text-[0.6875rem] font-semibold ${moreActive ? "text-primary" : "text-muted"}`}
+              className={`flex min-h-12 w-full flex-col items-center justify-center gap-0.5 text-xs font-semibold ${moreActive ? "text-primary" : "text-muted"}`}
             >
               <span className={`flex h-7 w-12 items-center justify-center rounded-full ${moreActive ? "bg-primary-soft" : ""}`}>
                 <DotsThreeCircleIcon aria-hidden="true" weight={moreActive ? "fill" : "regular"} className="size-[1.375rem]" />
@@ -152,24 +180,38 @@ function DashboardNavView({ pathname }: { pathname: string }) {
       </nav>
 
       <Sheet open={moreOpen} onClose={closeMore} title="More">
-        <ul className="flex flex-col">
-          {MORE.map(({ href, label, Icon }) => (
-            <li key={href}>
-              <Link
-                href={href}
-                onClick={closeMore}
-                aria-current={isActive(pathname, href) ? "page" : undefined}
-                className="flex min-h-14 items-center gap-3 rounded-brand px-2 font-semibold active:bg-surface-muted aria-[current=page]:text-primary"
-              >
-                <span className="flex size-9 items-center justify-center rounded-full bg-surface-muted">
-                  <Icon aria-hidden="true" className="size-5" />
-                </span>
-                <span className="flex-1">{label}</span>
-                <CaretRightIcon aria-hidden="true" className="size-4 text-muted" />
-              </Link>
-            </li>
+        <div className="flex flex-col gap-3">
+          {MORE_GROUPS.map((group) => (
+            <div key={group.label}>
+              <p className="px-2 pb-1 text-xs font-semibold text-muted">{group.label}</p>
+              <ul className="flex flex-col">
+                {group.items.map(({ href, label, Icon }) => {
+                  const active = isActive(pathname, href);
+                  return (
+                    <li key={href}>
+                      <Link
+                        href={href}
+                        onClick={closeMore}
+                        aria-current={active ? "page" : undefined}
+                        className="flex min-h-14 items-center gap-3 rounded-brand px-2 font-semibold active:bg-surface-muted aria-[current=page]:text-primary"
+                      >
+                        <span className={`flex size-9 items-center justify-center rounded-full ${active ? "bg-primary-soft" : "bg-surface-muted"}`}>
+                          <Icon aria-hidden="true" weight={active ? "fill" : "regular"} className="size-5" />
+                        </span>
+                        <span className="flex-1">{label}</span>
+                        {active ? (
+                          <CheckIcon aria-hidden="true" weight="bold" className="size-4" />
+                        ) : (
+                          <CaretRightIcon aria-hidden="true" className="size-4 text-muted" />
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
         <SignOut className="mt-3 border-t border-border pt-3" />
       </Sheet>
     </>

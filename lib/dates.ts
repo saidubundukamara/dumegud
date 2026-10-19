@@ -35,3 +35,8 @@ export function formatRelative(d: Date, now: Date = new Date()): string {
   if (hours < 48) return "Yesterday";
   return formatDate(d);
 }
+
+/** Whether `d` happened within the last `ms` milliseconds. */
+export function isWithin(d: Date, ms: number, now: Date = new Date()): boolean {
+  return now.getTime() - d.getTime() < ms;
+}

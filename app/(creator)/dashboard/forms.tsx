@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { ConfirmAction } from "@/components/dashboard/ConfirmAction";
 import { Alert } from "@/components/ui/Alert";
 import { SubmitButton } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
@@ -108,11 +109,9 @@ export function PublishControls({ published, canPublish }: { published: boolean;
     <div className="flex flex-col gap-3">
       {latest.message ? <Alert tone={latest.status === "error" ? "danger" : "success"}>{latest.message}</Alert> : null}
       {published ? (
-        <form action={unpublish}>
-          <SubmitButton variant="secondary" pendingLabel="Hiding…">
-            Hide my page
-          </SubmitButton>
-        </form>
+        <ConfirmAction trigger="Hide my page" title="Hide your page?" confirm="Hide my page" cancel="Keep it live" pendingLabel="Hiding…" action={unpublish}>
+          Fans won&apos;t be able to see your page or support you until you make it live again. Your products and money stay safe.
+        </ConfirmAction>
       ) : (
         <form action={publish}>
           <SubmitButton disabled={!canPublish} pendingLabel="Going live…">
@@ -152,7 +151,8 @@ export function ShareLinks({ links }: { links: Array<{ label: string; url: strin
           </span>
           <button
             type="button"
-            className="min-h-10 rounded-full bg-surface px-4 font-semibold shadow-soft ring-1 ring-border transition-[box-shadow,transform] duration-200 ease-brand hover:ring-border-strong active:scale-[0.97]"
+            aria-label={copied === l.url ? `${l.label} link copied` : `Copy ${l.label} link`}
+            className="min-h-11 rounded-full bg-surface px-4 font-semibold shadow-soft ring-1 ring-border transition-[box-shadow,transform] duration-200 ease-brand hover:ring-border-strong active:scale-[0.97]"
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(l.url);

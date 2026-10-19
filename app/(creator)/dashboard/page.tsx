@@ -1,21 +1,31 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowUpRightIcon, CheckIcon, MegaphoneIcon, WalletIcon } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRightIcon, ArrowUpRightIcon, CaretDownIcon, GiftIcon, MegaphoneIcon, WalletIcon } from "@phosphor-icons/react/dist/ssr";
+import { Checklist } from "@/components/dashboard/Checklist";
+import { withdrawReadiness } from "@/components/dashboard/withdraw-readiness";
 import { Alert } from "@/components/ui/Alert";
 import { StatusChip } from "@/components/ui/Badge";
 import { Card, Panel } from "@/components/ui/Card";
 import { ShareLink } from "@/components/ui/ShareLink";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { buttonClasses } from "@/components/ui/button-classes";
+import { formatRelative, isWithin } from "@/lib/dates";
+import { formatSLE } from "@/lib/money";
 import { SHARE_SOURCES, TRAFFIC_SOURCE_LABELS } from "@/lib/traffic-source";
-import { verifySession } from "@/server/dal/session";
+import { verifySession, type VerifiedSession } from "@/server/dal/session";
 import { getEnv } from "@/server/env";
 import { services } from "@/server/services";
 import type { WalletDTO } from "@/server/services/WalletService";
 import { PublishControls, ShareLinks, TermsForm, VerifyEmailBanner, WalletRetry } from "./forms";
 
 export const metadata: Metadata = { title: "Dashboard" };
+
+const HELP_HREF: Route = "/faq";
+const NEW_GIFT_MS = 24 * 60 * 60 * 1000;
+
+// Where each publish step gets fixed; the rest are handled in place on this page.
+const STEP_HREFS: Partial<Record<string, Route>> = { profile: "/dashboard/profile" };
 
 export default function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   return (
@@ -24,7 +34,7 @@ export default function DashboardPage({ searchParams }: PageProps<"/dashboard">)
         <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading">
           <Skeleton className="h-10 w-48" />
           <Skeleton className="h-56 w-full !rounded-brand-xl" />
-          <Skeleton className="h-32 w-full !rounded-brand-lg" />
+          <Skeleton className="h-40 w-full !rounded-brand-lg" />
         </div>
       }
     >
@@ -49,21 +59,23 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/dashboard">, "search
   const base = getEnv().APP_BASE_URL.replace(/\/$/, "");
   const pageUrl = profile ? `${new URL(base).host}/${profile.handle}` : null;
   const firstName = account.name?.trim().split(/\s+/)[0];
-  const doneCount = checklist.filter((i) => i.done).length;
 
   return (
     <>
       {notice === "email-verified" ? <Alert tone="success">Your email is confirmed. Thanks!</Alert> : null}
       {!account.emailVerified ? <VerifyEmailBanner email={account.email} /> : null}
       {profile?.status === "suspended" ? (
-        <Alert tone="danger">Your page is suspended and can&apos;t be viewed. Contact support.</Alert>
+        <Alert tone="danger">
+          Your page is suspended and can&apos;t be viewed. <Link href={HELP_HREF}>Get help</Link>
+        </Alert>
       ) : null}
 
-      <h1 className="text-title animate-rise">Hi{firstName ? `, ${firstName}` : ""}</h1>
+      <h1 className="text-title">Hi{firstName ? `, ${firstName}` : ""}</h1>
 
-      <Card inner="flex flex-col gap-5 p-5 sm:p-7" className="animate-rise [animation-delay:60ms]">
+      <Card as="section" inner="flex flex-col gap-5 p-5 sm:p-7">
         {published && profile ? (
           <>
+            <h2 className="sr-only">Your page</h2>
             <div className="flex flex-col gap-2">
               <StatusChip tone="success">
                 <span aria-hidden="true" className="size-2 rounded-full bg-success" />
@@ -75,57 +87,17 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/dashboard">, "search
               >
                 {pageUrl}
               </Link>
-              <p className="text-muted">Share this link anywhere. Fans tap it and pay with mobile money.</p>
+              <p className="text-muted">Share this link anywhere. Fans tap it and send a gift with mobile money.</p>
             </div>
             <ShareLink url={`${base}/${profile.handle}`} title={account.name ?? undefined} variant="primary" />
-            <Link href={`/${profile.handle}`} className="inline-flex min-h-11 w-fit items-center gap-1.5 font-semibold text-muted hover:text-text">
-              See my page <ArrowUpRightIcon aria-hidden="true" weight="bold" className="size-4" />
-            </Link>
           </>
         ) : (
           <>
             <div className="flex flex-col gap-1">
               <h2 className="text-2xl font-bold">Get your page ready</h2>
-              <p className="text-muted">Nobody can see your page or send you money until it&apos;s live.</p>
+              <p className="text-muted">Nobody can see your page or support you until it&apos;s live.</p>
             </div>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between text-sm font-semibold">
-                <span>
-                  {doneCount} of {checklist.length} done
-                </span>
-              </div>
-              <div
-                className="h-2.5 overflow-hidden rounded-full bg-surface-muted"
-                role="progressbar"
-                aria-label="Page setup"
-                aria-valuemin={0}
-                aria-valuemax={checklist.length}
-                aria-valuenow={doneCount}
-              >
-                <div
-                  className="h-full origin-left rounded-full bg-primary transition-transform duration-700 ease-brand"
-                  style={{ transform: `scaleX(${checklist.length ? doneCount / checklist.length : 0})` }}
-                />
-              </div>
-            </div>
-            <ol className="flex flex-col gap-1">
-              {checklist.map((item) => (
-                <li key={item.key} className="flex min-h-10 items-center gap-3">
-                  <span
-                    aria-hidden="true"
-                    className={`flex size-7 shrink-0 items-center justify-center rounded-full ${
-                      item.done ? "bg-success text-white" : "ring-2 ring-border-strong"
-                    }`}
-                  >
-                    {item.done ? <CheckIcon weight="bold" className="size-4" /> : null}
-                  </span>
-                  <span className={item.done ? "text-muted line-through decoration-border-strong" : "font-semibold"}>
-                    {item.label}
-                    <span className="sr-only">{item.done ? " (done)" : " (to do)"}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
+            <Checklist items={checklist.map((i) => ({ ...i, href: STEP_HREFS[i.key] }))} label="Page setup" />
           </>
         )}
 
@@ -136,35 +108,122 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/dashboard">, "search
         ) : (
           <div className="flex flex-col gap-4 border-t border-border pt-5">
             {!profile.termsAccepted ? <TermsForm /> : null}
-            <PublishControls published={published} canPublish={checklist.every((i) => i.done)} />
-            <Link href="/dashboard/profile" className="w-fit font-semibold underline underline-offset-4">
-              Edit your page
-            </Link>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+              <PublishControls published={published} canPublish={checklist.every((i) => i.done)} />
+              <Link href="/dashboard/profile" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4">
+                Edit my page
+              </Link>
+              {published ? (
+                <Link href={`/${profile.handle}`} className="inline-flex min-h-11 items-center gap-1.5 font-semibold text-muted hover:text-text">
+                  See my page <ArrowUpRightIcon aria-hidden="true" weight="bold" className="size-4" />
+                </Link>
+              ) : null}
+            </div>
           </div>
         )}
       </Card>
 
       {published && profile ? (
         <>
+          {wallet.status === "active" ? (
+            <Suspense fallback={<Skeleton className="h-48 w-full !rounded-brand-lg" />}>
+              <MoneySummary actor={actor} />
+            </Suspense>
+          ) : null}
           <ThankYouCard waiting={waiting} />
-          <Panel as="section" className="flex flex-col gap-3 p-5 sm:p-6">
-            <h2 className="text-xl font-bold">A link for each app</h2>
-            <p className="text-muted">
-              Use the link for the app you&apos;re posting on. Fans there can add their username for a shout-out, and
-              you&apos;ll see which app brings the most support.
-            </p>
-            <ShareLinks
-              links={SHARE_SOURCES.map((source) => ({
-                label: TRAFFIC_SOURCE_LABELS[source],
-                url: `${base}/${profile.handle}?via=${source}`,
-              }))}
-            />
+          <Panel as="section" className="p-5 sm:p-6">
+            <details className="details-smooth group">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 [&::-webkit-details-marker]:hidden">
+                <h2 className="text-xl font-bold">A link for each app</h2>
+                <CaretDownIcon aria-hidden="true" weight="bold" className="size-5 shrink-0 text-muted transition-transform duration-200 group-open:rotate-180" />
+              </summary>
+              <div className="flex flex-col gap-3 pt-4">
+                <p className="text-muted">
+                  Use the link for the app you&apos;re posting on. Fans there can add their username for a shout-out, and
+                  you&apos;ll see which app brings you the most support.
+                </p>
+                <ShareLinks
+                  links={SHARE_SOURCES.map((source) => ({
+                    label: TRAFFIC_SOURCE_LABELS[source],
+                    url: `${base}/${profile.handle}?via=${source}`,
+                  }))}
+                />
+              </div>
+            </details>
           </Panel>
         </>
       ) : null}
 
-      <WalletCard wallet={wallet} />
+      {wallet.status !== "active" ? <WalletCard wallet={wallet} /> : null}
     </>
+  );
+}
+
+/** The balance and the latest gifts: the first thing a creator opens the app to check. */
+async function MoneySummary({ actor }: { actor: VerifiedSession["actor"] }) {
+  const [balance, { succeeded }, kyc, method] = await Promise.all([
+    services.balances.getBalance(actor.userId),
+    services.contributions.listForCreator(actor),
+    services.kyc.getStatus(actor),
+    services.payoutMethods.get(actor),
+  ]);
+  const latest = succeeded.slice(0, 3);
+  const { ready } = withdrawReadiness(kyc, method);
+
+  return (
+    <Panel as="section" className="flex flex-col gap-5 p-5 sm:p-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col">
+          <h2 className="text-muted">In your wallet</h2>
+          <p className="font-display text-4xl font-bold tracking-tight tabular-nums">{formatSLE(balance.displayMinor)}</p>
+          {balance.pendingMinor > 0 ? <p className="text-sm text-muted">+ {formatSLE(balance.pendingMinor)} on its way</p> : null}
+        </div>
+        <Link href="/dashboard/wallet" className={buttonClasses(ready ? "primary" : "secondary")}>
+          {ready ? "Withdraw" : "Set up withdrawals"}
+        </Link>
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-border pt-4">
+        <h3 className="font-semibold">Latest gifts</h3>
+        {latest.length ? (
+          <ul className="flex flex-col gap-1.5">
+            {latest.map((g) => {
+              const fresh = isWithin(g.at, NEW_GIFT_MS);
+              return (
+                <li
+                  key={g.paymentId}
+                  className={`flex items-center gap-3 rounded-brand px-3 py-2.5 ${fresh ? "bg-secondary-soft" : "bg-surface-muted"}`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`flex size-9 shrink-0 items-center justify-center rounded-full ${fresh ? "bg-secondary text-secondary-foreground" : "bg-surface text-muted"}`}
+                  >
+                    <GiftIcon weight="fill" className="size-4" />
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="flex items-center gap-2 font-semibold">
+                      <span className="truncate">{g.name ?? (g.shoutout ? `@${g.shoutout.handle}` : "Anonymous")}</span>
+                      {fresh ? <span className="rounded-full bg-secondary px-2 py-px text-xs font-bold text-secondary-foreground">New</span> : null}
+                    </span>
+                    <time dateTime={g.at.toISOString()} className="text-sm text-muted">
+                      {formatRelative(g.at)}
+                    </time>
+                  </span>
+                  <span className="font-semibold tabular-nums">{formatSLE(g.grossMinor)}</span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-muted">No gifts yet. Share your link and the first one will show up here.</p>
+        )}
+        {latest.length ? (
+          <Link href="/dashboard/supporters" className="inline-flex min-h-11 w-fit items-center gap-1.5 font-semibold text-muted hover:text-text">
+            All supporters <ArrowRightIcon aria-hidden="true" weight="bold" className="size-4" />
+          </Link>
+        ) : null}
+      </div>
+    </Panel>
   );
 }
 
@@ -192,14 +251,15 @@ function ThankYouCard({ waiting }: { waiting: number }) {
   );
 }
 
+/** Only shown while the wallet isn't ready; once it is, the money summary takes its place. */
 function WalletCard({ wallet }: { wallet: WalletDTO }) {
-  const text: Record<WalletDTO["status"], string> = {
-    active: "Your wallet is ready. Money from fans arrives here.",
+  const text: Record<Exclude<WalletDTO["status"], "active">, string> = {
     pending: "We're setting up your wallet. This usually takes a few seconds.",
     missing: "Your wallet hasn't been set up yet.",
     failed: "We couldn't set up your wallet. Our team knows about it, and you can also try again.",
-    frozen: "Your wallet is frozen. Contact support.",
+    frozen: "Your wallet is frozen.",
   };
+  if (wallet.status === "active") return null;
   return (
     <Panel as="section" className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
       <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-muted">
@@ -207,16 +267,21 @@ function WalletCard({ wallet }: { wallet: WalletDTO }) {
       </span>
       <div className="flex flex-1 flex-col gap-1">
         <h2 className="text-xl font-bold">Wallet</h2>
-        <p className="text-muted">{text[wallet.status]}</p>
+        <p className="text-muted">
+          {text[wallet.status]}
+          {wallet.status === "frozen" ? (
+            <>
+              {" "}
+              <Link href={HELP_HREF} className="font-semibold text-text underline underline-offset-4">
+                Get help
+              </Link>
+            </>
+          ) : null}
+        </p>
         {wallet.status === "missing" || wallet.status === "failed" || (wallet.status === "pending" && wallet.attempts > 0) ? (
           <WalletRetry />
         ) : null}
       </div>
-      {wallet.status === "active" ? (
-        <Link href="/dashboard/wallet" className={buttonClasses("secondary", "w-full sm:w-auto")}>
-          Open wallet
-        </Link>
-      ) : null}
     </Panel>
   );
 }
