@@ -29,19 +29,21 @@ const PAYOUT_STATUS = {
 
 const HISTORY_LABELS: Record<string, string> = { transfer: "Money in", payout: "Withdrawal" };
 
-export default function WalletPage() {
+export default function WalletPage({ searchParams }: PageProps<"/dashboard/wallet">) {
   return (
     <>
       <h1 className="text-title">Wallet</h1>
       <Suspense fallback={<Skeleton className="h-44 w-full !rounded-brand-xl" />}>
-        <Wallet />
+        <Wallet searchParams={searchParams} />
       </Suspense>
     </>
   );
 }
 
-async function Wallet() {
+async function Wallet({ searchParams }: Pick<PageProps<"/dashboard/wallet">, "searchParams">) {
   const { actor } = await verifySession();
+  // ?final=1 comes from "Delete account": empty the wallet even below the usual minimum.
+  const final = (await searchParams).final === "1";
   const [balance, settings, kyc, method, payouts, history] = await Promise.all([
     services.balances.getBalance(actor.userId),
     services.settings.get(),
@@ -83,6 +85,7 @@ async function Wallet() {
               maxMinor={balance.maxWithdrawableMinor}
               minMinor={settings.minPayoutMinor}
               feeBps={balance.payoutFeeBps}
+              final={final}
               to={{ providerLabel: method!.providerLabel, masked: method!.masked, holderName: method!.holderName }}
             />
           </>

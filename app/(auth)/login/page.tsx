@@ -12,6 +12,8 @@ const NOTICES: Record<string, string> = {
   "password-reset": "Your password has been updated. Sign in with your new password.",
   "password-changed": "Your password has been changed and every device was signed out. Sign in again.",
   "signed-out-everywhere": "You've been signed out on every device.",
+  "deletion-scheduled":
+    "Your account will be deleted in 30 days and your page is offline. Changed your mind? Sign in and choose Keep my account.",
 };
 
 // Auth.js redirects here with ?error=<type> when an OAuth sign-in fails.

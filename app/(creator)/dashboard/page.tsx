@@ -17,6 +17,7 @@ import { verifySession, type VerifiedSession } from "@/server/dal/session";
 import { getEnv } from "@/server/env";
 import { services } from "@/server/services";
 import type { WalletDTO } from "@/server/services/WalletService";
+import { DeletionBanner } from "./deletion-banner";
 import { PublishControls, ShareLinks, TermsForm, VerifyEmailBanner, WalletRetry } from "./forms";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -45,12 +46,13 @@ export default function DashboardPage({ searchParams }: PageProps<"/dashboard">)
 
 async function Dashboard({ searchParams }: Pick<PageProps<"/dashboard">, "searchParams">) {
   const { actor } = await verifySession();
-  const [account, profile, wallet, checklist, waiting, { notice }] = await Promise.all([
+  const [account, profile, wallet, checklist, waiting, deletion, { notice }] = await Promise.all([
     services.auth.getAccount(actor),
     services.creators.getOwnProfile(actor),
     services.wallet.getWallet(actor),
     services.creators.getPublishChecklist(actor),
     services.shoutouts.waitingCount(actor),
+    services.accountDeletions.status(actor),
     searchParams,
   ]);
   if (!account) return null;
@@ -62,6 +64,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/dashboard">, "search
 
   return (
     <>
+      {deletion ? <DeletionBanner status={deletion} /> : null}
       {notice === "email-verified" ? <Alert tone="success">Your email is confirmed. Thanks!</Alert> : null}
       {!account.emailVerified ? <VerifyEmailBanner email={account.email} /> : null}
       {profile?.status === "suspended" ? (

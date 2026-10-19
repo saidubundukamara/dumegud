@@ -20,9 +20,22 @@ type PayoutTarget = { providerLabel: string; masked: string; holderName: string 
  * Amount → review → confirm → receipt. Nothing is sent until the creator has seen exactly what
  * reaches their phone, the fee and the number it goes to.
  */
-export function WithdrawForm({ maxMinor, minMinor, feeBps, to }: { maxMinor: number; minMinor: number; feeBps: number; to: PayoutTarget }) {
+export function WithdrawForm({
+  maxMinor,
+  minMinor,
+  feeBps,
+  to,
+  final = false,
+}: {
+  maxMinor: number;
+  minMinor: number;
+  feeBps: number;
+  to: PayoutTarget;
+  /** Emptying the wallet before deleting the account: the full amount, minimum waived. */
+  final?: boolean;
+}) {
   const [state, action] = useActionState(withdraw, initialFormState);
-  const [amount, setAmount] = useState(state.values?.amount ?? "");
+  const [amount, setAmount] = useState(state.values?.amount ?? (final && maxMinor > 0 ? formatMajorInput(maxMinor) : ""));
   const [step, setStep] = useState<"amount" | "review">("amount");
   const [localError, setLocalError] = useState<string | null>(null);
   // Adjust state when a new result arrives: errors go back to the amount step, a success shows
@@ -37,7 +50,7 @@ export function WithdrawForm({ maxMinor, minMinor, feeBps, to }: { maxMinor: num
     if (state.status === "success" && minor) setReceipt({ minor, fee, at: new Date() });
   }
 
-  if (maxMinor < minMinor) {
+  if (maxMinor < minMinor && !final) {
     return (
       <p className="text-muted">
         The smallest withdrawal is {formatSLE(minMinor)}. You can withdraw once your balance reaches it.
@@ -84,7 +97,8 @@ export function WithdrawForm({ maxMinor, minMinor, feeBps, to }: { maxMinor: num
 
   const review = () => {
     if (!minor) return setLocalError("Enter an amount, for example 250.");
-    if (minor < minMinor) return setLocalError(`The smallest withdrawal is ${formatSLE(minMinor)}.`);
+    if (final && minor !== maxMinor) return setLocalError(`A final withdrawal sends everything you can withdraw: ${formatSLE(maxMinor)}.`);
+    if (!final && minor < minMinor) return setLocalError(`The smallest withdrawal is ${formatSLE(minMinor)}.`);
     if (minor > maxMinor) return setLocalError(`You can withdraw up to ${formatSLE(maxMinor)}.`);
     setLocalError(null);
     setStep("review");
@@ -93,6 +107,13 @@ export function WithdrawForm({ maxMinor, minMinor, feeBps, to }: { maxMinor: num
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
       {state.status === "error" && state.message ? <Alert tone="danger">{state.message}</Alert> : null}
+      {final ? <input type="hidden" name="final" value="1" /> : null}
+      {final ? (
+        <Alert tone="info">
+          Final withdrawal before deleting your account: it sends everything you can withdraw, and the usual{" "}
+          {formatSLE(minMinor)} minimum doesn&apos;t apply.
+        </Alert>
+      ) : null}
       {step === "amount" ? (
         <>
           <Field
@@ -110,7 +131,7 @@ export function WithdrawForm({ maxMinor, minMinor, feeBps, to }: { maxMinor: num
                 review();
               }
             }}
-            hint={`Between ${formatSLE(minMinor)} and ${formatSLE(maxMinor)}.`}
+            hint={final ? `Everything you can withdraw: ${formatSLE(maxMinor)}.` : `Between ${formatSLE(minMinor)} and ${formatSLE(maxMinor)}.`}
             errors={localError ? [localError] : state.fieldErrors?.amount}
           />
           <button type="button" className={buttonClasses("ghost", "self-start !min-h-11 !px-0")} onClick={() => setAmount(formatMajorInput(maxMinor))}>

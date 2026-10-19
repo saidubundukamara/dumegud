@@ -57,7 +57,7 @@ export async function withdraw(_prev: FormState, formData: FormData): Promise<Fo
   const parsed = withdrawSchema.safeParse(values);
   if (!parsed.success) return invalidForm(parsed.error, values);
   return runForm(async () => {
-    const payout = await services.payouts.request(actor, { amountMinor: parsed.data.amount });
+    const payout = await services.payouts.request(actor, { amountMinor: parsed.data.amount, final: field(formData, "final") === "1" });
     const message =
       payout.status === "in_review"
         ? `Your withdrawal of ${formatSLE(payout.amountMinor)} is waiting for a quick review.`

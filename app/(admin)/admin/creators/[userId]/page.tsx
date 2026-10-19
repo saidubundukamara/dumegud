@@ -22,7 +22,7 @@ export default function CreatorDetailPage({ params }: PageProps<"/admin/creators
 async function Detail({ params }: Pick<PageProps<"/admin/creators/[userId]">, "params">) {
   const { actor } = await requireRole("staff", "super_admin");
   const { userId } = await params;
-  const d = await services.admin.creatorDetail(actor, userId);
+  const [d, deletion] = await Promise.all([services.admin.creatorDetail(actor, userId), services.accountDeletions.latestForStaff(actor, userId)]);
   return (
     <>
       <div>
@@ -40,6 +40,17 @@ async function Detail({ params }: Pick<PageProps<"/admin/creators/[userId]">, "p
         <dd>{d.kyc ? `${d.kyc.status} (${d.kyc.legalName})` : "not submitted"}</dd>
         <dt className="text-muted">Payout number</dt>
         <dd>{d.payoutMethod ? `${d.payoutMethod.providerId} …${d.payoutMethod.last3} · ${d.payoutMethod.holderName ?? "?"} · ${d.payoutMethod.status} · name ${d.payoutMethod.nameMatch}` : "none"}</dd>
+        <dt className="text-muted">Deletion</dt>
+        <dd>
+          {!deletion
+            ? "none"
+            : deletion.erasedAt
+              ? `erased ${deletion.erasedAt.toISOString().slice(0, 10)}`
+              : deletion.canceledAt
+                ? `cancelled ${deletion.canceledAt.toISOString().slice(0, 10)}`
+                : `scheduled, erases after ${deletion.eraseAfter.toISOString().slice(0, 10)}`}
+          {deletion?.forfeitedMinor ? ` · gave up ${formatSLE(deletion.forfeitedMinor)}` : ""}
+        </dd>
         <dt className="text-muted">Active restrictions</dt>
         <dd>{d.restrictions.length ? d.restrictions.map((r) => r.feature).join(", ") : "none"}</dd>
       </dl>

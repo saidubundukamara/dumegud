@@ -8,7 +8,7 @@ import { accountDeletedTemplate, accountDeletionCanceledTemplate, accountDeletio
 import { availableBalanceMinor, type MonimeClient } from "@/server/integrations/monime";
 import type { ObjectStorage } from "@/server/integrations/r2/storage";
 import { profileChangeTags } from "@/server/lib/cache-tags";
-import { ConflictError, ValidationError } from "@/server/lib/errors";
+import { ConflictError, ForbiddenError, ValidationError } from "@/server/lib/errors";
 import { logger } from "@/server/lib/logger";
 import { enforceRateLimit, type RateLimitPolicy } from "@/server/lib/rate-limit";
 import type { AccountDeletionRepository } from "@/server/repositories/AccountDeletionRepository";
@@ -24,7 +24,7 @@ import type { PayoutRepository } from "@/server/repositories/PayoutRepository";
 import type { ProductRepository } from "@/server/repositories/ProductRepository";
 import type { RiskRepository } from "@/server/repositories/RiskRepository";
 import type { UserRepository } from "@/server/repositories/UserRepository";
-import type { Actor } from "./actor";
+import { isStaff, type Actor } from "./actor";
 import type { AuthService } from "./AuthService";
 import { noAudit, type AuditLogger } from "./compliance";
 import { accounts, forfeitJournal } from "./ledger";
@@ -195,6 +195,14 @@ export class AccountDeletionService {
     await this.audit.log({ actor, action: "account.deletion_canceled", targetType: "user", targetId: actor.userId });
     const user = await this.repos.users.findById(actor.userId);
     if (user) await this.trySend(user.email, accountDeletionCanceledTemplate({ dashboardUrl: `${this.base()}/dashboard` }));
+  }
+
+  // ── Staff ─────────────────────────────────────────────────────────────────────
+
+  /** The latest deletion request for a creator, for the admin creator page. */
+  async latestForStaff(actor: Actor, userId: string): Promise<AccountDeletion | null> {
+    if (!isStaff(actor.role)) throw new ForbiddenError();
+    return this.repos.accountDeletions.latestForUser(userId);
   }
 
   // ── Erasure job ───────────────────────────────────────────────────────────────

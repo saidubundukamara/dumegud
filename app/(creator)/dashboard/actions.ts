@@ -95,3 +95,32 @@ export async function retryWalletSetup(): Promise<FormState> {
       : { status: "error", message: "We couldn't set up your wallet yet. We'll keep trying automatically." };
   });
 }
+
+// ── Account deletion ─────────────────────────────────────────────────────────────
+
+export async function requestAccountDeletion(_prev: FormState, formData: FormData): Promise<FormState> {
+  const { actor } = await verifySession();
+  const values = { handle: field(formData, "handle") };
+  const result = await runForm(async () => {
+    const { tags } = await services.accountDeletions.requestDeletion(actor, {
+      handle: values.handle,
+      password: field(formData, "password") || undefined,
+      forfeit: field(formData, "forfeit") === "on",
+    });
+    tags.forEach((tag) => updateTag(tag));
+    return { status: "success" };
+  }, values);
+  if (result.status !== "success") return result;
+  // The request revoked every session, this one included.
+  await signOut({ redirect: false });
+  redirect("/login?notice=deletion-scheduled");
+}
+
+export async function keepAccount(): Promise<FormState> {
+  const { actor } = await verifySession();
+  return runForm(async () => {
+    await services.accountDeletions.cancelDeletion(actor);
+    refresh();
+    return { status: "success", message: "Your account is staying. Make your page live again when you're ready." };
+  });
+}
