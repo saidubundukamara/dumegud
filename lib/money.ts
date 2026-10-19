@@ -31,6 +31,14 @@ export function parseMajorToMinor(input: string): Minor | null {
   return Number.isSafeInteger(minor) ? minor : null;
 }
 
+/** Minor units as text for an amount input, without float maths: 123400 → "1234", 5050 → "50.50". */
+export function formatMajorInput(amount: Minor): string {
+  assertMinor(amount);
+  const major = Math.trunc(amount / MINOR_PER_MAJOR);
+  const minor = amount % MINOR_PER_MAJOR;
+  return minor ? `${major}.${String(minor).padStart(2, "0")}` : String(major);
+}
+
 /** Floor of `amount × bps / 10_000` using integer math only. */
 export function bpsOf(amount: Minor, bps: number): Minor {
   assertMinor(amount);

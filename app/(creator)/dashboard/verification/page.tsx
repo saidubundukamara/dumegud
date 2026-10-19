@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -23,7 +24,13 @@ export default function VerificationPage() {
 async function Verification() {
   const { actor } = await verifySession();
   const status = await services.kyc.getStatus(actor);
-  if (status.status === "approved") return <Alert tone="success">You&apos;re verified. You can withdraw your money.</Alert>;
+  if (status.status === "approved") {
+    return (
+      <Alert tone="success">
+        You&apos;re verified. <Link href="/dashboard/wallet">Go to your wallet</Link> to withdraw.
+      </Alert>
+    );
+  }
   if (status.status === "pending") return <Alert tone="info">Thanks! We&apos;re checking your documents now. We&apos;ll email you when it&apos;s done.</Alert>;
   return (
     <>

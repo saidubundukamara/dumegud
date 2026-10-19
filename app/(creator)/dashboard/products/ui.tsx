@@ -1,7 +1,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CaretLeftIcon, CaretRightIcon, CheckIcon } from "@phosphor-icons/react/dist/ssr";
+import { CaretLeftIcon, CheckIcon } from "@phosphor-icons/react/dist/ssr";
 
 export type Step = "details" | "files" | "publish";
 
@@ -84,60 +84,7 @@ export function StepHeading({ title, children }: { title: string; children?: Rea
   );
 }
 
-export type ChecklistEntry = { key: string; label: string; done: boolean; href?: Route };
-
-/** The dashboard home's setup list: count, progress bar, ticks, and a way to fix each open item. */
-export function Checklist({ items, label }: { items: ChecklistEntry[]; label: string }) {
-  const doneCount = items.filter((i) => i.done).length;
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-semibold tabular-nums">
-          {doneCount} of {items.length} done
-        </span>
-        <div
-          className="h-2.5 overflow-hidden rounded-full bg-surface-muted"
-          role="progressbar"
-          aria-label={label}
-          aria-valuemin={0}
-          aria-valuemax={items.length}
-          aria-valuenow={doneCount}
-        >
-          <div
-            className="h-full origin-left rounded-full bg-primary transition-transform duration-700 ease-brand"
-            style={{ transform: `scaleX(${items.length ? doneCount / items.length : 0})` }}
-          />
-        </div>
-      </div>
-      <ol className="flex flex-col gap-1">
-        {items.map((item) => (
-          <li key={item.key} className="flex min-h-11 items-center gap-3">
-            <span
-              aria-hidden="true"
-              className={`flex size-7 shrink-0 items-center justify-center rounded-full ${item.done ? "bg-success text-white" : "ring-2 ring-border-strong"}`}
-            >
-              {item.done ? <CheckIcon weight="bold" className="size-4" /> : null}
-            </span>
-            {item.done || !item.href ? (
-              <span className={item.done ? "text-muted line-through decoration-border-strong" : "font-semibold"}>
-                {item.label}
-                <span className="sr-only">{item.done ? " (done)" : " (to do)"}</span>
-              </span>
-            ) : (
-              <Link href={item.href} className="group inline-flex min-h-11 flex-1 items-center justify-between gap-2 font-semibold">
-                <span>
-                  {item.label}
-                  <span className="sr-only"> (to do)</span>
-                </span>
-                <CaretRightIcon aria-hidden="true" weight="bold" className="size-4 text-muted transition-transform group-hover:translate-x-0.5" />
-              </Link>
-            )}
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
+export { Checklist, type ChecklistEntry } from "@/components/dashboard/Checklist";
 
 /**
  * The step's actions. On phones it sticks just above the tab bar so Back / Continue stay in the
