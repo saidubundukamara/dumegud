@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Faq } from "@/components/marketing/Faq";
 import { FAQ_MORE, FAQ_TOP } from "@/components/marketing/faq-content";
 import { Reveal } from "@/components/motion/Reveal";
-import { Eyebrow } from "@/components/ui/Badge";
+import { BlurText } from "@/components/reactbits/BlurText";
 import { buttonClasses } from "@/components/ui/button-classes";
 
 export const metadata: Metadata = {
@@ -14,17 +14,17 @@ export const metadata: Metadata = {
 
 export default function FaqPage() {
   return (
-    <main id="main" tabIndex={-1} className="flex flex-1 flex-col px-4 pb-16 pt-28 sm:px-6 md:pt-40">
+    <main id="main" tabIndex={-1} className="flex flex-1 flex-col px-4 pb-16 pt-28 sm:px-6 md:pt-36">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-12">
-        <header className="flex animate-rise flex-col gap-5">
-          <Eyebrow>Questions</Eyebrow>
-          <h1 className="text-display">Questions? Here are the answers.</h1>
+        <header className="flex animate-rise flex-col items-center gap-5 text-center">
+          <h1 className="text-display">Answers to common questions</h1>
+          <p className="max-w-xl text-lg text-muted">Fees, payments, withdrawals and selling your work, in plain words.</p>
         </header>
         <Faq items={[...FAQ_TOP, ...FAQ_MORE]} />
-        <Reveal className="flex flex-col items-start gap-4 rounded-brand-xl bg-surface-muted p-6 md:p-8">
-          <h2 className="text-2xl font-bold">Still not sure?</h2>
-          <p className="text-muted">Make a page and look around. It&apos;s free, and nobody can pay you until you&apos;re ready.</p>
-          <Link href="/register" className={buttonClasses("primary", "w-full sm:w-fit", "lg")}>
+        <Reveal className="flex flex-col items-center gap-4 rounded-[2rem] bg-primary px-6 py-12 text-center text-primary-foreground sm:px-10">
+          <BlurText text="Still not sure?" className="text-title" />
+          <p className="max-w-md text-white/80">Make a page and look around. It&apos;s free, and nobody can see it until you publish it.</p>
+          <Link href="/register" className={`${buttonClasses("secondary", "mt-2 w-full sm:w-auto", "lg")} !ring-0`}>
             Create your free page
           </Link>
         </Reveal>

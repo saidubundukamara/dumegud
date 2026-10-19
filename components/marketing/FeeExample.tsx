@@ -1,4 +1,5 @@
 import { connection } from "next/server";
+import { CountUp } from "@/components/reactbits/CountUp";
 import { quoteSplit } from "@/lib/fees";
 import { formatSLE } from "@/lib/money";
 import { logger } from "@/server/lib/logger";
@@ -44,7 +45,9 @@ export async function FeeExample({ tone = "light" }: { tone?: "light" | "dark" }
       ))}
       <div className="flex items-baseline justify-between gap-4 pt-4">
         <dt className="font-semibold">You get</dt>
-        <dd className="font-display text-4xl font-bold tracking-tight text-primary">{formatSLE(split.creatorNetMinor)}</dd>
+        <dd className="font-display text-4xl font-bold tracking-tight text-primary tabular-nums">
+          <CountUp to={split.creatorNetMinor} from={split.grossMinor} format="sle" />
+        </dd>
       </div>
     </dl>
   );

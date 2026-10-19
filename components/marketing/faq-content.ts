@@ -5,11 +5,11 @@ export type FaqItem = { q: string; a: string };
 export const FAQ_TOP: FaqItem[] = [
   {
     q: "Is it really free?",
-    a: "Yes. Making a page costs nothing. We take a small cut of each payment you get, so we only earn when you earn.",
+    a: "Yes. Making a page costs nothing. We take a small share of each gift or sale, so we only earn when you do.",
   },
   {
     q: "Do my fans need an app or an account?",
-    a: "No. They open your link, pick an amount and pay with Orange Money or AfriMoney. No sign-up, no app.",
+    a: "No. They open your link, pick an amount and send it with Orange Money or AfriMoney. No sign-up, no app.",
   },
   {
     q: "How do I get my money?",
@@ -31,8 +31,8 @@ export const FAQ_TOP: FaqItem[] = [
 
 export const FAQ_MORE: FaqItem[] = [
   {
-    q: "Can my fans give money more than once?",
-    a: "Yes, as many times as they like. Each gift is a one-off payment. There are no monthly plans.",
+    q: "Can fans send more than one gift?",
+    a: "Yes, as many as they like. Each gift is a one-off. There are no monthly plans.",
   },
   {
     q: "Can fans stay anonymous?",
@@ -40,7 +40,7 @@ export const FAQ_MORE: FaqItem[] = [
   },
   {
     q: "What is a shout-out?",
-    a: "When fans pay, they can add their TikTok or Instagram username. We make a thank-you post with their names that you can share. Fans who don't want this can just leave it empty.",
+    a: "When fans send a gift, they can add their TikTok or Instagram username. We make a thank-you post with their names that you can share. Fans who don't want this can just leave it empty.",
   },
   {
     q: "How do buyers get the file they paid for?",

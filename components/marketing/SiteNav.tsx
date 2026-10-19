@@ -25,7 +25,7 @@ export function SiteNav() {
       <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:pt-5">
         <nav
           aria-label="Main"
-          className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-2 rounded-full bg-surface/80 pl-5 pr-2 shadow-soft ring-1 ring-border backdrop-blur-xl"
+          className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 rounded-full bg-surface/85 pl-5 pr-2 shadow-soft ring-1 ring-border backdrop-blur-xl md:grid md:grid-cols-[1fr_auto_1fr]"
         >
           <Wordmark />
           <ul className="hidden items-center gap-1 md:flex">
@@ -40,7 +40,7 @@ export function SiteNav() {
               </li>
             ))}
           </ul>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-end gap-1">
             <Link
               href="/login"
               className="hidden min-h-11 items-center rounded-full px-4 font-medium text-muted transition-colors hover:text-text md:inline-flex"
@@ -82,7 +82,7 @@ export function SiteNav() {
               <Link
                 href={l.href}
                 onClick={close}
-                className="block py-3 font-display text-[2.5rem] font-bold leading-tight tracking-[-0.03em]"
+                className="block py-3 font-display text-[2rem] font-semibold leading-tight tracking-[-0.035em]"
               >
                 {l.label}
               </Link>

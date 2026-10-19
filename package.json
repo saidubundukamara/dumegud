@@ -2,6 +2,7 @@
   "name": "dumegud",
   "version": "0.1.0",
   "private": true,
+  "author": "Saidu Bundu-Kamara, PeekTower Dev",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

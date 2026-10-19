@@ -23,7 +23,7 @@ export function SampleCreatorScreen() {
       <PhotoSlot slot="heroCreator" className="size-20 rounded-full ring-4 ring-surface" sizes="80px" />
       <div>
         <p className="font-display text-xl font-bold tracking-tight">Aminata K.</p>
-        <p className="text-xs text-muted">@aminata · Singer</p>
+        <p className="text-xs text-muted">@aminata, singer</p>
       </div>
       <p className="text-[0.8rem] leading-snug text-muted">New songs every Friday. Thank you for helping me make more music!</p>
       <div className="mt-1 w-full rounded-[1.4rem] bg-surface p-3 shadow-soft ring-1 ring-border">
@@ -41,33 +41,7 @@ export function SampleCreatorScreen() {
         <span className="mt-2.5 flex h-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white">
           Send Le 50
         </span>
-        <p className="mt-2 text-[0.65rem] text-muted">Orange Money · AfriMoney</p>
-      </div>
-    </div>
-  );
-}
-
-/** Floating "you got paid" card used next to the phone. */
-export function PaidNotification({
-  className = "",
-  title = "You got Le 50",
-  line = 'Mohamed: "This song made my day!"',
-}: {
-  className?: string;
-  title?: string;
-  line?: string;
-}) {
-  return (
-    <div
-      aria-hidden="true"
-      className={`flex w-64 items-center gap-3 rounded-[1.25rem] bg-surface/95 p-3 shadow-lift ring-1 ring-border backdrop-blur ${className}`}
-    >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary font-display text-lg font-bold text-white">
-        D
-      </span>
-      <div className="min-w-0 text-left">
-        <p className="text-sm font-semibold">{title}</p>
-        <p className="truncate text-xs text-muted">{line}</p>
+        <p className="mt-2 text-[0.65rem] text-muted">Orange Money or AfriMoney</p>
       </div>
     </div>
   );
