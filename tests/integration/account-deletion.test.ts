@@ -147,6 +147,20 @@ describe("money checks", () => {
     expect(r.checks.find((c) => c.key === "hold")?.fix).toBe("support");
   });
 
+  it("ignores checkouts abandoned more than a day ago, but not payments held for review", async () => {
+    const old = new Date(now.getTime() - 2 * DAY);
+    await t.client.query(
+      `insert into payments (kind, creator_id, status, gross_minor, platform_fee_bps, idempotency_key, created_at) values ('contribution', $1, 'pending', 1000, 0, 'old', $2)`,
+      [creator.userId, old],
+    );
+    expect((await deletions.readiness(creator)).checks.find((c) => c.key === "confirming")?.done).toBe(true);
+    await t.client.query(
+      `insert into payments (kind, creator_id, status, gross_minor, platform_fee_bps, idempotency_key, created_at) values ('contribution', $1, 'under_review', 1000, 0, 'held', $2)`,
+      [creator.userId, old],
+    );
+    expect((await deletions.readiness(creator)).checks.find((c) => c.key === "confirming")?.done).toBe(false);
+  });
+
   it("lets a remainder of at most Le 1 be given up, moving it to the platform", async () => {
     await earn(40);
     const r = await deletions.readiness(creator);

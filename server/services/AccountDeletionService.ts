@@ -35,8 +35,11 @@ const DAY = 24 * 60 * 60 * 1000;
 export const DELETION_GRACE_DAYS = 30;
 /** The most a creator can give up instead of withdrawing (Le 1.00): only rounding leftovers. */
 export const FORFEIT_MAX_MINOR = 100;
-/** Payments older than this that never finished are abandoned checkouts, not money on its way. */
-const UNSETTLED_LOOKBACK_MS = 7 * DAY;
+/**
+ * A checkout untouched for this long was abandoned (Monime sessions expire well before). If one
+ * still completes later, the erasure re-check sees the money and holds the deletion.
+ */
+const UNSETTLED_LOOKBACK_MS = DAY;
 
 type DeletionRepos = {
   accountDeletions: AccountDeletionRepository;
@@ -313,9 +316,9 @@ export class AccountDeletionService {
     const checks: DeletionCheck[] = [
       {
         key: "hold",
-        label: "No review open on your account",
+        label: "Our team isn't reviewing your account",
         done: !held,
-        detail: held ? "Your account is being reviewed by our team. Contact support to close it." : null,
+        detail: held ? "Our team is looking at your account right now. Contact support and we'll help you close it." : null,
         fix: held ? "support" : null,
       },
       {
@@ -327,7 +330,7 @@ export class AccountDeletionService {
       },
       {
         key: "confirming",
-        label: "No gift or sale still being confirmed",
+        label: "No gifts or sales still being confirmed",
         done: unsettled === 0,
         detail: unsettled ? "Some gifts or sales are still being confirmed. This usually takes a few minutes." : null,
         fix: unsettled ? "wait" : null,
@@ -349,8 +352,8 @@ export class AccountDeletionService {
             : balanceZero
               ? null
               : forfeitable
-                ? `${formatSLE(forfeitable)} is left, too little to send. You can give it up to delete your account.`
-                : `You still have ${formatSLE(Math.max(owed, live))}. Withdraw it first.`,
+                ? `Only ${formatSLE(forfeitable)} is left. That's too little to send to a phone, so you can give it up and delete your account.`
+                : `You still have ${formatSLE(Math.max(owed, live))} in your wallet. Withdraw it first.`,
         fix: live === null ? "wait" : balanceZero ? null : forfeitable ? "forfeit" : "withdraw",
       },
     ];

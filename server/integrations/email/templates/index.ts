@@ -203,12 +203,12 @@ export function payoutResultTemplate(p: { outcome: "completed" | "failed"; amoun
 export function accountDeletionScheduledTemplate(p: { eraseOn: string; loginUrl: string }): Rendered {
   return {
     tag: "account-deletion-scheduled",
-    subject: "Your DuMeGud account will be deleted",
+    subject: `Your DuMeGud account will be deleted on ${p.eraseOn}`,
     ...layout({
-      heading: "We've scheduled your account for deletion",
+      heading: `Your account will be deleted on ${p.eraseOn}`,
       paragraphs: [
         "Your page is now offline and you've been signed out on every device.",
-        `Your account and personal details will be deleted on ${p.eraseOn}. Until then, you can change your mind: sign in and choose "Keep my account".`,
+        `Until ${p.eraseOn} you can change your mind. Just sign in and tap "Keep my account".`,
         "People who bought your products can keep downloading them until their access ends. We keep records of money sent and received because the law requires it.",
       ],
       action: { label: "Sign in to keep my account", url: p.loginUrl },
@@ -238,7 +238,7 @@ export function accountDeletedTemplate(): Rendered {
       paragraphs: [
         "As you asked, we've deleted your DuMeGud account and personal details. Your page and handle are gone.",
         "We keep records of money sent and received, without your personal details, for as long as the law requires.",
-        "Thank you for sharing your work on DuMeGud. You're welcome back any time.",
+        "If you ever want a page again, you can sign up with the same email.",
       ],
       footer: "This is the last email you'll get from us about this account.",
     }),

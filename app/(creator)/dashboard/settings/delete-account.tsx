@@ -24,7 +24,7 @@ export function DeleteAccountForm({ confirmWith, hasPassword, forfeitableMinor }
       <ul className="flex list-disc flex-col gap-1.5 pl-5 text-muted">
         <li>Your page goes offline straight away and you&apos;re signed out everywhere.</li>
         <li>You have 30 days to change your mind: sign in and choose Keep my account.</li>
-        <li>After that, your name, photo, page, links and ID photos are deleted, and your handle is freed.</li>
+        <li>After 30 days we delete your name, photo, page, links and ID photos. Someone else can then take your handle.</li>
         <li>People who bought your products keep their downloads until their access ends.</li>
         <li>We keep records of money sent and received, without your details, as the law requires.</li>
       </ul>
@@ -34,7 +34,7 @@ export function DeleteAccountForm({ confirmWith, hasPassword, forfeitableMinor }
           <input type="checkbox" name="forfeit" className="mt-1 size-5 shrink-0" checked={forfeit} onChange={(e) => setForfeit(e.target.checked)} />
           <span>
             Give up the <strong>{formatSLE(forfeitableMinor)}</strong> left in my wallet
-            <span className="block text-sm text-muted">It&apos;s too little to send to a phone. It can&apos;t be returned once you delete.</span>
+            <span className="block text-sm text-muted">It&apos;s too little to send to a phone. You won&apos;t get it back.</span>
             {state.fieldErrors?.forfeit ? <span className="mt-1 block text-sm font-medium text-danger">{state.fieldErrors.forfeit[0]}</span> : null}
           </span>
         </label>

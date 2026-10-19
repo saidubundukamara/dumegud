@@ -110,7 +110,7 @@ export function WithdrawForm({
       {final ? <input type="hidden" name="final" value="1" /> : null}
       {final ? (
         <Alert tone="info">
-          Final withdrawal before deleting your account: it sends everything you can withdraw, and the usual{" "}
+          This is your last withdrawal before deleting your account. It sends everything you can withdraw, so the usual{" "}
           {formatSLE(minMinor)} minimum doesn&apos;t apply.
         </Alert>
       ) : null}

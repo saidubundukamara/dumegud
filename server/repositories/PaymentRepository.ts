@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import {
   contributions,
@@ -189,7 +189,10 @@ export class PaymentRepository extends BaseRepository {
     return Number(row?.total ?? 0);
   }
 
-  /** Gifts and sales for this creator still being confirmed (not yet succeeded or failed). */
+  /**
+   * Gifts and sales for this creator still being confirmed: payments held for staff review (any
+   * age), and checkouts started since `since` (older ones were abandoned, not money on its way).
+   */
   async countUnsettledForCreator(creatorId: string, since: Date, tx?: Executor): Promise<number> {
     const [row] = await this.exec(tx)
       .select({ n: sql<string>`count(*)` })
@@ -197,8 +200,7 @@ export class PaymentRepository extends BaseRepository {
       .where(
         and(
           eq(payments.creatorId, creatorId),
-          inArray(payments.status, ["created", "pending", "under_review"]),
-          gte(payments.createdAt, since),
+          or(eq(payments.status, "under_review"), and(inArray(payments.status, ["created", "pending"]), gte(payments.createdAt, since))),
         ),
       );
     return Number(row?.n ?? 0);

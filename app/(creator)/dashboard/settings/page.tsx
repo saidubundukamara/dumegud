@@ -5,6 +5,7 @@ import { ConfirmAction } from "@/components/dashboard/ConfirmAction";
 import { StatusChip } from "@/components/ui/Badge";
 import { Panel } from "@/components/ui/Card";
 import { LEGAL } from "@/lib/legal";
+import { formatSLE } from "@/lib/money";
 import { verifySession, type VerifiedSession } from "@/server/dal/session";
 import { services } from "@/server/services";
 import type { DeletionFix } from "@/server/services/AccountDeletionService";
@@ -84,9 +85,9 @@ async function DeleteAccount({ actor, hasPassword, email }: { actor: VerifiedSes
         <h2 className="text-xl font-bold">Delete account</h2>
         <p className="text-muted">
           {!readiness.canDelete
-            ? "First make sure nothing is left in your wallet. We won't delete an account that still has money in it."
+            ? "Before you go, your wallet needs to be empty. We won't delete an account that still has your money in it."
             : readiness.forfeitableMinor > 0
-              ? "Only a few cents are left in your wallet, too little to send. You can give them up and delete your account."
+              ? `Only ${formatSLE(readiness.forfeitableMinor)} is left in your wallet. That's too little to send to a phone, so you can give it up and delete your account.`
               : "Your wallet is empty, so you can delete your account."}
         </p>
       </div>

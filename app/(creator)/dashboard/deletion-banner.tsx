@@ -9,8 +9,8 @@ export function DeletionBanner({ status }: { status: NonNullable<DeletionStatus>
     <Alert tone="warning">
       <div className="flex flex-col gap-3">
         <p>
-          <strong>Your account will be deleted on {formatDate(status.eraseAfter)}.</strong> Your page is offline until then.
-          Changed your mind? Keep your account and nothing is deleted.
+          <strong>Your account will be deleted on {formatDate(status.eraseAfter)}.</strong> Your page stays offline until
+          then. Changed your mind? Tap Keep my account and nothing gets deleted.
         </p>
         <KeepAccountForm />
       </div>
