@@ -1,13 +1,11 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowRightIcon, ArrowUpRightIcon, CaretDownIcon, GiftIcon, MegaphoneIcon, WalletIcon } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRightIcon, CaretDownIcon, GiftIcon, MegaphoneIcon, WalletIcon } from "@phosphor-icons/react/dist/ssr";
 import { Checklist } from "@/components/dashboard/Checklist";
 import { withdrawReadiness } from "@/components/dashboard/withdraw-readiness";
 import { Alert } from "@/components/ui/Alert";
-import { StatusChip } from "@/components/ui/Badge";
 import { Card, Panel } from "@/components/ui/Card";
-import { ShareLink } from "@/components/ui/ShareLink";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { formatRelative, isWithin } from "@/lib/dates";
@@ -19,6 +17,7 @@ import { services } from "@/server/services";
 import type { WalletDTO } from "@/server/services/WalletService";
 import { DeletionBanner } from "./deletion-banner";
 import { PublishControls, ShareLinks, TermsForm, VerifyEmailBanner, WalletRetry } from "./forms";
+import { LivePageCard } from "./live-page-card";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -59,7 +58,6 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/dashboard">, "search
 
   const published = profile?.status === "published";
   const base = getEnv().APP_BASE_URL.replace(/\/$/, "");
-  const pageUrl = profile ? `${new URL(base).host}/${profile.handle}` : null;
   const firstName = account.name?.trim().split(/\s+/)[0];
 
   return (
@@ -75,56 +73,33 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/dashboard">, "search
 
       <h1 className="text-title">Hi{firstName ? `, ${firstName}` : ""}</h1>
 
-      <Card as="section" inner="flex flex-col gap-5 p-5 sm:p-7">
-        {published && profile ? (
-          <>
-            <h2 className="sr-only">Your page</h2>
-            <div className="flex flex-col gap-2">
-              <StatusChip tone="success">
-                <span aria-hidden="true" className="size-2 rounded-full bg-success" />
-                Your page is live
-              </StatusChip>
-              <Link
-                href={`/${profile.handle}`}
-                className="break-all font-display text-2xl font-bold tracking-tight hover:text-primary sm:text-3xl"
-              >
-                {pageUrl}
-              </Link>
-              <p className="text-muted">Share this link anywhere. Fans tap it and send a gift with mobile money.</p>
-            </div>
-            <ShareLink url={`${base}/${profile.handle}`} title={account.name ?? undefined} variant="primary" />
-          </>
-        ) : (
-          <>
-            <div className="flex flex-col gap-1">
-              <h2 className="text-2xl font-bold">Get your page ready</h2>
-              <p className="text-muted">Nobody can see your page or support you until it&apos;s live.</p>
-            </div>
-            <Checklist items={checklist.map((i) => ({ ...i, href: STEP_HREFS[i.key] }))} label="Page setup" />
-          </>
-        )}
-
-        {!profile ? (
-          <Link href="/dashboard/profile" className={buttonClasses("primary", "w-full sm:w-fit", "lg")}>
-            Set up your page
-          </Link>
-        ) : (
-          <div className="flex flex-col gap-4 border-t border-border pt-5">
-            {!profile.termsAccepted ? <TermsForm /> : null}
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-              <PublishControls published={published} canPublish={checklist.every((i) => i.done)} />
-              <Link href="/dashboard/profile" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4">
-                Edit my page
-              </Link>
-              {published ? (
-                <Link href={`/${profile.handle}`} className="inline-flex min-h-11 items-center gap-1.5 font-semibold text-muted hover:text-text">
-                  See my page <ArrowUpRightIcon aria-hidden="true" weight="bold" className="size-4" />
-                </Link>
-              ) : null}
-            </div>
+      {published && profile ? (
+        <LivePageCard profile={profile} host={new URL(base).host} base={base} shareTitle={account.name ?? undefined} />
+      ) : (
+        <Card as="section" inner="flex flex-col gap-5 p-5 sm:p-7">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-2xl font-bold">Get your page ready</h2>
+            <p className="text-muted">Nobody can see your page or support you until it&apos;s live.</p>
           </div>
-        )}
-      </Card>
+          <Checklist items={checklist.map((i) => ({ ...i, href: STEP_HREFS[i.key] }))} label="Page setup" />
+
+          {!profile ? (
+            <Link href="/dashboard/profile" className={buttonClasses("primary", "w-full sm:w-fit", "lg")}>
+              Set up your page
+            </Link>
+          ) : (
+            <div className="flex flex-col gap-4 border-t border-border pt-5">
+              {!profile.termsAccepted ? <TermsForm /> : null}
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+                <PublishControls published={false} canPublish={checklist.every((i) => i.done)} />
+                <Link href="/dashboard/profile" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4">
+                  Edit my page
+                </Link>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       {published && profile ? (
         <>

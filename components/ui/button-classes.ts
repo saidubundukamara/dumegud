@@ -1,11 +1,14 @@
 // Shared by <SubmitButton> and links styled as buttons (usable from Server Components).
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "dark" | "quiet";
+export type ButtonVariant = "primary" | "secondary" | "accent" | "ghost" | "dark" | "quiet";
 export type ButtonSize = "md" | "lg";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-primary text-primary-foreground shadow-primary hover:bg-primary-hover active:bg-primary-pressed",
   secondary: "bg-surface text-text shadow-soft ring-1 ring-border hover:ring-border-strong",
+  /** Orange, for the main action on a maroon (brand) surface. Ink text keeps it above 7:1. */
+  accent:
+    "bg-secondary text-secondary-foreground shadow-[0_10px_24px_-10px_color-mix(in_srgb,var(--color-secondary)_60%,transparent)] hover:bg-secondary-hover",
   dark: "bg-accent text-accent-foreground hover:bg-accent/90",
   quiet: "bg-surface-muted text-text hover:bg-[color-mix(in_srgb,var(--color-surface-muted),black_5%)]",
   ghost: "text-text underline-offset-4 hover:underline",

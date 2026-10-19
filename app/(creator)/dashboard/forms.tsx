@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { EyeSlashIcon } from "@phosphor-icons/react/dist/ssr";
 import { ConfirmAction } from "@/components/dashboard/ConfirmAction";
 import { Alert } from "@/components/ui/Alert";
 import { SubmitButton } from "@/components/ui/Button";
@@ -100,7 +101,8 @@ export function TermsForm() {
   );
 }
 
-export function PublishControls({ published, canPublish }: { published: boolean; canPublish: boolean }) {
+/** `onBrand`: on the maroon live-page card, where Hide my page is a quiet text link. */
+export function PublishControls({ published, canPublish, tone = "default" }: { published: boolean; canPublish: boolean; tone?: "default" | "onBrand" }) {
   const [publishState, publish] = useActionState(publishPage, initialFormState);
   const [unpublishState, unpublish] = useActionState(unpublishPage, initialFormState);
   const latest = publishState.status !== "idle" ? publishState : unpublishState;
@@ -109,7 +111,21 @@ export function PublishControls({ published, canPublish }: { published: boolean;
     <div className="flex flex-col gap-3">
       {latest.message ? <Alert tone={latest.status === "error" ? "danger" : "success"}>{latest.message}</Alert> : null}
       {published ? (
-        <ConfirmAction trigger="Hide my page" title="Hide your page?" confirm="Hide my page" cancel="Keep it live" pendingLabel="Hiding…" action={unpublish}>
+        <ConfirmAction
+          trigger={
+            tone === "onBrand" ? (
+              <>
+                <EyeSlashIcon aria-hidden="true" weight="bold" className="size-4" />
+                Hide page
+              </>
+            ) : (
+              "Hide my page"
+            )
+          }
+          triggerClassName={
+            tone === "onBrand" ? "inline-flex min-h-11 items-center gap-1.5 font-semibold text-white/85 transition-colors duration-200 hover:text-white" : undefined
+          }
+          title="Hide your page?" confirm="Hide my page" cancel="Keep it live" pendingLabel="Hiding…" action={unpublish}>
           Fans won&apos;t be able to see your page or support you until you make it live again. Your products and money stay safe.
         </ConfirmAction>
       ) : (

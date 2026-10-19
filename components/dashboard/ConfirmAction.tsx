@@ -7,9 +7,11 @@ import { SubmitButton } from "@/components/ui/Button";
 import { buttonClasses, type ButtonVariant } from "@/components/ui/button-classes";
 
 type Props = {
-  /** The button that opens the confirmation. */
-  trigger: string;
+  /** The button that opens the confirmation (text, optionally with an icon). */
+  trigger: ReactNode;
   triggerVariant?: ButtonVariant;
+  /** Replaces the button styling, e.g. to show the trigger as a text link on a brand surface. */
+  triggerClassName?: string;
   title: string;
   children: ReactNode;
   confirm: string;
@@ -19,12 +21,12 @@ type Props = {
 };
 
 /** A one-tap action with consequences, asked about once in a sheet before it runs. */
-export function ConfirmAction({ trigger, triggerVariant = "secondary", title, children, confirm, pendingLabel, cancel = "Cancel", action }: Props) {
+export function ConfirmAction({ trigger, triggerVariant = "secondary", triggerClassName, title, children, confirm, pendingLabel, cancel = "Cancel", action }: Props) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   return (
     <>
-      <button type="button" className={buttonClasses(triggerVariant)} onClick={() => setOpen(true)}>
+      <button type="button" className={triggerClassName ?? buttonClasses(triggerVariant)} onClick={() => setOpen(true)}>
         {trigger}
       </button>
       <Sheet open={open} onClose={close} title={title}>
