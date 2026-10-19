@@ -85,6 +85,9 @@ const schema = z
     ),
     /** HMAC key for 60-second download tokens. */
     DOWNLOAD_SIGNING_SECRET: z.string().min(32),
+
+    /** Bearer secret Vercel Cron sends to /api/cron/*. Required in production. */
+    CRON_SECRET: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(16).optional()),
   })
   .superRefine((env, ctx) => {
     if (env.EMAIL_ENABLED && env.EMAIL_PROVIDER === "cloudflare") {
@@ -94,6 +97,9 @@ const schema = z
     }
     if (env.EMAIL_ENABLED && env.EMAIL_PROVIDER === "smtp" && !env.SMTP_URL) {
       ctx.addIssue({ code: "custom", path: ["SMTP_URL"], message: "Required when EMAIL_PROVIDER=smtp" });
+    }
+    if (env.VERCEL_ENV === "production" && !env.CRON_SECRET) {
+      ctx.addIssue({ code: "custom", path: ["CRON_SECRET"], message: "Required in production (Vercel Cron authenticates with it)" });
     }
     if (env.MONIME_ENVIRONMENT !== "fake") {
       for (const key of ["MONIME_ACCESS_TOKEN", "MONIME_SPACE_ID", "MONIME_WEBHOOK_SECRET", "MONIME_PLATFORM_ACCOUNT_ID"] as const) {
