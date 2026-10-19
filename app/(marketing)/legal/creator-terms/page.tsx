@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { Alert } from "@/components/ui/Alert";
 
-export const metadata: Metadata = { title: "Creator terms" };
+export const metadata: Metadata = pageMetadata({
+  title: "Creator terms",
+  description: "The terms creators agree to before fans can support them on DuMeGud.",
+  path: "/legal/creator-terms",
+});
 
 // Placeholder until the reviewed legal text lands (implementation.md Phase 10, "Legal & content").
 export default function CreatorTermsPage() {

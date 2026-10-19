@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import { ViewTransition } from "react";
 import { MotionProvider } from "@/components/motion/MotionProvider";
+import { SHARED_OPEN_GRAPH, SITE_NAME } from "@/lib/seo";
+import { isIndexable, siteUrl } from "@/server/lib/site";
 import "./globals.css";
 
 // One typeface for UI and headings: a tight, neutral grotesk with clear numerals. The display
@@ -12,14 +14,23 @@ const geist = Geist({
   display: "swap",
 });
 
+const DEFAULT_TITLE = "DuMeGud: let your fans support you";
+const DEFAULT_DESCRIPTION =
+  "Make a free page, share your link, and let fans support your work with Orange Money or AfriMoney. You can sell your e-books, music and art there too.";
+
 export const metadata: Metadata = {
+  // Relative URLs in any page's metadata (canonical, og:url, og:image) resolve against this.
+  metadataBase: siteUrl(),
   title: {
-    default: "DuMeGud: let your fans support you",
+    default: DEFAULT_TITLE,
     template: "%s · DuMeGud",
   },
-  description:
-    "Make a free page, share your link, and let fans support your work with Orange Money or AfriMoney. You can sell your e-books, music and art there too.",
-  applicationName: "DuMeGud",
+  description: DEFAULT_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: { ...SHARED_OPEN_GRAPH, type: "website", title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION },
+  twitter: { card: "summary_large_image", title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION },
+  // Previews and local builds stay out of search; production is indexable page by page.
+  robots: isIndexable() ? undefined : { index: false, follow: false },
 };
 
 export const viewport: Viewport = {

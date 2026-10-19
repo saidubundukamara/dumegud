@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Suspense } from "react";
 import { handleFormatError, normalizeHandle } from "@/lib/handle";
+import { pageMetadata, toDescription } from "@/lib/seo";
 import { getCachedPublicProfile, getCachedRecentSupporters, getCachedShop, getCachedSupportSettings } from "@/server/queries/public-profile";
 import { PageGlow, PublicHeader } from "@/components/public/PublicHeader";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -18,14 +19,12 @@ async function load(params: Props["params"]) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const result = await load(params);
   if (result.kind !== "found") return { title: "Page not found", robots: { index: false } };
-  const { displayName, bio, handle, avatarUrl } = result.profile;
-  const description = bio ? bio.slice(0, 160) : `Support ${displayName} on DuMeGud.`;
-  return {
-    title: displayName,
-    description,
-    alternates: { canonical: `/${handle}` },
-    openGraph: { type: "profile", title: `${displayName} on DuMeGud`, description, images: avatarUrl ? [avatarUrl] : [] },
-  };
+  const { displayName, bio, handle, categoryName } = result.profile;
+  const description = bio
+    ? toDescription(bio)
+    : `Send ${displayName}${categoryName ? `, ${categoryName.toLowerCase()} creator,` : ""} a gift with Orange Money or AfriMoney.`;
+  // The share image comes from ./opengraph-image.tsx (the creator's card), not the raw avatar.
+  return pageMetadata({ title: displayName, shareTitle: `Support ${displayName} on DuMeGud`, description, path: `/${handle}`, type: "profile" });
 }
 
 export default function CreatorPage({ params }: Props) {

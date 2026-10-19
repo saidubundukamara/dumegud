@@ -1,5 +1,9 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { DashboardNav, DashboardNavFallback } from "./nav";
+
+// Private: never in search results, even if a link to it leaks.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 // No auth gate here: layouts don't re-render on navigation, so each page checks the session
 // itself through the DAL.

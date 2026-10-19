@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { VerifyEmailForm } from "../token-form";
 
-export const metadata: Metadata = { title: "Confirm your email", referrer: "no-referrer" };
+export const metadata: Metadata = { title: "Confirm your email", referrer: "no-referrer", robots: { index: false, follow: false } };
 
 export default function VerifyEmailPage({ searchParams }: PageProps<"/verify-email">) {
   return (

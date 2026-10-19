@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { getSession } from "@/server/dal/session";
 import { stepUpSecondsLeft } from "@/server/dal/step-up";
 import { isStaff } from "@/server/services/actor";
 import { StepUpPanel } from "./step-up-panel";
+
+// Private: never in search results, even if a link to it leaks.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 const NAV = [
   ["/admin", "Overview"],

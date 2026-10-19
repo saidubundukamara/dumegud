@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { Suspense } from "react";
 import { GoogleOption } from "../google-button";
 import { RegisterForm } from "./register-form";
 
-export const metadata: Metadata = { title: "Create your account" };
+export const metadata: Metadata = pageMetadata({
+  title: "Create your account",
+  shareTitle: "Make your free DuMeGud page",
+  description: "Make a free page in two minutes. Fans send you gifts with Orange Money or AfriMoney, and you can sell your work too.",
+  path: "/register",
+});
 
 export default function RegisterPage() {
   return (

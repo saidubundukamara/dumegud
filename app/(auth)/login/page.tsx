@@ -5,7 +5,7 @@ import { Alert } from "@/components/ui/Alert";
 import { GoogleOption } from "../google-button";
 import { LoginForm } from "./login-form";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata: Metadata = { title: "Sign in", robots: { index: false, follow: false } };
 
 const NOTICES: Record<string, string> = {
   "email-verified": "Your email is confirmed. Sign in to continue.",

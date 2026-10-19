@@ -1,5 +1,6 @@
 import { ArrowUpRightIcon, CheckIcon } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
@@ -11,11 +12,11 @@ import { buttonClasses, buttonIconClasses } from "@/components/ui/button-classes
 import { logger } from "@/server/lib/logger";
 import { getCachedSupportSettings } from "@/server/queries/public-profile";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Fees",
-  description: "DuMeGud is free to join. We take a small cut of each payment, and you always see it first.",
-  alternates: { canonical: "/pricing" },
-};
+  description: "DuMeGud is free to join. We take a small share of each gift or sale, and you always see it first.",
+  path: "/pricing",
+});
 
 const FREE = [
   { title: "Making your page", body: "Your page, your link and your shop cost nothing to set up." },

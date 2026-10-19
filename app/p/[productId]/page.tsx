@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { formatSLE } from "@/lib/money";
+import { pageMetadata, toDescription } from "@/lib/seo";
 import { getCachedProduct } from "@/server/queries/public-profile";
 import { ClockIcon, FileIcon, FlagIcon, ScrollIcon, StampIcon } from "@phosphor-icons/react/dist/ssr";
 import { PageGlow, PublicHeader } from "@/components/public/PublicHeader";
@@ -24,12 +25,14 @@ async function load(params: Props["params"]) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const product = await load(params);
   if (!product) return { title: "Product not found", robots: { index: false } };
-  const description = product.description.slice(0, 160) || `${product.title} by ${product.creator.displayName} on DuMeGud.`;
-  return {
+  const description = toDescription(product.description) || `${product.title} by ${product.creator.displayName}. ${formatSLE(product.priceMinor)} on DuMeGud.`;
+  // The share image comes from ./opengraph-image.tsx (title, price, creator and the first preview).
+  return pageMetadata({
     title: product.title,
+    shareTitle: `${product.title} by ${product.creator.displayName}`,
     description,
-    openGraph: { title: product.title, description, images: product.previews.slice(0, 1) },
-  };
+    path: `/p/${product.id}`,
+  });
 }
 
 export default function ProductPage({ params }: Props) {

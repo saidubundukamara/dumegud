@@ -12,6 +12,7 @@ import {
   WalletIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
@@ -39,8 +40,14 @@ import { buttonClasses, buttonIconClasses } from "@/components/ui/button-classes
 import { MARKETING_PHOTOS } from "@/lib/marketing-images";
 
 export const metadata: Metadata = {
+  ...pageMetadata({
+    title: "DuMeGud: let your fans support you",
+    shareTitle: "DuMeGud: let your fans support you",
+    description:
+      "Make a free page, share your link, and let fans support your work with Orange Money or AfriMoney. You can sell your e-books, music and art there too.",
+    path: "/",
+  }),
   title: { absolute: "DuMeGud: let your fans support you" },
-  alternates: { canonical: "/" },
 };
 
 const STEPS: HowStep[] = [

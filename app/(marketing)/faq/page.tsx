@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { Faq } from "@/components/marketing/Faq";
 import { FAQ_MORE, FAQ_TOP } from "@/components/marketing/faq-content";
@@ -6,11 +7,11 @@ import { Reveal } from "@/components/motion/Reveal";
 import { BlurText } from "@/components/reactbits/BlurText";
 import { buttonClasses } from "@/components/ui/button-classes";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Questions",
-  description: "Simple answers about DuMeGud: fees, payments, withdrawals and selling your work.",
-  alternates: { canonical: "/faq" },
-};
+  description: "Simple answers about DuMeGud: fees, gifts, withdrawals and selling your work.",
+  path: "/faq",
+});
 
 export default function FaqPage() {
   return (

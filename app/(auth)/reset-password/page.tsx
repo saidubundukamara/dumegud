@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { ResetPasswordForm } from "../token-form";
 
-export const metadata: Metadata = { title: "Choose a new password", referrer: "no-referrer" };
+export const metadata: Metadata = { title: "Choose a new password", referrer: "no-referrer", robots: { index: false, follow: false } };
 
 export default function ResetPasswordPage({ searchParams }: PageProps<"/reset-password">) {
   return (
