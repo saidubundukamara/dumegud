@@ -59,12 +59,12 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
     ? null
     : minor === null
       ? touched
-        ? "Type the amount in numbers, for example 50."
+        ? "Use numbers only, like 50."
         : null
       : tooHigh
-        ? `You can send up to ${formatSLECompact(settings.maxMinor)}. Please lower the amount.`
+        ? `That's over the limit. You can send up to ${formatSLECompact(settings.maxMinor)}.`
         : minor < settings.minMinor && touched
-          ? `The smallest gift is ${formatSLECompact(settings.minMinor)}.`
+          ? `Gifts start at ${formatSLECompact(settings.minMinor)}.`
           : null;
   // Optional extras stay folded away unless the visitor opens them or the server sent one back.
   const errs = state.fieldErrors ?? {};
@@ -108,7 +108,7 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               onBlur={() => setTouched(true)}
-              hint={amountError ? undefined : `From ${formatSLECompact(settings.minMinor)} to ${formatSLECompact(settings.maxMinor)}.`}
+              hint={amountError ? undefined : `You can send ${formatSLECompact(settings.minMinor)} to ${formatSLECompact(settings.maxMinor)}.`}
               errors={amountError ? [amountError] : state.fieldErrors?.amount}
               className="[&_input]:!min-h-14 [&_input]:!pl-12 [&_input]:text-xl [&_input]:font-bold"
             />
@@ -207,7 +207,7 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
               {quote
                 ? `Send ${formatSLECompact(quote.grossMinor)}`
                 : tooHigh
-                  ? "Lower the amount to continue"
+                  ? `Amount is over ${formatSLECompact(settings.maxMinor)}`
                   : "Pick an amount"}
             </SubmitButton>
             <p className="flex items-center justify-center gap-1.5 text-center text-sm text-muted">
