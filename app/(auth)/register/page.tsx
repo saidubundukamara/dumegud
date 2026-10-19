@@ -23,6 +23,17 @@ export default function RegisterPage() {
         <GoogleOption />
       </Suspense>
       <RegisterForm />
+      <p className="text-center text-sm text-muted">
+        By creating an account you agree to our{" "}
+        <Link href="/legal/terms" className="font-semibold text-text underline underline-offset-4">
+          terms of use
+        </Link>{" "}
+        and{" "}
+        <Link href="/legal/privacy" className="font-semibold text-text underline underline-offset-4">
+          privacy policy
+        </Link>
+        .
+      </p>
       <p className="text-center text-muted">
         Already have an account?{" "}
         <Link href="/login" className="font-semibold text-text underline underline-offset-4">

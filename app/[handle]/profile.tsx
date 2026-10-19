@@ -141,6 +141,14 @@ export function Profile({
           <FlagIcon aria-hidden="true" className="size-4" />
           Report this page
         </Link>
+        <nav aria-label="Legal" className="flex gap-4">
+          <Link href="/legal/terms" className="inline-flex min-h-11 items-center underline-offset-4 hover:underline">
+            Terms
+          </Link>
+          <Link href="/legal/privacy" className="inline-flex min-h-11 items-center underline-offset-4 hover:underline">
+            Privacy
+          </Link>
+        </nav>
       </footer>
     </article>
   );

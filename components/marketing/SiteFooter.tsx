@@ -2,6 +2,7 @@ import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Wordmark } from "@/components/brand/Wordmark";
+import { LEGAL_LINKS } from "@/lib/legal";
 
 const COLUMNS: { title: string; links: { href: Route; label: string }[] }[] = [
   {
@@ -22,10 +23,7 @@ const COLUMNS: { title: string; links: { href: Route; label: string }[] }[] = [
   },
   {
     title: "Help",
-    links: [
-      { href: "/legal/creator-terms", label: "Creator terms" },
-      { href: "/report", label: "Report a problem" },
-    ],
+    links: [{ href: "/report", label: "Report a problem" }, ...LEGAL_LINKS],
   },
 ];
 
