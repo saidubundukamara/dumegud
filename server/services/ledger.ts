@@ -76,3 +76,16 @@ export function payoutJournal(p: { id: string; creatorId: string; amountMinor: n
     { account: accounts.creatorWallet(p.creatorId), amountMinor: -total },
   ]);
 }
+
+/**
+ * A creator closing their account gave up a remainder too small to withdraw. It moved from their
+ * Monime account to the platform account, so we no longer owe it and it becomes platform income.
+ */
+export function forfeitJournal(p: { deletionId: string; creatorId: string; amountMinor: number }) {
+  return journal({ idempotencyKey: `forfeit:${p.deletionId}`, kind: "forfeit", paymentId: null, memo: "remainder given up on account deletion" }, [
+    { account: accounts.creatorPayable(p.creatorId), amountMinor: p.amountMinor },
+    { account: accounts.creatorWallet(p.creatorId), amountMinor: -p.amountMinor },
+    { account: accounts.platformCash, amountMinor: p.amountMinor },
+    { account: accounts.platformRevenue, amountMinor: -p.amountMinor },
+  ]);
+}

@@ -93,6 +93,8 @@ export type ProductServiceDeps = {
   now?: () => Date;
   rateLimit?: (policy: RateLimitPolicy, id: string) => Promise<void>;
   restrictions?: RestrictionGuard;
+  /** While an account deletion is scheduled, nothing new goes on sale. */
+  deletions?: { hasOpenRequest(userId: string): Promise<boolean> };
 };
 
 /**
@@ -111,8 +113,10 @@ export class ProductService {
   private readonly now: () => Date;
   private readonly rateLimit: (policy: RateLimitPolicy, id: string) => Promise<void>;
   private readonly restrictions: RestrictionGuard;
+  private readonly deletions: ProductServiceDeps["deletions"];
 
   constructor(deps: ProductServiceDeps) {
+    this.deletions = deps.deletions;
     this.restrictions = deps.restrictions ?? noRestrictions;
     this.repos = deps.repos;
     this.settings = deps.settings;
@@ -180,6 +184,9 @@ export class ProductService {
     const product = await this.owned(actor, productId);
     if (!["draft", "unpublished"].includes(product.status)) throw new ConflictError("This product is already in review or live.");
     await this.restrictions.assertAllowed(actor.userId, "publish", "Publishing isn't available on your account right now. Contact support.");
+    if (await this.deletions?.hasOpenRequest(actor.userId)) {
+      throw new ConflictError("Your account is scheduled for deletion. Keep your account first, then put products on sale.");
+    }
     const missing = (await this.readinessOf(actor, productId)).filter((i) => !i.done).map((i) => REVIEW_BLOCKERS[i.key]);
     if (!ownershipDeclared) missing.push("confirm you own the rights to sell it");
     if (missing.length) throw new ConflictError(`Before submitting: ${missing.join("; ")}.`);

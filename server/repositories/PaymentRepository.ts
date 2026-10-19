@@ -188,4 +188,20 @@ export class PaymentRepository extends BaseRepository {
       .where(and(eq(payments.creatorId, creatorId), eq(payments.status, "succeeded"), eq(payments.settlementFrozen, false)));
     return Number(row?.total ?? 0);
   }
+
+  /** Gifts and sales for this creator still being confirmed (not yet succeeded or failed). */
+  async countUnsettledForCreator(creatorId: string, since: Date, tx?: Executor): Promise<number> {
+    const [row] = await this.exec(tx)
+      .select({ n: sql<string>`count(*)` })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.creatorId, creatorId),
+          inArray(payments.status, ["created", "pending", "under_review"]),
+          gte(payments.createdAt, since),
+        ),
+      );
+    return Number(row?.n ?? 0);
+  }
+
 }

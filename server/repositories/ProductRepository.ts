@@ -140,4 +140,13 @@ export class ProductRepository extends BaseRepository {
   async deleteAsset(id: string, tx?: Executor): Promise<void> {
     await this.exec(tx).delete(productAssets).where(eq(productAssets.id, id));
   }
+
+  /** Takes every product off sale. Rows and files stay for buyers who already have access. */
+  async unpublishAllForCreator(creatorId: string, tx?: Executor): Promise<void> {
+    await this.exec(tx)
+      .update(products)
+      .set({ status: "unpublished" })
+      .where(and(eq(products.creatorId, creatorId), inArray(products.status, ["published", "pending_review", "draft"])));
+  }
+
 }

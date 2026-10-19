@@ -70,6 +70,8 @@ export type CreatorServiceDeps = {
   transaction?: typeof runInTransaction;
   audit?: AuditLogger;
   restrictions?: RestrictionGuard;
+  /** While an account deletion is scheduled, the page can't go live again (cancel it first). */
+  deletions?: { hasOpenRequest(userId: string): Promise<boolean> };
 };
 
 export class CreatorService {
@@ -79,8 +81,10 @@ export class CreatorService {
   private readonly transaction: typeof runInTransaction;
   private readonly audit: AuditLogger;
   private readonly restrictions: RestrictionGuard;
+  private readonly deletions: CreatorServiceDeps["deletions"];
 
   constructor(deps: CreatorServiceDeps) {
+    this.deletions = deps.deletions;
     this.audit = deps.audit ?? noAudit;
     this.restrictions = deps.restrictions ?? noRestrictions;
     this.repos = deps.repos;
@@ -218,6 +222,9 @@ export class CreatorService {
   }
 
   async publish(actor: Actor): Promise<ProfileChange> {
+    if (await this.deletions?.hasOpenRequest(actor.userId)) {
+      throw new ConflictError("Your account is scheduled for deletion. Keep your account first, then make your page live.");
+    }
     await this.restrictions.assertAllowed(actor.userId, "publish", "Publishing isn't available on your account right now. Contact support.");
     const checklist = await this.getPublishChecklist(actor);
     const missing = checklist.filter((i) => !i.done);

@@ -45,4 +45,13 @@ export class PayoutMethodRepository extends BaseRepository {
   async setStatus(id: string, status: PayoutMethodStatus, tx?: Executor): Promise<void> {
     await this.exec(tx).update(payoutMethods).set({ status }).where(eq(payoutMethods.id, id));
   }
+
+  /**
+   * Account erasure: disables every number and drops the encrypted number and holder name. The
+   * one-way hash stays so a number used for fraud can still be recognised.
+   */
+  async eraseForUser(userId: string, tx?: Executor): Promise<void> {
+    await this.exec(tx).update(payoutMethods).set({ status: "disabled", msisdnEnc: "", holderName: null }).where(eq(payoutMethods.userId, userId));
+  }
+
 }

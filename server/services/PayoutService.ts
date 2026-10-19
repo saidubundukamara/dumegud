@@ -91,7 +91,12 @@ export class PayoutService {
 
   // ── Creator ───────────────────────────────────────────────────────────────────
 
-  async request(actor: Actor, input: { amountMinor: number }): Promise<Payout> {
+  /**
+   * `final`: the creator is emptying their account before deleting it. The minimum withdrawal is
+   * waived, but only for exactly the largest amount the balance allows, so it can't be used to
+   * send small withdrawals in general.
+   */
+  async request(actor: Actor, input: { amountMinor: number; final?: boolean }): Promise<Payout> {
     const settings = await this.deps.settings.get();
     if (settings.payoutsKillSwitch) throw new ConflictError("Withdrawals are paused right now. Please try again later.");
     if (actor.status !== "active") throw new ConflictError("Withdrawals aren't available on your account. Contact support.");
@@ -113,7 +118,8 @@ export class PayoutService {
     }
     if (method.status !== "active") throw new ConflictError("Your payout number needs a check by our team before you can withdraw.");
 
-    if (input.amountMinor < settings.minPayoutMinor) {
+    if (input.amountMinor <= 0) throw new ValidationError(undefined, { amount: ["Enter an amount to withdraw."] });
+    if (input.amountMinor < settings.minPayoutMinor && !input.final) {
       throw new ValidationError(undefined, { amount: [`The minimum withdrawal is ${formatSLE(settings.minPayoutMinor)}.`] });
     }
     // Phase 7: LimitService payout caps (daily/30-day by tier) go here.
@@ -123,6 +129,11 @@ export class PayoutService {
     const balance = await this.deps.balances.getBalance(actor.userId);
     if (balance.availableMinor === null) {
       throw new ExternalServiceError("monime", "We couldn't confirm your balance right now. Please try again shortly.");
+    }
+    if (input.final && input.amountMinor < settings.minPayoutMinor && input.amountMinor !== balance.maxWithdrawableMinor) {
+      throw new ValidationError(undefined, {
+        amount: [`A final withdrawal sends everything you can withdraw: ${formatSLE(balance.maxWithdrawableMinor)}.`],
+      });
     }
     const quotedFee = payoutFee(input.amountMinor, settings.payoutFeeBpsEstimate);
     if (input.amountMinor + quotedFee > balance.availableMinor) {

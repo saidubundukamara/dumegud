@@ -141,4 +141,30 @@ export class CreatorProfileRepository extends BaseRepository {
     const [row] = await this.exec(tx).update(creatorProfiles).set({ status }).where(eq(creatorProfiles.id, profileId)).returning();
     return row ?? null;
   }
+
+  /**
+   * Account erasure: the profile keeps its id (payments and products reference it) but loses
+   * everything personal. The handle becomes a placeholder, which frees the real one.
+   * Returns the profile as it was, so the caller can clean up the avatar and caches.
+   */
+  async anonymise(userId: string, placeholderHandle: string, tx?: Executor): Promise<CreatorProfile | null> {
+    const db = this.exec(tx);
+    const [before] = await db.select().from(creatorProfiles).where(eq(creatorProfiles.userId, userId)).limit(1);
+    if (!before) return null;
+    await db.delete(socialLinks).where(eq(socialLinks.profileId, before.id));
+    await db
+      .update(creatorProfiles)
+      .set({
+        handle: placeholderHandle,
+        handleLower: placeholderHandle.toLowerCase(),
+        displayName: "Deleted creator",
+        bio: "",
+        avatarKey: null,
+        status: before.status === "suspended" ? "suspended" : "unpublished",
+        publishedAt: null,
+      })
+      .where(eq(creatorProfiles.id, before.id));
+    return before;
+  }
+
 }

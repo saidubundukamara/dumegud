@@ -4,6 +4,7 @@ import { createEmailService, type EmailService } from "@/server/integrations/ema
 import { createMonime, type MonimeClient } from "@/server/integrations/monime";
 import { sharedFakeMonimeServer } from "@/server/integrations/monime/fake";
 import { R2Storage } from "@/server/integrations/r2/client";
+import { AccountDeletionRepository } from "@/server/repositories/AccountDeletionRepository";
 import { AdminRepository } from "@/server/repositories/AdminRepository";
 import { AuditRepository } from "@/server/repositories/AuditRepository";
 import { AuthEventRepository } from "@/server/repositories/AuthEventRepository";
@@ -24,6 +25,7 @@ import { RiskRepository } from "@/server/repositories/RiskRepository";
 import { ShoutoutRepository } from "@/server/repositories/ShoutoutRepository";
 import { UserRepository } from "@/server/repositories/UserRepository";
 import { WebhookEventRepository } from "@/server/repositories/WebhookEventRepository";
+import { AccountDeletionService } from "./AccountDeletionService";
 import { AdminConfigService } from "./AdminConfigService";
 import { AdminService } from "./AdminService";
 import { AuthService } from "./AuthService";
@@ -77,6 +79,7 @@ export const repos = {
   risk: new RiskRepository(),
   admin: new AdminRepository(),
   shoutouts: new ShoutoutRepository(),
+  accountDeletions: new AccountDeletionRepository(),
 };
 
 // Compliance hooks shared by most services (stateless, safe to create at import).
@@ -110,6 +113,7 @@ let cases: CaseService | undefined;
 let reports: ReportService | undefined;
 let adminConfig: AdminConfigService | undefined;
 let admin: AdminService | undefined;
+let accountDeletions: AccountDeletionService | undefined;
 
 /** Null while R2 isn't configured. */
 function getStorage(): R2Storage | null {
@@ -165,6 +169,7 @@ export const services = {
       audit,
       restrictions,
       publicAssetUrl,
+      deletions: repos.accountDeletions,
     });
     return creators;
   },
@@ -225,6 +230,7 @@ export const services = {
       storage: getStorage(),
       buckets: { products: env.R2_PRODUCTS_BUCKET, uploads: env.R2_UPLOADS_BUCKET, public: env.R2_PUBLIC_BUCKET },
       publicAssetUrl,
+      deletions: repos.accountDeletions,
     });
     return products;
   },
@@ -322,6 +328,22 @@ export const services = {
       webhooks: () => services.webhooks,
     });
     return admin;
+  },
+  get accountDeletions(): AccountDeletionService {
+    const env = getEnv();
+    accountDeletions ??= new AccountDeletionService({
+      repos,
+      monime: getMonime(),
+      auth: services.auth,
+      email: getEmail(),
+      appBaseUrl: env.APP_BASE_URL,
+      platformAccountId,
+      storage: getStorage(),
+      buckets: { public: env.R2_PUBLIC_BUCKET, kyc: env.R2_KYC_BUCKET },
+      risk,
+      audit,
+    });
+    return accountDeletions;
   },
   get audit(): AuditService {
     return audit;

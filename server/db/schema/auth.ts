@@ -8,6 +8,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdAt, id, timestamps } from "./columns";
@@ -117,5 +118,34 @@ export const authEvents = pgTable(
   (t) => [index().on(t.userId, t.createdAt)],
 );
 
+/**
+ * A creator asking to delete their account. The page goes offline at once; personal data is
+ * erased after `eraseAfter` unless they cancel by signing back in. Money records are kept
+ * (append-only), so the user row is anonymised rather than deleted.
+ */
+export const accountDeletions = pgTable(
+  "account_deletions",
+  {
+    id: id(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    requestedAt: timestamp({ withTimezone: true }).notNull(),
+    eraseAfter: timestamp({ withTimezone: true }).notNull(),
+    canceledAt: timestamp({ withTimezone: true }),
+    erasedAt: timestamp({ withTimezone: true }),
+    /** A remainder too small to withdraw that the creator chose to give up (minor units). */
+    forfeitedMinor: integer().notNull().default(0),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("account_deletions_one_open_per_user")
+      .on(t.userId)
+      .where(sql`${t.canceledAt} is null and ${t.erasedAt} is null`),
+    index().on(t.eraseAfter),
+  ],
+);
+
+export type AccountDeletion = typeof accountDeletions.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;

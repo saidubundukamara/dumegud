@@ -199,3 +199,48 @@ export function payoutResultTemplate(p: { outcome: "completed" | "failed"; amoun
         }),
       };
 }
+
+export function accountDeletionScheduledTemplate(p: { eraseOn: string; loginUrl: string }): Rendered {
+  return {
+    tag: "account-deletion-scheduled",
+    subject: "Your DuMeGud account will be deleted",
+    ...layout({
+      heading: "We've scheduled your account for deletion",
+      paragraphs: [
+        "Your page is now offline and you've been signed out on every device.",
+        `Your account and personal details will be deleted on ${p.eraseOn}. Until then, you can change your mind: sign in and choose "Keep my account".`,
+        "People who bought your products can keep downloading them until their access ends. We keep records of money sent and received because the law requires it.",
+      ],
+      action: { label: "Sign in to keep my account", url: p.loginUrl },
+      footer: "If you didn't ask to delete your account, sign in now and keep it, then change your password.",
+    }),
+  };
+}
+
+export function accountDeletionCanceledTemplate(p: { dashboardUrl: string }): Rendered {
+  return {
+    tag: "account-deletion-canceled",
+    subject: "Your DuMeGud account is staying",
+    ...layout({
+      heading: "Your account won't be deleted",
+      paragraphs: ["You cancelled the deletion, so your account and page are safe. Your page is still offline until you make it live again."],
+      action: { label: "Open my dashboard", url: p.dashboardUrl },
+    }),
+  };
+}
+
+export function accountDeletedTemplate(): Rendered {
+  return {
+    tag: "account-deleted",
+    subject: "Your DuMeGud account has been deleted",
+    ...layout({
+      heading: "Your account has been deleted",
+      paragraphs: [
+        "As you asked, we've deleted your DuMeGud account and personal details. Your page and handle are gone.",
+        "We keep records of money sent and received, without your personal details, for as long as the law requires.",
+        "Thank you for sharing your work on DuMeGud. You're welcome back any time.",
+      ],
+      footer: "This is the last email you'll get from us about this account.",
+    }),
+  };
+}

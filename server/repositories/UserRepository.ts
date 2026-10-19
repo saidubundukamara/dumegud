@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
-import { users, type NewUser, type Role, type User, type UserStatus } from "@/server/db/schema";
+import { accounts, passwordResetTokens, users, verificationTokens, type NewUser, type Role, type User, type UserStatus } from "@/server/db/schema";
 import { BaseRepository } from "./BaseRepository";
 
 export type UserAuthState = Pick<User, "id" | "role" | "status" | "sessionVersion" | "emailVerified">;
@@ -110,4 +110,34 @@ export class UserRepository extends BaseRepository {
       .set({ role, sessionVersion: sql`${users.sessionVersion} + 1` })
       .where(eq(users.id, id));
   }
+
+  /**
+   * Account erasure: the row stays (money and audit records point at it) but nothing personal is
+   * left. The email becomes an unroutable placeholder, so the real address can sign up again.
+   */
+  async anonymise(id: string, tx?: Executor): Promise<void> {
+    await this.exec(tx)
+      .update(users)
+      .set({
+        email: `deleted+${id}@users.invalid`,
+        name: null,
+        image: null,
+        passwordHash: null,
+        emailVerified: null,
+        failedLoginCount: 0,
+        lockedUntil: null,
+        status: "closed",
+        sessionVersion: sql`${users.sessionVersion} + 1`,
+      })
+      .where(eq(users.id, id));
+  }
+
+  /** Google (and any other) sign-in links, plus outstanding emailed tokens. */
+  async deleteSignInLinks(id: string, tx?: Executor): Promise<void> {
+    const db = this.exec(tx);
+    await db.delete(accounts).where(eq(accounts.userId, id));
+    await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, id));
+    await db.delete(verificationTokens).where(eq(verificationTokens.identifier, id));
+  }
+
 }

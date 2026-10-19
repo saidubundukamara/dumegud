@@ -39,4 +39,10 @@ export class CreatorWalletRepository extends BaseRepository {
       .returning();
     return row;
   }
+
+  /** Stops all money movement into the wallet (transfers skip a frozen wallet). */
+  async freeze(userId: string, tx?: Executor): Promise<void> {
+    await this.exec(tx).update(creatorWallets).set({ status: "frozen" }).where(eq(creatorWallets.userId, userId));
+  }
+
 }

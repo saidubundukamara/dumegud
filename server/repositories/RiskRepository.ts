@@ -279,4 +279,15 @@ export class RiskRepository extends BaseRepository {
   async insertModerationAction(data: typeof moderationActions.$inferInsert, tx?: Executor) {
     await this.exec(tx).insert(moderationActions).values(data);
   }
+
+  /** Any case about this creator that staff haven't closed yet. */
+  async openCaseForCreator(creatorId: string, tx?: Executor): Promise<RiskCase | null> {
+    const [row] = await this.exec(tx)
+      .select()
+      .from(riskCases)
+      .where(and(eq(riskCases.creatorId, creatorId), ne(riskCases.status, "closed")))
+      .limit(1);
+    return row ?? null;
+  }
+
 }

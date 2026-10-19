@@ -54,4 +54,9 @@ export class KycRepository extends BaseRepository {
       .returning();
     return row ?? null;
   }
+
+  async listForUser(userId: string, tx?: Executor): Promise<KycSubmission[]> {
+    return this.exec(tx).select().from(kycSubmissions).where(eq(kycSubmissions.userId, userId)).orderBy(asc(kycSubmissions.createdAt));
+  }
+
 }

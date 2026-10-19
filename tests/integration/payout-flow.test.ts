@@ -324,4 +324,17 @@ describe("withdrawals", () => {
     monimeServer.failNext(503, "internal_error", "down", "/provider-kyc/");
     await expect(payouts.request(creator, { amountMinor: 10_000 })).rejects.toThrow(/couldn't check this number/);
   });
+
+  it("a final withdrawal empties a balance under the minimum, but only for the full amount", async () => {
+    await readyToWithdraw(3_000); // Le 30, under the Le 50 minimum
+    const { maxWithdrawableMinor: max } = await balances.getBalance(creator.userId);
+    expect(max).toBe(2_971); // 2971 + 1% fee (29) = 3000
+
+    await expect(payouts.request(creator, { amountMinor: max })).rejects.toMatchObject({ fieldErrors: { amount: [expect.stringMatching(/minimum/)] } });
+    await expect(payouts.request(creator, { amountMinor: 1_000, final: true })).rejects.toMatchObject({
+      fieldErrors: { amount: [expect.stringMatching(/sends everything/)] },
+    });
+    const payout = await payouts.request(creator, { amountMinor: max, final: true });
+    expect(payout.amountMinor).toBe(max);
+  });
 });
