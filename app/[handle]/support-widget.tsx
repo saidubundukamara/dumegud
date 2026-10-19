@@ -51,6 +51,21 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
 
   const minor = parseMajorToMinor(amount);
   const inRange = minor !== null && minor >= settings.minMinor && minor <= settings.maxMinor;
+  // Too much is flagged while typing; too little only after leaving the field, so typing "100"
+  // doesn't flash an error at "1".
+  const [touched, setTouched] = useState(false);
+  const tooHigh = minor !== null && minor > settings.maxMinor;
+  const amountError = !amount.trim()
+    ? null
+    : minor === null
+      ? touched
+        ? "Type the amount in numbers, for example 50."
+        : null
+      : tooHigh
+        ? `The most you can send in one gift is ${formatSLECompact(settings.maxMinor)}.`
+        : minor < settings.minMinor && touched
+          ? `The smallest gift is ${formatSLECompact(settings.minMinor)}.`
+          : null;
   // Optional extras stay folded away unless the visitor opens them or the server sent one back.
   const errs = state.fieldErrors ?? {};
   const [moreOpen, setMoreOpen] = useState(
@@ -92,13 +107,23 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
               required
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              hint={`From ${formatSLECompact(settings.minMinor)} to ${formatSLECompact(settings.maxMinor)}.`}
-              errors={state.fieldErrors?.amount}
+              onBlur={() => setTouched(true)}
+              hint={amountError ? undefined : `From ${formatSLECompact(settings.minMinor)} to ${formatSLECompact(settings.maxMinor)}.`}
+              errors={amountError ? [amountError] : state.fieldErrors?.amount}
               className="[&_input]:!min-h-14 [&_input]:!pl-12 [&_input]:text-xl [&_input]:font-bold"
             />
             <span aria-hidden="true" className="pointer-events-none absolute left-4 top-[2.74rem] text-xl font-bold text-text">
               Le
             </span>
+            {tooHigh ? (
+              <button
+                type="button"
+                onClick={() => setAmount(toMajorText(settings.maxMinor))}
+                className="mt-1 inline-flex min-h-11 items-center font-semibold text-primary underline underline-offset-4"
+              >
+                Send {formatSLECompact(settings.maxMinor)} instead
+              </button>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-4 rounded-brand bg-surface-muted/60 p-1">
@@ -179,7 +204,11 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
               ) : null}
             </p>
             <SubmitButton disabled={!inRange} size="lg" pendingLabel="Opening checkout…" className="w-full">
-              {quote ? `Send ${formatSLECompact(quote.grossMinor)}` : "Pick an amount"}
+              {quote
+                ? `Send ${formatSLECompact(quote.grossMinor)}`
+                : tooHigh
+                  ? `Up to ${formatSLECompact(settings.maxMinor)} per gift`
+                  : "Pick an amount"}
             </SubmitButton>
             <p className="flex items-center justify-center gap-1.5 text-center text-sm text-muted">
               <LockKeyIcon aria-hidden="true" className="size-4 shrink-0" />
