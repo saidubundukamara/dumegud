@@ -62,7 +62,7 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
         ? "Type the amount in numbers, for example 50."
         : null
       : tooHigh
-        ? `The most you can send in one gift is ${formatSLECompact(settings.maxMinor)}.`
+        ? `You can send up to ${formatSLECompact(settings.maxMinor)}. Please lower the amount.`
         : minor < settings.minMinor && touched
           ? `The smallest gift is ${formatSLECompact(settings.minMinor)}.`
           : null;
@@ -207,7 +207,7 @@ export function SupportWidget({ handle: creatorHandle, displayName, suggestedAmo
               {quote
                 ? `Send ${formatSLECompact(quote.grossMinor)}`
                 : tooHigh
-                  ? `Up to ${formatSLECompact(settings.maxMinor)} per gift`
+                  ? "Lower the amount to continue"
                   : "Pick an amount"}
             </SubmitButton>
             <p className="flex items-center justify-center gap-1.5 text-center text-sm text-muted">
