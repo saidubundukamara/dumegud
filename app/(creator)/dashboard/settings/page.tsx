@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { SubmitButton } from "@/components/ui/Button";
+import { ConfirmAction } from "@/components/dashboard/ConfirmAction";
+import { StatusChip } from "@/components/ui/Badge";
+import { Panel } from "@/components/ui/Card";
 import { verifySession } from "@/server/dal/session";
 import { services } from "@/server/services";
 import { signOutEverywhere } from "../actions";
@@ -27,32 +29,37 @@ async function Settings() {
 
   return (
     <>
-      <section className="flex flex-col gap-2">
+      <Panel as="section" className="flex flex-col gap-2 p-5 sm:p-6">
         <h2 className="text-xl font-bold">Account</h2>
-        <p>
-          <span className="text-muted">Email:</span> {account.email}{" "}
-          <span className="text-sm text-muted">({account.emailVerified ? "confirmed" : "not confirmed"})</span>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="text-muted">Email</span>
+          <span className="font-semibold">{account.email}</span>
+          <StatusChip tone={account.emailVerified ? "success" : "warning"}>{account.emailVerified ? "Confirmed" : "Not confirmed"}</StatusChip>
         </p>
-      </section>
+      </Panel>
 
-      <section className="flex flex-col gap-4">
+      <Panel as="section" className="flex flex-col gap-4 p-5 sm:p-6">
         <h2 className="text-xl font-bold">Password</h2>
         {account.hasPassword ? (
           <ChangePasswordForm />
         ) : (
           <p className="text-muted">You sign in with Google, so there&apos;s no DuMeGud password to change.</p>
         )}
-      </section>
+      </Panel>
 
-      <section className="flex flex-col gap-3">
+      <Panel as="section" className="flex flex-col items-start gap-3 p-5 sm:p-6">
         <h2 className="text-xl font-bold">Devices</h2>
         <p className="text-muted">Lost a phone or signed in on a shared computer? Sign out everywhere, this device included.</p>
-        <form action={signOutEverywhere}>
-          <SubmitButton variant="secondary" pendingLabel="Signing out…">
-            Sign out everywhere
-          </SubmitButton>
-        </form>
-      </section>
+        <ConfirmAction
+          trigger="Sign out everywhere"
+          title="Sign out everywhere?"
+          confirm="Sign out everywhere"
+          pendingLabel="Signing out…"
+          action={signOutEverywhere}
+        >
+          You&apos;ll be signed out on every phone and computer, this one too. You can sign back in any time.
+        </ConfirmAction>
+      </Panel>
     </>
   );
 }

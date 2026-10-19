@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { SubmitButton } from "@/components/ui/Button";
-import { Field, SelectField, TextAreaField } from "@/components/ui/Field";
+import { CONTROL, Field, SelectField, TextAreaField } from "@/components/ui/Field";
 import { initialFormState } from "@/lib/form-state";
 import { HANDLE_MAX } from "@/lib/handle";
 import { MAX_SOCIAL_LINKS, PLATFORM_LABELS, SOCIAL_PLATFORMS, type Platform } from "@/lib/social";
@@ -120,12 +120,13 @@ export function ProfileForm({ initial, categories, appHost, handleLockedUntil, i
 
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-1 font-semibold">Links</legend>
+        {values.links.length ? null : <p className="text-sm text-muted">Add your Instagram, TikTok or other pages so fans can follow you.</p>}
         {values.links.map((link, i) => (
           <div key={i} className="flex flex-col gap-2 sm:flex-row">
             <select
               name="linkPlatform"
-              aria-label={`Link ${i + 1} platform`}
-              className="min-h-12 rounded-brand bg-surface-muted px-4 text-[1.0625rem] ring-1 ring-transparent transition-[box-shadow,background-color] duration-200 ease-brand hover:ring-border-strong focus:bg-surface focus:outline-none focus:ring-2 focus:ring-focus sm:w-44"
+              aria-label={`Link ${i + 1}: app`}
+              className={`min-h-12 ${CONTROL} sm:w-44`}
               value={link.platform}
               onChange={(e) => setLink(i, { platform: e.target.value as Platform })}
             >
@@ -139,15 +140,16 @@ export function ProfileForm({ initial, categories, appHost, handleLockedUntil, i
               name="linkUrl"
               type="url"
               inputMode="url"
-              aria-label={`Link ${i + 1} address`}
+              aria-label={`Link ${i + 1}: ${PLATFORM_LABELS[link.platform]} address`}
               placeholder="https://"
-              className="min-h-12 flex-1 rounded-brand bg-surface-muted px-4 text-[1.0625rem] ring-1 ring-transparent transition-[box-shadow,background-color] duration-200 ease-brand hover:ring-border-strong focus:bg-surface focus:outline-none focus:ring-2 focus:ring-focus"
+              className={`min-h-12 flex-1 ${CONTROL}`}
               value={link.url}
               onChange={(e) => setLink(i, { url: e.target.value })}
             />
             <button
               type="button"
               className="min-h-12 px-3 font-semibold underline-offset-4 hover:underline"
+              aria-label={`Remove ${PLATFORM_LABELS[link.platform]} link`}
               onClick={() => set("links", values.links.filter((_, j) => j !== i))}
             >
               Remove
@@ -155,7 +157,7 @@ export function ProfileForm({ initial, categories, appHost, handleLockedUntil, i
           </div>
         ))}
         {state.fieldErrors?.links?.length ? (
-          <ul className="text-sm text-danger">
+          <ul className="text-sm font-medium text-danger" role="alert">
             {state.fieldErrors.links.map((e) => (
               <li key={e}>{e}</li>
             ))}
@@ -164,7 +166,7 @@ export function ProfileForm({ initial, categories, appHost, handleLockedUntil, i
         {values.links.length < MAX_SOCIAL_LINKS ? (
           <button
             type="button"
-            className="self-start font-semibold underline underline-offset-4"
+            className="inline-flex min-h-11 items-center self-start font-semibold underline underline-offset-4"
             onClick={() => set("links", [...values.links, { platform: "instagram", url: "" }])}
           >
             Add a link

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertMinor, bpsOf, formatSLE, parseMajorToMinor } from "@/lib/money";
+import { assertMinor, bpsOf, formatMajorInput, formatSLE, parseMajorToMinor } from "@/lib/money";
 
 describe("parseMajorToMinor", () => {
   it.each([
@@ -61,5 +61,17 @@ describe("assertMinor", () => {
     expect(() => assertMinor(Number.NaN)).toThrow();
     expect(() => assertMinor("100")).toThrow();
     expect(() => assertMinor(Number.MAX_SAFE_INTEGER + 1)).toThrow();
+  });
+});
+
+describe("formatMajorInput", () => {
+  it.each([
+    [123400, "1234"],
+    [5050, "50.50"],
+    [5005, "50.05"],
+    [0, "0"],
+  ])("formats %i → %j and parses back", (minor, text) => {
+    expect(formatMajorInput(minor)).toBe(text);
+    expect(parseMajorToMinor(text)).toBe(minor);
   });
 });
