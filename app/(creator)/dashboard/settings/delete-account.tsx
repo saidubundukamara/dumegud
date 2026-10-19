@@ -16,7 +16,11 @@ export function DeleteAccountForm({ confirmWith, hasPassword, forfeitableMinor }
   const [state, action] = useActionState(requestAccountDeletion, initialFormState);
   const [typed, setTyped] = useState(state.values?.handle ?? "");
   const [forfeit, setForfeit] = useState(false);
+  const [password, setPassword] = useState("");
   const matches = typed.trim().replace(/^@/, "").toLowerCase() === confirmWith.replace(/^@/, "").toLowerCase();
+  // Every required field filled in: the handle typed exactly, the password (if the account has one)
+  // and, when a remainder is left, consent to give it up.
+  const ready = matches && (!hasPassword || password.length > 0) && (forfeitableMinor === 0 || forfeit);
 
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
@@ -50,13 +54,23 @@ export function DeleteAccountForm({ confirmWith, hasPassword, forfeitableMinor }
         onChange={(e) => setTyped(e.target.value)}
         errors={state.fieldErrors?.handle}
       />
-      {hasPassword ? <Field label="Your password" name="password" type="password" autoComplete="current-password" errors={state.fieldErrors?.password} /> : null}
+      {hasPassword ? (
+        <Field
+          label="Your password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          errors={state.fieldErrors?.password}
+        />
+      ) : null}
 
       <SubmitButton
         variant="secondary"
         className="self-start !text-danger"
         pendingLabel="Deleting…"
-        disabled={!matches || (forfeitableMinor > 0 && !forfeit)}
+        disabled={!ready}
       >
         Delete my account
       </SubmitButton>
