@@ -327,6 +327,11 @@ export class ProductService {
   // ── Public ────────────────────────────────────────────────────────────────────
 
   /** Product page data: published product of a published, active creator. Null otherwise. */
+  /** Product pages that can be bought right now, for the sitemap. */
+  async listForSitemap(limit = 45_000): Promise<{ id: string; updatedAt: Date }[]> {
+    return this.repos.products.listPublicForSitemap(limit);
+  }
+
   async getPublic(productId: string): Promise<PublicProductDTO | null> {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)) return null;
     const product = await this.repos.products.findById(productId);

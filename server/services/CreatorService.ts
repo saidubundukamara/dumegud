@@ -241,6 +241,11 @@ export class CreatorService {
    * Public page lookup. Malformed handles never reach the database. Old handles redirect for
    * 90 days. Suspended pages (or owners) show a neutral "unavailable" page.
    */
+  /** Live creator pages for the sitemap, most recently updated first. */
+  async listForSitemap(limit = 45_000): Promise<{ handle: string; updatedAt: Date }[]> {
+    return this.repos.profiles.listPublishedForSitemap(limit);
+  }
+
   async getPublicProfile(rawHandle: string): Promise<PublicProfileResult> {
     const handleLower = normalizeHandle(rawHandle);
     if (handleFormatError(handleLower)) return { kind: "not_found" };

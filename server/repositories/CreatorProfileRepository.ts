@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ne, notInArray } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import {
   categories,
@@ -55,6 +55,17 @@ export class CreatorProfileRepository extends BaseRepository {
       .where(eq(creatorProfiles.handleLower, handleLower))
       .limit(1);
     return row ?? null;
+  }
+
+  /** Live pages for the sitemap: published, and the owner isn't suspended or closed (same rule as the public page). */
+  async listPublishedForSitemap(limit: number, tx?: Executor): Promise<{ handle: string; updatedAt: Date }[]> {
+    return this.exec(tx)
+      .select({ handle: creatorProfiles.handle, updatedAt: creatorProfiles.updatedAt })
+      .from(creatorProfiles)
+      .innerJoin(users, eq(users.id, creatorProfiles.userId))
+      .where(and(eq(creatorProfiles.status, "published"), notInArray(users.status, ["suspended", "closed"])))
+      .orderBy(desc(creatorProfiles.updatedAt))
+      .limit(limit);
   }
 
   /** Throws a unique violation if the handle is taken (callers check isUniqueViolation). */

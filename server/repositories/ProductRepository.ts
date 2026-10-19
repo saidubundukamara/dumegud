@@ -1,9 +1,11 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, ne } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import {
+  creatorProfiles,
   productAssets,
   products,
+  users,
   type AssetKind,
   type Product,
   type ProductAsset,
@@ -48,6 +50,34 @@ export class ProductRepository extends BaseRepository {
       .from(products)
       .where(and(eq(products.creatorId, creatorId), eq(products.status, "published")))
       .orderBy(desc(products.publishedAt))
+      .limit(limit);
+  }
+
+  /**
+   * Products that can be bought right now, for the sitemap: published, with a clean file, by an
+   * active creator whose page is live (the same rules as the public product page).
+   */
+  async listPublicForSitemap(limit: number, tx?: Executor): Promise<{ id: string; updatedAt: Date }[]> {
+    const db = this.exec(tx);
+    return db
+      .select({ id: products.id, updatedAt: products.updatedAt })
+      .from(products)
+      .innerJoin(creatorProfiles, eq(creatorProfiles.userId, products.creatorId))
+      .innerJoin(users, eq(users.id, products.creatorId))
+      .where(
+        and(
+          eq(products.status, "published"),
+          eq(creatorProfiles.status, "published"),
+          eq(users.status, "active"),
+          exists(
+            db
+              .select({ id: productAssets.id })
+              .from(productAssets)
+              .where(and(eq(productAssets.productId, products.id), eq(productAssets.kind, "file"), eq(productAssets.scanStatus, "clean"))),
+          ),
+        ),
+      )
+      .orderBy(desc(products.updatedAt))
       .limit(limit);
   }
 
