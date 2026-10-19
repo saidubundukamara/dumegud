@@ -1,41 +1,35 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Plus_Jakarta_Sans } from "next/font/google";
+import { Geist } from "next/font/google";
 import { ViewTransition } from "react";
 import { MotionProvider } from "@/components/motion/MotionProvider";
 import "./globals.css";
 
-// UI typeface: friendly geometric-humanist sans with clear numerals.
-const uiFont = Plus_Jakarta_Sans({
+// One typeface for UI and headings: a tight, neutral grotesk with clear numerals. The display
+// variable stays separate so headings can change face later without touching components.
+const geist = Geist({
   variable: "--font-ui",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-// Display face for headings and the text wordmark. The final logo is still open (PRD §1A).
-const displayFont = Bricolage_Grotesque({
-  variable: "--font-display-face",
   subsets: ["latin"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "DuMeGud: get paid by the people who love your work",
+    default: "DuMeGud: let your fans support you",
     template: "%s · DuMeGud",
   },
   description:
-    "Make a free page, share your link, and get paid by your fans with Orange Money or AfriMoney. Sell your e-books, music and art too.",
+    "Make a free page, share your link, and let fans support your work with Orange Money or AfriMoney. You can sell your e-books, music and art there too.",
   applicationName: "DuMeGud",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#fbf8f4",
+  themeColor: "#ffffff",
   viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${uiFont.variable} ${displayFont.variable} h-full antialiased`}>
+    <html lang="en" className={`${geist.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <a
           href="#main"

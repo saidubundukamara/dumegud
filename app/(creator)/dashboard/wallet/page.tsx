@@ -76,7 +76,7 @@ async function Wallet() {
       <section className="relative flex flex-col gap-1 overflow-hidden rounded-brand-xl bg-accent p-6 text-white shadow-lift sm:p-8">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -right-16 -top-24 size-72 rounded-full bg-[radial-gradient(closest-side,rgb(206_32_42/0.55),transparent)]"
+          className="pointer-events-none absolute -right-16 -top-24 size-72 rounded-full bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--color-secondary)_55%,transparent),transparent)]"
         />
         <p className="relative text-white/70">You can withdraw</p>
         <CountUp minor={balance.displayMinor} className="relative font-display text-5xl font-bold tracking-tight" />

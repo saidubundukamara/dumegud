@@ -8,6 +8,10 @@
   --color-primary-pressed: var(--dmg-primary-pressed);
   --color-primary-foreground: var(--dmg-primary-foreground);
   --color-primary-soft: var(--dmg-primary-soft);
+  --color-secondary: var(--dmg-secondary);
+  --color-secondary-hover: var(--dmg-secondary-hover);
+  --color-secondary-foreground: var(--dmg-secondary-foreground);
+  --color-secondary-soft: var(--dmg-secondary-soft);
   --color-accent: var(--dmg-accent);
   --color-accent-foreground: var(--dmg-accent-foreground);
   --color-celebrate: var(--dmg-celebrate);
@@ -36,7 +40,7 @@
   --ease-brand: var(--dmg-ease-out);
   --ease-spring: var(--dmg-ease-spring);
   --font-sans: var(--font-ui);
-  --font-display: var(--font-display-face);
+  --font-display: var(--font-ui);
 }
 
 /* Light mode only for the MVP (PRD §1A). */
@@ -91,18 +95,20 @@ main:focus {
 /* Fluid display sizes, mobile first. */
 @utility text-display {
   font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
-  font-size: clamp(2.5rem, 9vw, 5.25rem);
-  line-height: 0.98;
-  letter-spacing: -0.035em;
-  font-weight: 700;
+  font-size: clamp(2.5rem, 7vw, 4.75rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  font-weight: 600;
+  text-wrap: balance;
 }
 
 @utility text-title {
   font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
-  font-size: clamp(1.875rem, 5.5vw, 3.25rem);
-  line-height: 1.04;
-  letter-spacing: -0.03em;
-  font-weight: 700;
+  font-size: clamp(1.875rem, 5vw, 3rem);
+  line-height: 1.06;
+  letter-spacing: -0.035em;
+  font-weight: 600;
+  text-wrap: balance;
 }
 
 /* Safe-area padding for fixed bars on notched phones. */
@@ -196,4 +202,43 @@ main:focus {
   &[open]::details-content {
     block-size: auto;
   }
+}
+
+/* Endless horizontal rail: the track holds the list twice and slides by half its width. */
+@keyframes dmg-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@utility animate-marquee {
+  animation: dmg-marquee 60s linear infinite;
+}
+
+@keyframes dmg-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Very slow wander for the soft light behind the home hero. Transform only. */
+@keyframes dmg-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6%, 4%, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-4%, 6%, 0) scale(0.96);
+  }
+}
+
+@utility animate-drift {
+  animation: dmg-drift 40s ease-in-out infinite alternate;
+}
+
+/* Static film grain (SVG noise), for a tactile surface. Never animated. */
+@utility bg-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
