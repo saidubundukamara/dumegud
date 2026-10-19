@@ -195,11 +195,22 @@ export default function TermsPage() {
           id: "closing",
           title: "Closing an account",
           body: (
-            <p>
-              You can ask us to close your account at any time. Creators can withdraw their balance first, unless it is
-              under review. We may close an account that breaks these terms. Some records stay after closing because the law
-              says we must keep them (see the <Link href="/legal/privacy">privacy policy</Link>).
-            </p>
+            <>
+              <p>
+                Creators can delete their account from Settings. First withdraw everything in your wallet: we won&apos;t
+                delete an account that still has money in it. If only a few cents are left, too little to send, you can
+                choose to give them up.
+              </p>
+              <p>
+                Your page goes offline straight away. You then have 30 days to change your mind by signing in. After that,
+                your personal details are deleted and your handle becomes free for someone else. People who bought your
+                products keep their downloads until their access ends. Some records stay because the law says we must keep
+                them (see the <Link href="/legal/privacy">privacy policy</Link>).
+              </p>
+              <p>
+                If your account is under review, contact us to close it. We may close an account that breaks these terms.
+              </p>
+            </>
           ),
         },
         {

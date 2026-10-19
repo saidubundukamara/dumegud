@@ -1049,7 +1049,7 @@ export async function GET(request: Request) {
 | `reconcile-payments` | Payments `pending` older than 15 min → `getCheckoutSession` → advance through the same `SettlementService` paths. Older than the session expiry → `expired` |
 | `reconcile-payouts` | Payouts `processing` older than 10 min → `getPayout` → `onPayoutEvent` path |
 | `ledger-drift` | Per creator wallet (active, changed in the last 24h) + platform: compare the ledger vs the Monime live balance. Drift > tolerance → `risk_alerts(type='LEDGER_DRIFT')` + ops alert |
-| `cleanup` | Promote `cooling_off` payout methods, expire stale tokens, purge expired verification/reset tokens, retention deletions (KYC docs per policy), mark expired entitlements |
+| `cleanup` | Promote `cooling_off` payout methods, expire stale tokens, purge expired verification/reset tokens, retention deletions (KYC docs per policy), mark expired entitlements, delete product files of erased accounts once their last entitlement has expired (`account-deletions` already erases everything else) |
 
 ### Acceptance
 - Killing the webhook (simulated) → the payment still settles via `reconcile-payments` within 15 min.

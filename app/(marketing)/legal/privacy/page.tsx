@@ -166,8 +166,11 @@ export default function PrivacyPage() {
           title: "How long we keep it",
           body: (
             <ul>
-              <li>Account and page details: while your account is open.</li>
-              <li>ID documents: deleted within a set period after you close your account. We keep a record of the check itself.</li>
+              <li>
+                Account and page details: while your account is open. When you delete your account, they are erased 30 days
+                later, unless you change your mind before then.
+              </li>
+              <li>ID photos: deleted when your account is erased. We keep a record of the check itself.</li>
               <li>Records of gifts, sales and withdrawals: as long as the law requires for financial records.</li>
               <li>Security logs: only as long as needed to investigate abuse.</li>
             </ul>
