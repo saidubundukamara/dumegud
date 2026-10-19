@@ -187,8 +187,11 @@ describe("uploads", () => {
 describe("lifecycle", () => {
   it("needs files and an ownership declaration before review, and staff to publish", async () => {
     const { productId } = await products.create(creator, productInput);
+    const fileItem = async () => (await products.readiness(creator, productId)).find((i) => i.key === "file")?.done;
+    expect(await fileItem()).toBe(false);
     await expect(products.submitForReview(creator, productId, true)).rejects.toThrow(/upload at least one file/);
     await (await upload(productId, "a.pdf", await pdfBytes())).confirm();
+    expect(await fileItem()).toBe(true);
     await expect(products.submitForReview(creator, productId, false)).rejects.toThrow(/own the rights/);
     await products.submitForReview(creator, productId, true);
     expect(await products.getPublic(productId)).toBeNull();

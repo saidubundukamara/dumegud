@@ -35,6 +35,14 @@ export type AssetDTO = {
   url: string | null;
 };
 
+export type ReadinessItem = { key: "email" | "terms" | "file"; label: string; done: boolean };
+
+const REVIEW_BLOCKERS: Record<ReadinessItem["key"], string> = {
+  email: "confirm your email",
+  terms: "accept the creator terms",
+  file: "upload at least one file",
+};
+
 export type OwnProductDTO = {
   id: string;
   title: string;
@@ -172,12 +180,7 @@ export class ProductService {
     const product = await this.owned(actor, productId);
     if (!["draft", "unpublished"].includes(product.status)) throw new ConflictError("This product is already in review or live.");
     await this.restrictions.assertAllowed(actor.userId, "publish", "Publishing isn't available on your account right now. Contact support.");
-    const missing: string[] = [];
-    if (!actor.emailVerified) missing.push("confirm your email");
-    const profile = await this.repos.profiles.findByUserId(actor.userId);
-    if (!profile?.creatorTermsAcceptedAt) missing.push("accept the creator terms");
-    const files = (await this.repos.products.listAssets(productId, "file")).filter((a) => a.scanStatus === "pending" || a.scanStatus === "clean");
-    if (!files.length) missing.push("upload at least one file");
+    const missing = (await this.readinessOf(actor, productId)).filter((i) => !i.done).map((i) => REVIEW_BLOCKERS[i.key]);
     if (!ownershipDeclared) missing.push("confirm you own the rights to sell it");
     if (missing.length) throw new ConflictError(`Before submitting: ${missing.join("; ")}.`);
 
@@ -187,6 +190,24 @@ export class ProductService {
     });
     if (!updated) throw new ConflictError("This product changed while submitting. Please try again.");
     return this.change(updated);
+  }
+
+  /** What still stands between this product and review (the ownership declaration is asked on submit). */
+  async readiness(actor: Actor, productId: string): Promise<ReadinessItem[]> {
+    await this.owned(actor, productId);
+    return this.readinessOf(actor, productId);
+  }
+
+  private async readinessOf(actor: Actor, productId: string): Promise<ReadinessItem[]> {
+    const [profile, files] = await Promise.all([
+      this.repos.profiles.findByUserId(actor.userId),
+      this.repos.products.listAssets(productId, "file"),
+    ]);
+    return [
+      { key: "email", label: "Confirm your email", done: actor.emailVerified },
+      { key: "terms", label: "Accept the creator terms", done: Boolean(profile?.creatorTermsAcceptedAt) },
+      { key: "file", label: "Upload the file buyers get", done: files.some((a) => a.scanStatus === "pending" || a.scanStatus === "clean") },
+    ];
   }
 
   async unpublish(actor: Actor, productId: string): Promise<ProductChange> {

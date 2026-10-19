@@ -15,24 +15,56 @@ import { productSchema, uploadRequestSchema } from "@/server/validation/product"
 
 const refresh = (change: ProductChange) => productChangeTags(change).forEach((tag) => updateTag(tag));
 
-function parseProduct(formData: FormData) {
-  return productSchema.safeParse({
+function productValues(formData: FormData) {
+  return {
     title: field(formData, "title"),
     description: field(formData, "description"),
     categoryId: field(formData, "categoryId"),
     price: field(formData, "price"),
     licenseType: field(formData, "licenseType"),
     licenseText: field(formData, "licenseText"),
-  });
+  };
 }
 
 export async function createProduct(_prev: FormState, formData: FormData): Promise<FormState> {
   const { actor } = await verifySession();
-  const parsed = parseProduct(formData);
-  if (!parsed.success) return invalidForm(parsed.error);
+  const values = productValues(formData);
+  const parsed = productSchema.safeParse(values);
+  if (!parsed.success) return invalidForm(parsed.error, values);
   let productId: string | null = null;
   const result = await runForm(async () => {
     const change = await services.products.create(actor, parsed.data);
+    refresh(change);
+    productId = change.productId;
+    return { status: "success" };
+  }, values);
+  if (!productId) return result;
+  redirect(`/dashboard/products/${productId}/files`);
+}
+
+export async function updateProduct(_prev: FormState, formData: FormData): Promise<FormState> {
+  const { actor } = await verifySession();
+  const values = productValues(formData);
+  const parsed = productSchema.safeParse(values);
+  if (!parsed.success) return invalidForm(parsed.error, values);
+  // Mid-setup the wizard moves on to the files step; otherwise back to the product's overview.
+  const next = field(formData, "next") === "files" ? "/files" : "";
+  let productId: string | null = null;
+  const result = await runForm(async () => {
+    const change = await services.products.update(actor, field(formData, "productId"), parsed.data);
+    refresh(change);
+    productId = change.productId;
+    return { status: "success" };
+  }, values);
+  if (!productId) return result;
+  redirect(`/dashboard/products/${productId}${next}`);
+}
+
+export async function submitProduct(_prev: FormState, formData: FormData): Promise<FormState> {
+  const { actor } = await verifySession();
+  let productId: string | null = null;
+  const result = await runForm(async () => {
+    const change = await services.products.submitForReview(actor, field(formData, "productId"), field(formData, "ownership") === "on");
     refresh(change);
     productId = change.productId;
     return { status: "success" };
@@ -41,29 +73,11 @@ export async function createProduct(_prev: FormState, formData: FormData): Promi
   redirect(`/dashboard/products/${productId}`);
 }
 
-export async function updateProduct(_prev: FormState, formData: FormData): Promise<FormState> {
-  const { actor } = await verifySession();
-  const parsed = parseProduct(formData);
-  if (!parsed.success) return invalidForm(parsed.error);
-  return runForm(async () => {
-    refresh(await services.products.update(actor, field(formData, "productId"), parsed.data));
-    return { status: "success", message: "Saved." };
-  });
-}
-
-export async function submitProduct(_prev: FormState, formData: FormData): Promise<FormState> {
-  const { actor } = await verifySession();
-  return runForm(async () => {
-    refresh(await services.products.submitForReview(actor, field(formData, "productId"), field(formData, "ownership") === "on"));
-    return { status: "success", message: "Submitted. We'll review it shortly; you'll see it go live here." };
-  });
-}
-
 export async function unpublishProduct(_prev: FormState, formData: FormData): Promise<FormState> {
   const { actor } = await verifySession();
   return runForm(async () => {
     refresh(await services.products.unpublish(actor, field(formData, "productId")));
-    return { status: "success", message: "Unpublished. Existing buyers keep their downloads." };
+    return { status: "success", message: "Hidden from your shop. Existing buyers keep their downloads." };
   });
 }
 
