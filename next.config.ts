@@ -58,6 +58,8 @@ const securityHeaders = [
     : []),
 ];
 
+const OG_FILES = ["./styles/tokens.css", "./node_modules/@fontsource/geist-sans/files/geist-sans-latin-{400,700}-normal.woff"];
+
 const nextConfig: NextConfig = {
   experimental: {
     agentFeedback: true,
@@ -69,7 +71,13 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   typedRoutes: true,
   // The shout-out card reads brand colours from the token file at runtime (server/lib/brand-tokens.ts).
-  outputFileTracingIncludes: { "/api/shoutouts/image": ["./styles/tokens.css"] },
+  // Files read at runtime by generated images (brand colours, the Geist woff files for share cards).
+  outputFileTracingIncludes: {
+    "/api/shoutouts/image": ["./styles/tokens.css"],
+    "/opengraph-image": OG_FILES,
+    "/[handle]/opengraph-image": OG_FILES,
+    "/p/[productId]/opengraph-image": OG_FILES,
+  },
   poweredByHeader: false,
   turbopack: {
     // Pin the root: a stray lockfile higher up the filesystem would otherwise be picked up.
