@@ -103,14 +103,14 @@ function DashboardNavView({ pathname }: { pathname: string }) {
       </header>
 
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col gap-6 border-r border-border bg-surface/60 px-4 py-6 backdrop-blur-xl md:flex">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col gap-4 border-r border-border bg-surface/60 px-4 py-6 backdrop-blur-xl md:flex">
         <div className="px-3">
           <Wordmark href="/dashboard" />
         </div>
-        <nav aria-label="Dashboard" className="flex flex-1 flex-col gap-5 overflow-y-auto">
+        <nav aria-label="Dashboard" className="flex flex-1 flex-col gap-3 overflow-y-auto">
           {GROUPS.map((group) => (
             <div key={group.label} className="flex flex-col gap-0.5">
-              <p className="px-3 pb-1 text-xs font-semibold text-muted">{group.label}</p>
+              <p className="px-3 text-xs font-semibold text-muted">{group.label}</p>
               <ul className="flex flex-col gap-0.5">
                 {group.items.map(({ href, label, Icon }) => {
                   const active = isActive(pathname, href);

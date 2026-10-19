@@ -91,7 +91,12 @@ async function Orders() {
                 </div>
               </dl>
             ) : (
-              <p className="text-sm text-muted">Price {o.priceLabel}. You receive the money once the buyer&apos;s payment goes through.</p>
+              <p className="text-sm text-muted">
+                Price {o.priceLabel}.{" "}
+                {o.status === "processing"
+                  ? "You receive the money once the buyer's payment goes through."
+                  : "The buyer didn't finish paying, so nothing was charged."}
+              </p>
             )}
             <p className="text-xs text-muted">Order #{o.orderRef}</p>
           </Panel>
