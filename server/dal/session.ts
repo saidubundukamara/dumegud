@@ -1,5 +1,6 @@
 import "server-only";
 import { forbidden, redirect } from "next/navigation";
+import { connection } from "next/server";
 import { cache } from "react";
 import { auth } from "@/auth";
 import type { Role } from "@/server/db/schema";
@@ -15,6 +16,10 @@ import { requireStepUp } from "./step-up";
 export type VerifiedSession = { actor: Actor; sessionVersion: number };
 
 export const getSession = cache(async (): Promise<VerifiedSession | null> => {
+  // Request time only. The session check (and the page code after it) reads the database, and a
+  // fresh pool connection makes a SCRAM nonce with crypto.getRandomValues, which Cache Components
+  // rejects during the runtime prefetch prerender.
+  await connection();
   const session = await auth();
   const userId = session?.user?.id;
   const sv = session?.user?.sv;

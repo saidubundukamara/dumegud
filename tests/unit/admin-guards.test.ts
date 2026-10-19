@@ -21,6 +21,7 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 vi.mock("next/cache", () => ({ updateTag: vi.fn(), revalidateTag: vi.fn() }));
+vi.mock("next/server", async (importOriginal) => ({ ...(await importOriginal<typeof import("next/server")>()), connection: async () => {} }));
 
 // restoreMocks (vitest.config) resets spies before each test, so install it per test.
 beforeEach(async () => {
