@@ -14,7 +14,7 @@ export const TRAFFIC_SOURCE_LABELS: Record<TrafficSource, string> = {
   whatsapp: "WhatsApp",
   x: "X (Twitter)",
   youtube: "YouTube",
-  direct: "Direct / unknown",
+  direct: "Direct link",
   other: "Other sites",
 };
 

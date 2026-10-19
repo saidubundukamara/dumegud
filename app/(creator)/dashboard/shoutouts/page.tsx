@@ -11,7 +11,7 @@ import { shoutoutOptionsSchema, type ShoutoutOptionsInput } from "@/server/valid
 import { CaptionEditor, MarkPostedForm } from "./forms";
 import { PageSkeleton } from "@/components/ui/Skeleton";
 
-export const metadata: Metadata = { title: "Thank your supporters" };
+export const metadata: Metadata = { title: "Shout-outs" };
 
 const PERIOD_LABELS = {
   since_last: "Since my last thank-you",
@@ -23,9 +23,9 @@ export default function ShoutoutsPage({ searchParams }: PageProps<"/dashboard/sh
   return (
     <>
       <div className="flex flex-col gap-2">
-        <h1 className="text-title">Thank your fans</h1>
+        <h1 className="text-title">Shout-outs</h1>
         <p className="text-muted">
-          A shout-out makes supporters feel seen, and the people you tag often share it, which brings new supporters to your
+          Thank your fans in a post. A shout-out makes supporters feel seen, and the people you tag often share it, which brings new supporters to your
           page. Only supporters who agreed to be mentioned appear here.
         </p>
       </div>
@@ -70,8 +70,8 @@ async function Shoutouts({ searchParams }: Pick<PageProps<"/dashboard/shoutouts"
       ) : null}
 
       <form method="get" className="flex flex-col gap-4 rounded-brand-lg bg-surface p-5 shadow-soft ring-1 ring-border sm:p-6">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <SelectField label="Who" name="period" defaultValue={opts.period}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SelectField label="Who" name="period" defaultValue={opts.period} className="sm:col-span-2">
             {Object.entries(PERIOD_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -116,7 +116,7 @@ async function Shoutouts({ searchParams }: Pick<PageProps<"/dashboard/shoutouts"
                     {p.mention}
                     {p.thanked ? <span className="ml-2 text-sm text-muted">(thanked before)</span> : null}
                   </span>
-                  <label className="flex shrink-0 items-center gap-2 text-sm">
+                  <label className="flex min-h-11 shrink-0 items-center gap-2 text-sm">
                     <input type="checkbox" name="exclude" value={p.contributionId} defaultChecked={p.excluded} className="size-5" />
                     Leave out
                   </label>
@@ -126,8 +126,8 @@ async function Shoutouts({ searchParams }: Pick<PageProps<"/dashboard/shoutouts"
           </fieldset>
         ) : null}
 
-        <button type="submit" className={buttonClasses("primary", "self-start")}>
-          Generate thank-you
+        <button type="submit" className={buttonClasses(preview.people.length ? "primary" : "secondary", "self-start")}>
+          {preview.people.length ? "Generate thank-you" : "Check again"}
         </button>
       </form>
 
@@ -140,7 +140,7 @@ async function Shoutouts({ searchParams }: Pick<PageProps<"/dashboard/shoutouts"
               : "No supporters who agreed to a shout-out in this period. "}
             Share your page link on {platformLabel}. Supporters can add their username when they support you.
           </p>
-          <Link href="/dashboard" className="self-start font-semibold underline underline-offset-4">
+          <Link href="/dashboard" className="inline-flex min-h-11 items-center self-start font-semibold underline underline-offset-4">
             Get your share links
           </Link>
         </section>

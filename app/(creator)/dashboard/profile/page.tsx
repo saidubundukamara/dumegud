@@ -7,12 +7,12 @@ import { AvatarUploader } from "./avatar-uploader";
 import { ProfileForm } from "./profile-form";
 import { PageSkeleton } from "@/components/ui/Skeleton";
 
-export const metadata: Metadata = { title: "Your page" };
+export const metadata: Metadata = { title: "My page" };
 
 export default function ProfilePage() {
   return (
     <>
-      <h1 className="text-title">Your page</h1>
+      <h1 className="text-title">My page</h1>
       <Suspense fallback={<PageSkeleton />}>
         <ProfileEditor />
       </Suspense>

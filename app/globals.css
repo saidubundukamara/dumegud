@@ -48,6 +48,9 @@ html {
   color-scheme: light;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
+  /* Native checkboxes, radios and the caret in the brand colour, not the browser's blue. */
+  accent-color: var(--color-primary);
+  caret-color: var(--color-primary);
 }
 
 body {
