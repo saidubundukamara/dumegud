@@ -1040,7 +1040,19 @@ export async function GET(request: Request) {
   return services.jobs.run('reconcile-payments', () => services.reconciliation.payments({ batch: 50 }))
 }
 ```
-- `JobService.run` takes an advisory lock (`pg_try_advisory_lock(hashtext(name))`) so overlapping runs skip, records `job_runs` (name, startedAt, finishedAt, processed, errors), and bounds the batch size to stay within the function duration.
+- `JobService.run` takes a **lease** in `job_leases` (one atomic `INSERT … ON CONFLICT DO UPDATE … WHERE locked_until < now`) so overlapping runs skip, records `job_runs` (name, status, startedAt, finishedAt, processed, errors), and gives each run a ~20s time budget so it stays within the scheduler's timeout. *As built:* a lease replaces `pg_try_advisory_lock`, because a session advisory lock on the pooled Neon client can be taken and released on different connections. A crashed run's lease simply expires.
+
+**Vercel Hobby (as built).** Hobby only allows crons that run once a day, and Hobby is for non-commercial use only. Until the move to Pro:
+- `vercel.ts` schedules only the daily jobs: `cleanup` and `account-deletions`.
+- [cron-job.org](https://cron-job.org) calls the other five, each a `GET` with the header `Authorization: Bearer $CRON_SECRET`, a 30s timeout and failure notifications on. The schedules are listed in `vercel.ts`.
+- A failed run answers 500, so the scheduler's failure email fires.
+- **Before taking real money (Monime `live`), move to Vercel Pro**, move the five schedules into `vercel.ts` and delete the cron-job.org jobs. No code changes are needed.
+
+**As built, beyond the table below:**
+- `reconcile-payouts` also re-sends `requested` payouts with no outcome, using the same idempotency key.
+- `retry-transfers` stops after 5 definitive failures, leaving the payment to staff (Admin → retry transfer).
+- `ledger-drift` skips any account with money in flight (an unsettled fee, or a pending transfer or payout) and raises `LEDGER_DRIFT` alerts with `subject_type = 'platform'` for the platform account. The tolerance is the `jobs.ledgerDriftToleranceMinor` setting.
+- `cleanup` marks purged product files with `product_assets.purged_at`. Entitlement expiry needs no job, because it is enforced when an entitlement is read.
 
 | Job | Does |
 |---|---|
