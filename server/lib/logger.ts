@@ -44,7 +44,9 @@ function write(level: Level, msg: string, fields?: Fields) {
   const line = JSON.stringify({
     level,
     msg,
-    time: new Date().toISOString(),
+    // Not `new Date()`: logs can be written while a page prerenders (onRequestError), where
+    // Cache Components rejects reading the current time. The timing API is allowed.
+    time: new Date(performance.timeOrigin + performance.now()).toISOString(),
     ...(fields ? (redact(fields) as Fields) : {}),
   });
   if (level === "error") console.error(line);
