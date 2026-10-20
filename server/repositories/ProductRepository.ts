@@ -1,8 +1,10 @@
 import "server-only";
-import { and, asc, desc, eq, exists, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, exists, gt, inArray, isNotNull, isNull, ne, notExists } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import {
+  accountDeletions,
   creatorProfiles,
+  entitlements,
   productAssets,
   products,
   users,
@@ -142,6 +144,37 @@ export class ProductRepository extends BaseRepository {
   }
 
   /** Takes every product off sale. Rows and files stay for buyers who already have access. */
+  /**
+   * cleanup cron: stored objects of erased creators' products that no buyer can download any more
+   * (no entitlement that is unrevoked and unexpired). Erasure keeps them while buyers have access.
+   */
+  async listPurgeableAssets(now: Date, limit: number, tx?: Executor): Promise<ProductAsset[]> {
+    const db = this.exec(tx);
+    return db
+      .select({ asset: productAssets })
+      .from(productAssets)
+      .innerJoin(products, eq(products.id, productAssets.productId))
+      .where(
+        and(
+          isNull(productAssets.purgedAt),
+          exists(
+            db
+              .select({ id: accountDeletions.id })
+              .from(accountDeletions)
+              .where(and(eq(accountDeletions.userId, products.creatorId), isNotNull(accountDeletions.erasedAt))),
+          ),
+          notExists(
+            db
+              .select({ id: entitlements.id })
+              .from(entitlements)
+              .where(and(eq(entitlements.productId, products.id), isNull(entitlements.revokedAt), gt(entitlements.expiresAt, now))),
+          ),
+        ),
+      )
+      .limit(limit)
+      .then((rows) => rows.map((r) => r.asset));
+  }
+
   async unpublishAllForCreator(creatorId: string, tx?: Executor): Promise<void> {
     await this.exec(tx)
       .update(products)

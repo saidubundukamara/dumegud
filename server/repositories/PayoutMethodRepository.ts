@@ -42,6 +42,16 @@ export class PayoutMethodRepository extends BaseRepository {
     return row ?? null;
   }
 
+  /** cleanup cron: every cooling_off method whose cooldown has passed becomes active. */
+  async promoteAllCooled(now: Date, tx?: Executor): Promise<number> {
+    const rows = await this.exec(tx)
+      .update(payoutMethods)
+      .set({ status: "active" })
+      .where(and(eq(payoutMethods.status, "cooling_off"), lt(payoutMethods.cooldownUntil, now)))
+      .returning({ id: payoutMethods.id });
+    return rows.length;
+  }
+
   async setStatus(id: string, status: PayoutMethodStatus, tx?: Executor): Promise<void> {
     await this.exec(tx).update(payoutMethods).set({ status }).where(eq(payoutMethods.id, id));
   }

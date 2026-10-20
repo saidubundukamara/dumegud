@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import { creatorWallets, type CreatorWallet } from "@/server/db/schema";
 import { BaseRepository } from "./BaseRepository";
@@ -38,6 +38,16 @@ export class CreatorWalletRepository extends BaseRepository {
       .where(eq(creatorWallets.userId, userId))
       .returning();
     return row;
+  }
+
+  /** provision-wallets cron: wallets still without a Monime account, least recently tried first. */
+  async listRetryable(maxAttempts: number, limit: number, tx?: Executor): Promise<CreatorWallet[]> {
+    return this.exec(tx)
+      .select()
+      .from(creatorWallets)
+      .where(and(inArray(creatorWallets.status, ["pending", "failed"]), lt(creatorWallets.attempts, maxAttempts)))
+      .orderBy(asc(creatorWallets.lastAttemptAt))
+      .limit(limit);
   }
 
   /** Stops all money movement into the wallet (transfers skip a frozen wallet). */

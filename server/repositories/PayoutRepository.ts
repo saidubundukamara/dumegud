@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import { payouts, type Payout, type PayoutStatus } from "@/server/db/schema";
 import { BaseRepository } from "./BaseRepository";
@@ -52,6 +52,16 @@ export class PayoutRepository extends BaseRepository {
 
   async listForCreator(creatorId: string, limit = 20, tx?: Executor): Promise<Payout[]> {
     return this.exec(tx).select().from(payouts).where(eq(payouts.creatorId, creatorId)).orderBy(desc(payouts.requestedAt)).limit(Math.min(limit, 100));
+  }
+
+  /** reconcile-payouts cron: payouts sent (or being sent) to Monime with no outcome yet. */
+  async listStale(olderThan: Date, limit: number, tx?: Executor): Promise<Payout[]> {
+    return this.exec(tx)
+      .select()
+      .from(payouts)
+      .where(and(inArray(payouts.status, ["requested", "processing"]), lt(payouts.updatedAt, olderThan)))
+      .orderBy(asc(payouts.updatedAt))
+      .limit(limit);
   }
 
   async listByStatus(status: PayoutStatus, limit = 50, tx?: Executor): Promise<Payout[]> {

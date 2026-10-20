@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import {
   contributions,
@@ -178,6 +178,61 @@ export class PaymentRepository extends BaseRepository {
       .from(payments)
       .where(and(eq(payments.status, "succeeded"), isNull(payments.monimeFeeMinor), sql`${payments.settledAt} < ${olderThan}`))
       .limit(limit);
+  }
+
+  /** reconcile-payments cron: open checkouts Monime should have decided by now, oldest first. */
+  async listStalePending(olderThan: Date, limit: number, tx?: Executor): Promise<Payment[]> {
+    return this.exec(tx)
+      .select()
+      .from(payments)
+      .where(and(eq(payments.status, "pending"), isNotNull(payments.monimeCheckoutSessionId), lt(payments.createdAt, olderThan)))
+      .orderBy(asc(payments.createdAt))
+      .limit(limit);
+  }
+
+  /**
+   * retry-transfers cron: split, unfrozen, succeeded payments whose transfer is not done and
+   * hasn't been touched since `olderThan` (so an in-flight request isn't raced).
+   */
+  async listTransferRetry(olderThan: Date, maxAttempts: number, limit: number, tx?: Executor): Promise<Payment[]> {
+    return this.exec(tx)
+      .select()
+      .from(payments)
+      .where(
+        and(
+          eq(payments.status, "succeeded"),
+          inArray(payments.transferStatus, ["none", "failed", "pending"]),
+          isNotNull(payments.creatorNetMinor),
+          eq(payments.settlementFrozen, false),
+          lt(payments.transferAttempts, maxAttempts),
+          lt(payments.updatedAt, olderThan),
+        ),
+      )
+      .orderBy(asc(payments.updatedAt))
+      .limit(limit);
+  }
+
+  /** A transfer to this creator's wallet is on its way (the live balance may already include it). */
+  async hasTransferInFlight(creatorId: string, tx?: Executor): Promise<boolean> {
+    const [row] = await this.exec(tx)
+      .select({ id: payments.id })
+      .from(payments)
+      .where(and(eq(payments.creatorId, creatorId), eq(payments.status, "succeeded"), eq(payments.transferStatus, "pending")))
+      .limit(1);
+    return Boolean(row);
+  }
+
+  /**
+   * Money is moving through the platform account: a settled payment not yet in the ledger (fee
+   * unknown) or a transfer out on its way. The platform balance and ledger differ until it lands.
+   */
+  async platformInFlight(tx?: Executor): Promise<boolean> {
+    const [row] = await this.exec(tx)
+      .select({ id: payments.id })
+      .from(payments)
+      .where(and(eq(payments.status, "succeeded"), or(isNull(payments.monimeFeeMinor), eq(payments.transferStatus, "pending"))))
+      .limit(1);
+    return Boolean(row);
   }
 
   /** Creator net of settled payments not yet moved to their wallet ("on its way"). */

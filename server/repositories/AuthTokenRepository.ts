@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, lt, or } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import { passwordResetTokens, verificationTokens } from "@/server/db/schema";
 import { BaseRepository } from "./BaseRepository";
@@ -21,6 +21,20 @@ export class AuthTokenRepository extends BaseRepository {
       .returning();
     if (!row || row.expires <= now) return null;
     return row.identifier;
+  }
+
+  /** cleanup cron: expired verification tokens, and reset tokens expired or used before `usedBefore`. */
+  async purgeExpired(now: Date, usedBefore: Date, tx?: Executor): Promise<number> {
+    const db = this.exec(tx);
+    const verification = await db
+      .delete(verificationTokens)
+      .where(lt(verificationTokens.expires, now))
+      .returning({ token: verificationTokens.token });
+    const resets = await db
+      .delete(passwordResetTokens)
+      .where(or(lt(passwordResetTokens.expiresAt, now), and(isNotNull(passwordResetTokens.usedAt), lt(passwordResetTokens.usedAt, usedBefore))))
+      .returning({ id: passwordResetTokens.id });
+    return verification.length + resets.length;
   }
 
   /** Invalidate the user's unused reset tokens, then store a new one. */
