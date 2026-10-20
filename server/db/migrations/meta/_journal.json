@@ -120,6 +120,13 @@
       "when": 1792418018847,
       "tag": "0016_account_deletions",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792493574309,
+      "tag": "0017_jobs",
+      "breakpoints": true
     }
   ]
 }

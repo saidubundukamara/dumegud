@@ -97,6 +97,10 @@ export const payments = pgTable(
     index().on(t.status, t.createdAt),
     index().on(t.payerFingerprintHash, t.settledAt),
     index().on(t.ipHash, t.createdAt),
+    // retry-transfers cron (Phase 9): succeeded payments whose transfer hasn't completed.
+    index("payments_transfer_retry_index")
+      .on(t.transferStatus, t.updatedAt)
+      .where(sql`${t.status} = 'succeeded' and ${t.transferStatus} <> 'completed'`),
     check("payments_gross_positive", sql`${t.grossMinor} > 0`),
   ],
 );

@@ -67,6 +67,8 @@ export const productAssets = pgTable(
     scanDetail: text(),
     /** PDFs get a per-order footer stamp on download (disclosed on the product page). */
     watermarkable: boolean().notNull().default(false),
+    /** The object was deleted from storage (erased creator, every entitlement expired). */
+    purgedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index().on(t.productId, t.kind)],
