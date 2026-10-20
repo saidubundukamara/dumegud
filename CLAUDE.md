@@ -8,8 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 DuMeGud is a creator-support and digital-commerce platform for Sierra Leone (one-off contributions + digital product sales, paid via Monime mobile money). **Phases 0–8 (foundations, auth, creator profile & wallet, Monime core + webhook, one-off support, digital products, KYC & payouts, risk & compliance, admin dashboard) are done**; Phase 9 (background jobs & reconciliation) is next. The product spec and the build plan live in two documents. Read them before implementing anything:
 
-- `PRD.md`: product requirements (what and why).
-- `implementation.md`: the phased engineering plan (how). Its **Decision log (§0)** overrides the PRD where they differ (e.g. auth is **NextAuth/Auth.js v5**, not Better Auth). Build phases in order (0 → 10). Each phase lists its tables, services, routes and acceptance checks.
+- `docs/PRD.md`: product requirements (what and why).
+- `docs/implementation.md`: the phased engineering plan (how). Its **Decision log (§0)** overrides the PRD where they differ (e.g. auth is **NextAuth/Auth.js v5**, not Better Auth). Build phases in order (0 → 10). Each phase lists its tables, services, routes and acceptance checks.
 
 ## Commands
 

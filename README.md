@@ -4,14 +4,14 @@
 
 DuMeGud ("do me good") is a creator-support and digital-commerce platform for Sierra Leone. Creators get a shareable page where supporters can send **one-off contributions** and buy **digital products**, paying with local mobile money (Orange Money, AfriMoney) through [Monime]. Supporters don't need an app or an account, just a browser.
 
-> **Status:** Phases 0–8 (foundations, authentication, creator profile and wallet, Monime integration core, one-off support, digital products, KYC and payouts, risk and compliance, admin dashboard) are complete. Next up is Phase 9 (background jobs and reconciliation). See [`implementation.md`](./implementation.md) for the roadmap.
+> **Status:** Phases 0–8 (foundations, authentication, creator profile and wallet, Monime integration core, one-off support, digital products, KYC and payouts, risk and compliance, admin dashboard) are complete. Next up is Phase 9 (background jobs and reconciliation). See [`implementation.md`](./docs/implementation.md) for the roadmap.
 
 ## Documentation
 
 | Document | What it covers |
 |---|---|
-| [`PRD.md`](./PRD.md) | Product requirements: goals, user journeys, AML/risk controls, brand direction |
-| [`implementation.md`](./implementation.md) | Phased engineering plan (Phases 0–10), decision log, money model, security threat model, Monime API reference, data model |
+| [`docs/PRD.md`](./docs/PRD.md) | Product requirements: goals, user journeys, AML/risk controls, brand direction |
+| [`docs/implementation.md`](./docs/implementation.md) | Phased engineering plan (Phases 0–10), decision log, money model, security threat model, Monime API reference, data model |
 | [`CLAUDE.md`](./CLAUDE.md) / [`AGENTS.md`](./AGENTS.md) | Guidance for AI coding agents working in this repo |
 
 Where `implementation.md` and the PRD disagree, the **decision log in `implementation.md` §0** wins.
