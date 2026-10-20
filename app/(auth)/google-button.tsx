@@ -1,6 +1,6 @@
-import { GoogleLogoIcon } from "@phosphor-icons/react/dist/ssr";
 import { connection } from "next/server";
 import { isGoogleSignInEnabled } from "@/auth";
+import { GoogleLogo } from "@/components/icons/GoogleLogo";
 import { SubmitButton } from "@/components/ui/Button";
 import { signInWithGoogle } from "./actions";
 import { NextField } from "./next-field";
@@ -13,8 +13,12 @@ export async function GoogleOption() {
     <>
       <form action={signInWithGoogle}>
         <NextField />
-        <SubmitButton variant="secondary" className="w-full" pendingLabel="Opening Google…">
-          <GoogleLogoIcon aria-hidden="true" weight="bold" className="size-5" />
+        <SubmitButton
+          variant="secondary"
+          className="w-full hover:-translate-y-0.5 hover:shadow-[0_12px_24px_-12px_color-mix(in_srgb,var(--color-text)_35%,transparent)] motion-reduce:hover:translate-y-0"
+          pendingLabel="Opening Google…"
+        >
+          <GoogleLogo className="size-5 transition-transform duration-300 ease-brand group-hover/btn:scale-110 motion-reduce:group-hover/btn:scale-100" />
           Continue with Google
         </SubmitButton>
       </form>

@@ -24,7 +24,7 @@ const SIZES: Record<ButtonSize, string> = {
  * button above the 44pt HIG touch target.
  */
 export function buttonClasses(variant: ButtonVariant = "primary", className = "", size: ButtonSize = "md") {
-  return `group/btn inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-[background-color,box-shadow,transform,color] duration-200 ease-brand active:scale-[0.97] disabled:pointer-events-none disabled:opacity-55 ${SIZES[size]} ${VARIANTS[variant]} ${className}`;
+  return `group/btn inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-[background-color,box-shadow,transform,translate,scale,color] duration-200 ease-brand active:scale-[0.97] disabled:pointer-events-none disabled:opacity-55 ${SIZES[size]} ${VARIANTS[variant]} ${className}`;
 }
 
 /**
