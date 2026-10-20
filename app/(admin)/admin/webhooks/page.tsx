@@ -27,8 +27,63 @@ export default function WebhooksPage({ searchParams }: PageProps<"/admin/webhook
       <Suspense fallback={<p className="text-muted">Loading…</p>}>
         <Events searchParams={searchParams} />
       </Suspense>
-      <p className="text-sm text-muted">Cron run history arrives with the Phase 9 jobs.</p>
+      <h2 className="text-xl font-bold">Cron runs</h2>
+      <Suspense fallback={<p className="text-muted">Loading…</p>}>
+        <CronRuns />
+      </Suspense>
     </main>
+  );
+}
+
+// How often each job should run; a job whose last run is older than twice this is flagged.
+const JOB_INTERVAL_MIN: Record<string, number> = {
+  "provision-wallets": 5,
+  "retry-transfers": 5,
+  "reconcile-payments": 10,
+  "reconcile-payouts": 10,
+  "ledger-drift": 60,
+  cleanup: 24 * 60,
+  "account-deletions": 24 * 60,
+};
+
+const stamp = (d: Date) => d.toISOString().slice(0, 19).replace("T", " ");
+
+async function CronRuns() {
+  const { actor } = await requireRole("staff", "super_admin");
+  const { latest, recent, now } = await services.admin.jobHistory(actor);
+  const lastRun = new Map(latest.map((r) => [r.name, r]));
+  return (
+    <>
+      <ul className="grid gap-2 text-sm sm:grid-cols-2">
+        {Object.entries(JOB_INTERVAL_MIN).map(([name, minutes]) => {
+          const run = lastRun.get(name);
+          const late = !run || now.getTime() - run.startedAt.getTime() > 2 * minutes * 60_000;
+          const bad = run?.status === "failed" || late;
+          return (
+            <li key={name} className={`flex flex-col gap-1 rounded-brand border p-3 ${bad ? "border-danger" : "border-border"}`}>
+              <p className="font-semibold">{name}</p>
+              <p className={bad ? "text-danger" : "text-muted"}>
+                {run ? `${run.status} · ${stamp(run.startedAt)} · ${run.processed} done · ${run.errors} errors` : "never run"}
+                {run && late ? " · overdue" : ""}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+      <ul className="flex flex-col gap-1 text-sm">
+        {recent.map((r) => (
+          <li key={r.id} className="flex flex-wrap gap-x-2">
+            <span className="font-semibold">{r.name}</span>
+            <span>{r.status}</span>
+            <span className="text-muted">{stamp(r.startedAt)}</span>
+            <span className="text-muted">
+              {r.processed} done · {r.errors} errors
+            </span>
+            {r.error ? <span className="text-danger">{r.error}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 

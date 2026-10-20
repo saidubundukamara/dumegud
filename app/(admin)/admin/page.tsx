@@ -31,6 +31,7 @@ async function Overview() {
     ["Open risk alerts", String(o.openAlerts)],
     ["Open reports", String(o.openReports)],
     ["Failed webhooks", String(o.failedWebhooks)],
+    ["Ledger drift alerts", String(o.openDriftAlerts)],
   ];
   return (
     <>
@@ -47,7 +48,9 @@ async function Overview() {
           Platform account <code>{o.platformAccountId}</code>:{" "}
           {o.platformBalanceMinor === null ? "balance unavailable" : formatSLE(o.platformBalanceMinor)}
         </p>
-        <p className="text-muted">Ledger drift checks arrive with the Phase 9 reconciliation jobs.</p>
+        <p className="text-muted">
+          The hourly ledger-drift job compares this balance and every active creator wallet with the ledger. Drift opens a LEDGER_DRIFT risk alert.
+        </p>
       </section>
     </>
   );

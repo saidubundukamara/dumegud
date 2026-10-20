@@ -26,7 +26,7 @@ export class AdminRepository extends BaseRepository {
   async overview(since: Date, tx?: Executor) {
     const db = this.exec(tx);
     const count = async (q: Promise<{ v: string }[]>) => n((await q)[0]?.v);
-    const [registrations, published, gtv, revenue, pendingTransfers, payoutsInReview, openAlerts, openReports, failedWebhooks, pendingKyc] =
+    const [registrations, published, gtv, revenue, pendingTransfers, payoutsInReview, openAlerts, openReports, failedWebhooks, pendingKyc, openDriftAlerts] =
       await Promise.all([
         count(db.select({ v: sql<string>`count(*)` }).from(users).where(gte(users.createdAt, since))),
         count(db.select({ v: sql<string>`count(*)` }).from(creatorProfiles).where(eq(creatorProfiles.status, "published"))),
@@ -38,8 +38,9 @@ export class AdminRepository extends BaseRepository {
         count(db.select({ v: sql<string>`count(*)` }).from(contentReports).where(eq(contentReports.status, "open"))),
         count(db.select({ v: sql<string>`count(*)` }).from(webhookEvents).where(inArray(webhookEvents.status, ["failed", "dead"]))),
         count(db.select({ v: sql<string>`count(*)` }).from(kycSubmissions).where(eq(kycSubmissions.status, "pending"))),
+        count(db.select({ v: sql<string>`count(*)` }).from(riskAlerts).where(and(eq(riskAlerts.status, "open"), eq(riskAlerts.ruleCode, "LEDGER_DRIFT")))),
       ]);
-    return { registrations, published, gtvMinor: gtv, revenueMinor: revenue, pendingTransfers, payoutsInReview, openAlerts, openReports, failedWebhooks, pendingKyc };
+    return { registrations, published, gtvMinor: gtv, revenueMinor: revenue, pendingTransfers, payoutsInReview, openAlerts, openReports, failedWebhooks, pendingKyc, openDriftAlerts };
   }
 
   /** Creators by handle prefix, exact email or exact user id. */
