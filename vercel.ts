@@ -1,11 +1,23 @@
 import type { VercelConfig } from "@vercel/config/v1";
 
 // Vercel project config (implementation.md Phase 9). Cron routes check `Authorization: Bearer
-// $CRON_SECRET`, which Vercel sends automatically. Phase 9 adds the reconciliation jobs here.
+// $CRON_SECRET`, which Vercel sends automatically.
+//
+// On the Hobby plan Vercel only runs crons once a day, so only the daily jobs live here. The
+// frequent ones are triggered by cron-job.org with the same bearer header:
+//   /api/cron/provision-wallets   */5 * * * *
+//   /api/cron/retry-transfers     */5 * * * *
+//   /api/cron/reconcile-payments  */10 * * * *
+//   /api/cron/reconcile-payouts   */10 * * * *
+//   /api/cron/ledger-drift        0 * * * *
+// On Pro (required before taking real money: Hobby is non-commercial), move them here and
+// delete the cron-job.org jobs. No code changes.
 
 export const config: VercelConfig = {
   framework: "nextjs",
   crons: [
+    // Housekeeping (03:30 UTC = 03:30 in Freetown).
+    { path: "/api/cron/cleanup", schedule: "30 3 * * *" },
     // Erase accounts whose 30-day deletion grace period has ended (04:00 UTC = 04:00 in Freetown).
     { path: "/api/cron/account-deletions", schedule: "0 4 * * *" },
   ],
