@@ -14,7 +14,7 @@ const DAY = 24 * HOUR;
 
 export type AlertInput = {
   ruleCode: string;
-  subjectType: "creator" | "payment" | "payout" | "product";
+  subjectType: "creator" | "payment" | "payout" | "product" | "platform";
   subjectId: string;
   creatorId: string | null;
   severity: AlertSeverity;

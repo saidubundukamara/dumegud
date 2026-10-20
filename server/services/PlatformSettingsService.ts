@@ -28,6 +28,7 @@ const SCHEMA = {
   "phone.operatorPrefixes": z.object({ m17: z.array(z.string().regex(/^\d{2}$/)), m18: z.array(z.string().regex(/^\d{2}$/)) }),
   "risk.dualApprovalMinBalance": minorAmount,
   "payouts.dualApprovalMin": minorAmount,
+  "jobs.ledgerDriftToleranceMinor": z.number().int().min(0),
 } as const;
 
 export type SettingKey = keyof typeof SCHEMA;
@@ -63,6 +64,7 @@ const DEFAULTS: { [K in keyof typeof SCHEMA]: z.infer<(typeof SCHEMA)[K]> } = {
   "phone.operatorPrefixes": { m17: ["72", "73", "74", "75", "76", "78", "79"], m18: ["30", "33", "34", "77", "80", "88", "99"] },
   "risk.dualApprovalMinBalance": 100000,
   "payouts.dualApprovalMin": 500000,
+  "jobs.ledgerDriftToleranceMinor": 100,
 };
 
 export type PlatformSettings = {
@@ -91,6 +93,8 @@ export type PlatformSettings = {
   dualApprovalMinBalanceMinor: number;
   /** Payouts at or above this need two different staff approvals. */
   payoutDualApprovalMinMinor: number;
+  /** Ledger vs live Monime balance difference the ledger-drift cron tolerates before alerting. */
+  ledgerDriftToleranceMinor: number;
 };
 
 /** Typed view over `platform_settings`. Bad values fall back to defaults (and are logged), never crash checkout. */
@@ -129,6 +133,7 @@ export class PlatformSettingsService {
       operatorPrefixes: read("phone.operatorPrefixes"),
       dualApprovalMinBalanceMinor: read("risk.dualApprovalMinBalance"),
       payoutDualApprovalMinMinor: read("payouts.dualApprovalMin"),
+      ledgerDriftToleranceMinor: read("jobs.ledgerDriftToleranceMinor"),
     };
     if (settings.minContributionMinor > settings.maxContributionMinor) {
       logger.error("platform settings: min contribution exceeds max; using defaults for both");

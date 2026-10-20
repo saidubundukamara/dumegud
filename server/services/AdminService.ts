@@ -15,6 +15,7 @@ import type { RiskRepository } from "@/server/repositories/RiskRepository";
 import type { UserRepository } from "@/server/repositories/UserRepository";
 import { isStaff, type Actor } from "./actor";
 import type { AuditLogger } from "./compliance";
+import type { JobService } from "./JobService";
 import type { PayoutService } from "./PayoutService";
 import type { SettlementService } from "./SettlementService";
 import type { TransferService } from "./TransferService";
@@ -39,6 +40,7 @@ export type AdminServiceDeps = {
   transfers: Pick<TransferService, "settleToCreator" | "refreshPending">;
   payouts: Pick<PayoutService, "dispatch" | "syncFromMonime">;
   webhooks: () => Pick<WebhookService, "replay">;
+  jobs?: Pick<JobService, "history">;
   now?: () => Date;
 };
 
@@ -72,6 +74,13 @@ export class AdminService {
       logger.warn("platform balance unavailable", { err });
     }
     return { ...stats, platformAccountId: this.deps.platformAccountId(), platformBalanceMinor };
+  }
+
+  /** Cron run history: the latest run of each job and the most recent runs. */
+  async jobHistory(actor: Actor) {
+    this.staff(actor);
+    const history = this.deps.jobs ? await this.deps.jobs.history(20) : { latest: [], recent: [] };
+    return { ...history, now: this.now() };
   }
 
   async searchCreators(actor: Actor, term: string) {

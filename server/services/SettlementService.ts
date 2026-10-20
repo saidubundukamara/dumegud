@@ -1,6 +1,6 @@
 import "server-only";
 import { computeSplit, estimateMonimeFee } from "@/lib/fees";
-import type { Payment as PaymentRow, PaymentStatus } from "@/server/db/schema";
+import type { PaymentEventSource, Payment as PaymentRow, PaymentStatus } from "@/server/db/schema";
 import type { paymentKind } from "@/server/db/schema/payments";
 import {
   resolveCheckoutSessionId,
@@ -52,6 +52,8 @@ export type SettlementServiceDeps = {
   limits?: Pick<LimitService, "postcheck">;
   risk?: Pick<RiskService, "evaluatePayment" | "raiseLimitBreaches">;
 };
+
+export type PollOptions = { source?: PaymentEventSource; expireBefore?: Date };
 
 /** Supporter-facing status: never reveals review/risk detail. */
 export type PublicPaymentStatus = "processing" | "succeeded" | "failed";
@@ -250,11 +252,15 @@ export class SettlementService {
     return released;
   }
 
-  /** Ask Monime about an open checkout now (staff "re-sync"). */
-  async resync(paymentId: string): Promise<PaymentRow | null> {
+  /**
+   * Ask Monime about an open checkout now (staff "re-sync", and the reconcile-payments cron).
+   * With `expireBefore`, a checkout Monime still reports open but whose session expired before
+   * that time is marked `expired` (money arriving later still goes to review, never lost).
+   */
+  async resync(paymentId: string, opts: PollOptions = {}): Promise<PaymentRow | null> {
     const payment = await this.repos.payments.findById(paymentId);
     if (payment && (payment.status === "pending" || payment.status === "created") && payment.monimeCheckoutSessionId) {
-      await this.pollCheckout(payment);
+      await this.pollCheckout(payment, opts);
     }
     return this.repos.payments.findById(paymentId);
   }
@@ -269,15 +275,23 @@ export class SettlementService {
     return this.afterChange(result);
   }
 
-  private async pollCheckout(payment: PaymentRow): Promise<void> {
+  private async pollCheckout(payment: PaymentRow, opts: PollOptions = {}): Promise<void> {
     const session = await this.monime.getCheckoutSession(payment.monimeCheckoutSessionId!);
-    const info: EventInfo = { source: "poll", detail: { sessionStatus: session.status } };
+    const info: EventInfo = { source: opts.source ?? "poll", detail: { sessionStatus: session.status } };
     if (session.status === "completed") {
       // Fee unknown here (polled reads carry no fees): the webhook or the estimate cron sets it.
       await this.markSucceeded({ paymentId: payment.id }, info);
     } else if (session.status === "failed" || session.status === "cancelled" || session.status === "expired") {
       const to: PaymentStatus = session.status === "cancelled" ? "canceled" : session.status;
       await this.repos.payments.transition(payment.id, ["created", "pending"], to, info);
+    } else if (opts.expireBefore) {
+      const expiresAt = session.expireTime ? new Date(session.expireTime) : payment.expiresAt;
+      if (expiresAt && expiresAt < opts.expireBefore) {
+        await this.repos.payments.transition(payment.id, ["created", "pending"], "expired", {
+          ...info,
+          detail: { ...info.detail, reason: "session_expired" },
+        });
+      }
     }
   }
 

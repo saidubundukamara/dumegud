@@ -13,6 +13,7 @@ import { CategoryRepository } from "@/server/repositories/CategoryRepository";
 import { CreatorProfileRepository } from "@/server/repositories/CreatorProfileRepository";
 import { CreatorWalletRepository } from "@/server/repositories/CreatorWalletRepository";
 import { HandleRepository } from "@/server/repositories/HandleRepository";
+import { JobRepository } from "@/server/repositories/JobRepository";
 import { LedgerRepository } from "@/server/repositories/LedgerRepository";
 import { KycRepository } from "@/server/repositories/KycRepository";
 import { OrderRepository } from "@/server/repositories/OrderRepository";
@@ -36,6 +37,7 @@ import { AuditService, RestrictionService } from "./compliance";
 import { ContributionService } from "./ContributionService";
 import { CreatorService } from "./CreatorService";
 import { DownloadService } from "./DownloadService";
+import { JobService } from "./JobService";
 import { KycService } from "./KycService";
 import { LimitService } from "./LimitService";
 import { OrderService } from "./OrderService";
@@ -43,6 +45,7 @@ import { PayoutMethodService } from "./PayoutMethodService";
 import { PayoutService } from "./PayoutService";
 import { ProductReviewService } from "./ProductReviewService";
 import { ProductService } from "./ProductService";
+import { ReconciliationService } from "./ReconciliationService";
 import { ReportService } from "./ReportService";
 import { RiskService } from "./RiskService";
 import { PlatformSettingsService } from "./PlatformSettingsService";
@@ -80,6 +83,7 @@ export const repos = {
   admin: new AdminRepository(),
   shoutouts: new ShoutoutRepository(),
   accountDeletions: new AccountDeletionRepository(),
+  jobs: new JobRepository(),
 };
 
 // Compliance hooks shared by most services (stateless, safe to create at import).
@@ -114,6 +118,8 @@ let reports: ReportService | undefined;
 let adminConfig: AdminConfigService | undefined;
 let admin: AdminService | undefined;
 let accountDeletions: AccountDeletionService | undefined;
+let jobs: JobService | undefined;
+let reconciliation: ReconciliationService | undefined;
 
 /** Null while R2 isn't configured. */
 function getStorage(): R2Storage | null {
@@ -326,6 +332,7 @@ export const services = {
       transfers: services.transfers,
       payouts: services.payouts,
       webhooks: () => services.webhooks,
+      jobs: services.jobs,
     });
     return admin;
   },
@@ -344,6 +351,27 @@ export const services = {
       audit,
     });
     return accountDeletions;
+  },
+  get jobs(): JobService {
+    jobs ??= new JobService({ repos });
+    return jobs;
+  },
+  get reconciliation(): ReconciliationService {
+    const env = getEnv();
+    reconciliation ??= new ReconciliationService({
+      repos,
+      wallet: services.wallet,
+      settlement: services.settlement,
+      transfers: services.transfers,
+      payouts: services.payouts,
+      risk,
+      settings: services.settings,
+      monime: getMonime(),
+      platformAccountId,
+      storage: getStorage(),
+      buckets: { products: env.R2_PRODUCTS_BUCKET, public: env.R2_PUBLIC_BUCKET },
+    });
+    return reconciliation;
   },
   get audit(): AuditService {
     return audit;
