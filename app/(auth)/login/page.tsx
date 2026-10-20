@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { GoogleOption } from "../google-button";
+import { RedirectIfSignedIn } from "../redirect-if-signed-in";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Sign in", robots: { index: false, follow: false } };
@@ -25,6 +26,9 @@ const ERRORS: Record<string, string> = {
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <>
+      <Suspense fallback={null}>
+        <RedirectIfSignedIn searchParams={searchParams} />
+      </Suspense>
       <div className="flex flex-col gap-2">
         <h1 className="text-title">Sign in</h1>
         <p className="text-muted">Welcome back. Good to see you.</p>

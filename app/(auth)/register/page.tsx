@@ -3,6 +3,7 @@ import { pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { Suspense } from "react";
 import { GoogleOption } from "../google-button";
+import { RedirectIfSignedIn } from "../redirect-if-signed-in";
 import { RegisterForm } from "./register-form";
 
 export const metadata: Metadata = pageMetadata({
@@ -12,9 +13,12 @@ export const metadata: Metadata = pageMetadata({
   path: "/register",
 });
 
-export default function RegisterPage() {
+export default function RegisterPage({ searchParams }: PageProps<"/register">) {
   return (
     <>
+      <Suspense fallback={null}>
+        <RedirectIfSignedIn searchParams={searchParams} />
+      </Suspense>
       <div className="flex flex-col gap-2">
         <h1 className="text-title">Create your DuMeGud</h1>
         <p className="text-muted">Free to join. Your page can be ready in two minutes.</p>
