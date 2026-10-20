@@ -63,7 +63,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       async signIn({ account, profile }) {
         if (account?.provider !== "google") return true;
         if (profile?.email_verified !== true || typeof profile.email !== "string") return false;
-        return services.auth.canUseGoogleSignIn(profile.email);
+        const current = await auth();
+        return services.auth.canUseGoogleSignIn(profile.email, current?.user?.id);
       },
     },
     events: {

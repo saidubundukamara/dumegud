@@ -190,9 +190,19 @@ export class AuthService {
     return toSessionUser(user);
   }
 
-  /** Google sign-in gate: existing suspended/closed users are refused. */
-  async canUseGoogleSignIn(email: string): Promise<boolean> {
-    const user = await this.repos.users.findByEmail(email.trim().toLowerCase());
+  /**
+   * Google sign-in gate: existing suspended/closed users are refused. When a browser is already
+   * signed in, Auth.js links the Google account to that session's user, so this only allows it
+   * when the Google email is that user's own email; otherwise a different person's Google login
+   * would be attached to (and later sign into) the signed-in account.
+   */
+  async canUseGoogleSignIn(email: string, signedInUserId?: string): Promise<boolean> {
+    const normalized = email.trim().toLowerCase();
+    if (signedInUserId) {
+      const current = await this.repos.users.findById(signedInUserId);
+      if (!current || current.email !== normalized) return false;
+    }
+    const user = await this.repos.users.findByEmail(normalized);
     return !user || (user.status !== "suspended" && user.status !== "closed");
   }
 

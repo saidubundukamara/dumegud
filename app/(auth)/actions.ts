@@ -4,7 +4,7 @@ import { AuthError, CredentialsSignin } from "next-auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { signIn } from "@/auth";
+import { signIn, signOut } from "@/auth";
 import type { FormState } from "@/lib/form-state";
 import { safeRedirectPath } from "@/lib/redirect";
 import { getSession } from "@/server/dal/session";
@@ -53,6 +53,13 @@ export async function login(_prev: FormState, formData: FormData): Promise<FormS
 }
 
 export async function signInWithGoogle(formData: FormData): Promise<void> {
+  // Start from a signed-out browser: Auth.js would otherwise link this Google account to
+  // whoever is still signed in here.
+  const session = await getSession();
+  if (session) {
+    await services.auth.recordLogout(session.actor.userId, getRequestContext(await headers()));
+    await signOut({ redirect: false });
+  }
   await signIn("google", { redirectTo: safeRedirectPath(field(formData, "next")) });
 }
 

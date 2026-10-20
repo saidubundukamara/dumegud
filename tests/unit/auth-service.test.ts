@@ -200,6 +200,13 @@ describe("Google sign-in", () => {
     expect(await service.canUseGoogleSignIn("new@example.com")).toBe(true);
   });
 
+  it("refuses a different Google account while another user is signed in", async () => {
+    const signedIn = fakes.addUser({ email: "creator@example.com" });
+    expect(await service.canUseGoogleSignIn("someone.else@example.com", signedIn.id)).toBe(false);
+    expect(await service.canUseGoogleSignIn("Creator@example.com", signedIn.id)).toBe(true);
+    expect(await service.canUseGoogleSignIn("creator@example.com", "missing-user")).toBe(false);
+  });
+
   it("marks the email verified when Google is linked", async () => {
     const user = fakes.addUser({});
     await service.onGoogleLinked(user.id);
