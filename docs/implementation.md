@@ -43,6 +43,7 @@ These decisions were confirmed for implementation. Where they differ from `PRD.m
 |---|---|---|
 | Framework | Next.js 16.4 App Router, React 19.3, TypeScript strict, Tailwind 4 | `cacheComponents` + `partialPrefetching` already enabled in `next.config.ts` |
 | Auth | **NextAuth / Auth.js v5** (`next-auth@5.0.0-beta.x`, pin exact) | **Overrides PRD's "Better Auth".** Credentials (email+password) + Google. |
+| Minimum age | **18 to have an account** (creators only; supporters don't sign up) | Date of birth asked at sign-up, encrypted on `users`. Accounts made before this aren't prompted. Phase 1 notes |
 | Session strategy | **JWT** (required by the Credentials provider) + DB-backed revocation via `sessionVersion` | See Phase 1 |
 | Password hashing | **Argon2id** via `@node-rs/argon2` | Auto-externalized by Next 16 (`serverExternalPackages` built-in list) |
 | Code structure | **Repository** (DB only) → **Service** (logic) → thin Server Actions / Route Handlers | See §2 |
@@ -511,6 +512,7 @@ Where the build differs from the plan above:
 - **BotID** (`withBotId` + `instrumentation-client.ts`) protects `/login`, `/register` and `/forgot-password`. `assertNotBot()` is skipped off Vercel and fails open if BotID errors.
 - **Common-password list:** the 2,311 entries from SecLists' top-100k that meet the 10-char minimum (the top-10k has only 51).
 - **`ALLOW_MEMORY_RATE_LIMIT=true`** lets production builds run without Upstash in CI/E2E. It is refused when `VERCEL_ENV=production`.
+- **Date of birth (18+):** the register form asks for it and `registerSchema` refuses an under-18 date before anything is stored. Google sign-ups arrive without one: `users.date_of_birth_required` defaults to true, `verifySession()` sends them to `/welcome/age`, and `onUserCreated` holds back the wallet. At the gate an adult's date is stored (`dateOfBirthEnc`, `encryptField`) and the wallet is provisioned. An under-18 date deletes the account (`deletePendingDateOfBirth`, guarded so it can only remove an account still at the gate), signs them out and shows `/welcome/under-18`. Migration 0018 set the flag to false for every existing account, and `db:seed:admin` creates staff exempt. The age rule (`lib/age.ts`) compares calendar dates in UTC (Freetown time) and is shared with KYC.
 - **Not built yet:** admin step-up (Phase 8 with the admin actions), DB-backed integration tests (they need a Neon test branch), and a full register → verify → login E2E against a preview deployment.
 
 ---
