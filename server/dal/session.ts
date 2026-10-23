@@ -13,7 +13,14 @@ import { requireStepUp } from "./step-up";
 // (sessionVersion bumps) take effect immediately. Layouts don't gate; every page, Server
 // Action and Route Handler calls one of these.
 
-export type VerifiedSession = { actor: Actor; sessionVersion: number };
+export type VerifiedSession = {
+  actor: Actor;
+  sessionVersion: number;
+  /** A creator who signed up with Google and hasn't given a date of birth yet (see /welcome/age). */
+  needsDateOfBirth: boolean;
+};
+
+export const AGE_GATE_PATH = "/welcome/age";
 
 export const getSession = cache(async (): Promise<VerifiedSession | null> => {
   // Request time only. The session check (and the page code after it) reads the database, and a
@@ -32,13 +39,18 @@ export const getSession = cache(async (): Promise<VerifiedSession | null> => {
   return {
     actor: { userId: user.id, role: user.role, status: user.status, emailVerified: user.emailVerified !== null },
     sessionVersion: user.sessionVersion,
+    needsDateOfBirth: user.needsDateOfBirth && user.role === "creator",
   };
 });
 
-/** Pages and actions that need a signed-in user. */
-export async function verifySession(): Promise<VerifiedSession> {
+/**
+ * Pages and actions that need a signed-in user. Until a Google sign-up gives their date of birth,
+ * everything sends them to the age gate; only the gate itself passes `allowMissingDateOfBirth`.
+ */
+export async function verifySession(opts: { allowMissingDateOfBirth?: boolean } = {}): Promise<VerifiedSession> {
   const session = await getSession();
   if (!session) redirect("/login");
+  if (session.needsDateOfBirth && !opts.allowMissingDateOfBirth) redirect(AGE_GATE_PATH);
   return session;
 }
 

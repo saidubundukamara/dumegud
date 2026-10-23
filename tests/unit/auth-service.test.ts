@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { decryptField } from "@/server/lib/crypto";
 import { RateLimitedError, ValidationError } from "@/server/lib/errors";
 import { AuthService, lockoutUntil } from "@/server/services/AuthService";
+import { INVALID_DOB_MESSAGE } from "@/server/validation/auth";
 import { createAuthFakes } from "../fixtures/auth-fakes";
 
 // Fast, deterministic stand-in for Argon2; the real hasher has its own test.
@@ -13,6 +15,7 @@ vi.mock("@/server/lib/password", () => ({
 const password = await import("@/server/lib/password");
 const ctx = { ip: "203.0.113.7", userAgent: "vitest" };
 const PASSWORD = "correct horse battery";
+const DOB = "1998-04-27";
 
 let fakes: ReturnType<typeof createAuthFakes>;
 let service: AuthService;
@@ -37,22 +40,24 @@ describe("lockoutUntil", () => {
 
 describe("register", () => {
   it("creates a user with a hashed password", async () => {
-    const outcome = await service.register({ name: "Aminata", email: "aminata@example.com", password: PASSWORD });
+    const outcome = await service.register({ name: "Aminata", email: "aminata@example.com", dateOfBirth: DOB, password: PASSWORD });
     expect(outcome.created).toBe(true);
     const user = [...fakes.users.values()][0];
     expect(user.passwordHash).toBe(`hashed:${PASSWORD}`);
     expect(user.role).toBe("creator");
+    expect(user.dateOfBirthRequired).toBe(false);
+    expect(decryptField(user.dateOfBirthEnc!)).toBe(DOB);
   });
 
   it("reports an existing email without failing, and still spends the hash", async () => {
     fakes.addUser({ email: "aminata@example.com" });
-    const outcome = await service.register({ name: "X", email: "aminata@example.com", password: PASSWORD });
+    const outcome = await service.register({ name: "X", email: "aminata@example.com", dateOfBirth: DOB, password: PASSWORD });
     expect(outcome).toEqual({ created: false, email: "aminata@example.com" });
     expect(password.hashPassword).toHaveBeenCalledTimes(1);
   });
 
   it("onUserCreated sends a verification link that verifies the email once", async () => {
-    const outcome = await service.register({ name: "Aminata", email: "aminata@example.com", password: PASSWORD });
+    const outcome = await service.register({ name: "Aminata", email: "aminata@example.com", dateOfBirth: DOB, password: PASSWORD });
     if (!outcome.created) throw new Error("expected created");
     await service.onUserCreated(outcome.userId);
     expect(fakes.sent.at(-1)?.tag).toBe("verify-email");
@@ -213,6 +218,85 @@ describe("Google sign-in", () => {
     expect(fakes.users.get(user.id)?.emailVerified).not.toBeNull();
     expect(fakes.eventTypes()).toEqual(["google_linked"]);
   });
+});
+
+describe("age gate (Google sign-ups)", () => {
+  // The fakes' clock is 2026-10-17.
+  const actorFor = (userId: string) => ({ userId, role: "creator" as const, status: "active" as const, emailVerified: true });
+  let provision: ReturnType<typeof vi.fn<(userId: string) => Promise<unknown>>>;
+  beforeEach(() => {
+    provision = vi.fn(async () => ({}) as unknown);
+    service = new AuthService({ ...fakes.deps, wallets: { provisionForCreator: provision } });
+  });
+
+  it("onUserCreated holds the wallet back until the date of birth is given", async () => {
+    const user = fakes.addUser({ emailVerified: new Date(), dateOfBirthRequired: true });
+    await service.onUserCreated(user.id);
+    expect(provision).not.toHaveBeenCalled();
+  });
+
+  it("onUserCreated provisions straight away for an email sign-up", async () => {
+    const outcome = await service.register({ name: "Aminata", email: "aminata@example.com", dateOfBirth: DOB, password: PASSWORD });
+    if (!outcome.created) throw new Error("expected created");
+    await service.onUserCreated(outcome.userId);
+    expect(provision).toHaveBeenCalledWith(outcome.userId);
+  });
+
+  it("an adult's date is stored encrypted, once, and the wallet is created", async () => {
+    const user = fakes.addUser({ dateOfBirthRequired: true });
+    expect(await service.confirmDateOfBirth(actorFor(user.id), "2008-10-17")).toBe("confirmed");
+    const row = fakes.users.get(user.id)!;
+    expect(decryptField(row.dateOfBirthEnc!)).toBe("2008-10-17");
+    expect(row.dateOfBirthRequired).toBe(false);
+    expect(provision).toHaveBeenCalledWith(user.id);
+
+    await service.confirmDateOfBirth(actorFor(user.id), "1990-01-01");
+    expect(decryptField(fakes.users.get(user.id)!.dateOfBirthEnc!)).toBe("2008-10-17");
+  });
+
+  it("an under-18 date is checked once more, then the sign-up is deleted with nothing kept", async () => {
+    const user = fakes.addUser({ dateOfBirthRequired: true });
+    expect(await service.confirmDateOfBirth(actorFor(user.id), "2008-10-18")).toBe("confirm_under_age");
+    expect(fakes.users.has(user.id)).toBe(true);
+    expect(await service.confirmDateOfBirth(actorFor(user.id), "2008-10-18", { underAgeConfirmed: true })).toBe("deleted");
+    expect(fakes.users.has(user.id)).toBe(false);
+    expect(provision).not.toHaveBeenCalled();
+  });
+
+  it("a confirmation flag never deletes an adult", async () => {
+    const user = fakes.addUser({ dateOfBirthRequired: true });
+    expect(await service.confirmDateOfBirth(actorFor(user.id), "1990-01-01", { underAgeConfirmed: true })).toBe("confirmed");
+    expect(fakes.users.has(user.id)).toBe(true);
+  });
+
+  it("abandonPendingSignUp removes only an account waiting at the gate", async () => {
+    const pending = fakes.addUser({ email: "p@example.com", dateOfBirthRequired: true });
+    const normal = fakes.addUser({ email: "n@example.com" });
+    await service.abandonPendingSignUp(actorFor(pending.id));
+    await service.abandonPendingSignUp(actorFor(normal.id));
+    expect(fakes.users.has(pending.id)).toBe(false);
+    expect(fakes.users.has(normal.id)).toBe(true);
+  });
+
+  it("never deletes an account that already has a date of birth or isn't a creator", async () => {
+    const dated = fakes.addUser({ email: "a@example.com", dateOfBirthEnc: "x", dateOfBirthRequired: false });
+    const staff = fakes.addUser({ email: "s@example.com", role: "staff", dateOfBirthRequired: true });
+    await service.confirmDateOfBirth(actorFor(dated.id), "2015-01-01", { underAgeConfirmed: true });
+    await service.confirmDateOfBirth(actorFor(staff.id), "2015-01-01", { underAgeConfirmed: true });
+    expect(fakes.users.has(dated.id)).toBe(true);
+    expect(fakes.users.has(staff.id)).toBe(true);
+  });
+
+  it.each([["", "Enter your date of birth."], ["2000-02-31", INVALID_DOB_MESSAGE], ["2030-01-01", INVALID_DOB_MESSAGE]])(
+    "rejects %j as a field error",
+    async (dob, message) => {
+      const user = fakes.addUser({ dateOfBirthRequired: true });
+      const err = await service.confirmDateOfBirth(actorFor(user.id), dob).catch((e) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect(err.fieldErrors).toEqual({ dateOfBirth: [message] });
+      expect(fakes.users.has(user.id)).toBe(true);
+    },
+  );
 });
 
 it("email failures never fail the auth operation", async () => {

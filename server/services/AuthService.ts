@@ -7,7 +7,8 @@ import {
   resetPasswordTemplate,
   verifyEmailTemplate,
 } from "@/server/integrations/email/templates";
-import { randomToken, sha256 } from "@/server/lib/crypto";
+import { checkDateOfBirth } from "@/lib/age";
+import { encryptField, randomToken, sha256 } from "@/server/lib/crypto";
 import { ValidationError } from "@/server/lib/errors";
 import { pepperedHash } from "@/server/lib/hash";
 import { logger } from "@/server/lib/logger";
@@ -16,7 +17,13 @@ import { enforceRateLimit, type RateLimitPolicy } from "@/server/lib/rate-limit"
 import type { AuthEventRepository } from "@/server/repositories/AuthEventRepository";
 import type { AuthTokenRepository } from "@/server/repositories/AuthTokenRepository";
 import type { UserRepository } from "@/server/repositories/UserRepository";
-import { loginSchema, type ChangePasswordInput, type RegisterInput } from "@/server/validation/auth";
+import {
+  INVALID_DOB_MESSAGE,
+  loginSchema,
+  MISSING_DOB_MESSAGE,
+  type ChangePasswordInput,
+  type RegisterInput,
+} from "@/server/validation/auth";
 import type { Actor, RequestContext } from "./actor";
 import { runInTransaction, type Tx } from "./transaction";
 
@@ -105,6 +112,8 @@ export class AuthService {
       email: input.email,
       name: input.name,
       passwordHash,
+      dateOfBirthEnc: encryptField(input.dateOfBirth),
+      dateOfBirthRequired: false,
     });
     return user ? { created: true, userId: user.id } : { created: false, email: input.email };
   }
@@ -112,15 +121,53 @@ export class AuthService {
   /**
    * Post-response work for a new user (credentials or Google): create their Monime wallet and
    * send the verification email. Each step is independent; a failure in one doesn't skip the other.
+   * A Google sign-up gets no wallet until it passes the age gate (confirmDateOfBirth).
    */
   async onUserCreated(userId: string): Promise<void> {
-    if (this.wallets) {
+    const state = await this.repos.users.findAuthState(userId);
+    if (this.wallets && state && !state.needsDateOfBirth) {
       await this.wallets.provisionForCreator(userId).catch((err) => {
         logger.error("wallet provisioning threw for new user", { userId, err });
       });
     }
     const user = await this.repos.users.findById(userId);
     if (user && !user.emailVerified) await this.sendVerificationEmail(user);
+  }
+
+  /**
+   * The age gate for Google sign-ups. 18 or older: store the date and create the wallet. Under 18:
+   * ask once more (a mis-typed year shouldn't delete anyone), then delete the account. It has no
+   * wallet, profile or payments yet, so nothing about them is kept.
+   */
+  async confirmDateOfBirth(
+    actor: Actor,
+    dateOfBirth: string,
+    opts: { underAgeConfirmed?: boolean } = {},
+  ): Promise<"confirmed" | "confirm_under_age" | "deleted"> {
+    const check = checkDateOfBirth(dateOfBirth, this.now());
+    if (check === "invalid") {
+      throw new ValidationError(undefined, {
+        dateOfBirth: [dateOfBirth ? INVALID_DOB_MESSAGE : MISSING_DOB_MESSAGE],
+      });
+    }
+    if (check === "under_age") {
+      if (!opts.underAgeConfirmed) return "confirm_under_age";
+      await this.abandonPendingSignUp(actor);
+      logger.info("under-18 sign-up removed at the age gate");
+      return "deleted";
+    }
+    await this.repos.users.setDateOfBirth(actor.userId, encryptField(dateOfBirth));
+    if (this.wallets) {
+      await this.wallets.provisionForCreator(actor.userId).catch((err) => {
+        logger.error("wallet provisioning threw after the age gate", { userId: actor.userId, err });
+      });
+    }
+    return "confirmed";
+  }
+
+  /** Remove a Google sign-up still waiting at the age gate (no-op for any other account). */
+  async abandonPendingSignUp(actor: Actor): Promise<void> {
+    await this.repos.users.deletePendingDateOfBirth(actor.userId);
   }
 
   /** Tell the owner of an existing email that someone tried to register with it. */

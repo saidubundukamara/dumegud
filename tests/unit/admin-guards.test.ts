@@ -33,6 +33,7 @@ beforeEach(async () => {
     status: "active",
     sessionVersion: 1,
     emailVerified: new Date(),
+    needsDateOfBirth: false,
   }));
 });
 

@@ -20,6 +20,8 @@ export function makeUser(overrides: Partial<User> = {}): User {
     sessionVersion: 1,
     failedLoginCount: 0,
     lockedUntil: null,
+    dateOfBirthEnc: null,
+    dateOfBirthRequired: false,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -44,12 +46,28 @@ export function createAuthFakes(opts: { now?: Date } = {}) {
   const userRepo = {
     findById: async (id: string) => users.get(id) ?? null,
     findByEmail: async (email: string) => byEmail(email),
-    findAuthState: async (id: string) => users.get(id) ?? null,
-    insertIfEmailFree: async (data: Pick<User, "email" | "name" | "passwordHash">) => {
+    findAuthState: async (id: string) => {
+      const u = users.get(id);
+      return u ? { ...u, needsDateOfBirth: u.dateOfBirthRequired && u.dateOfBirthEnc === null } : null;
+    },
+    insertIfEmailFree: async (
+      data: Pick<User, "email" | "name" | "passwordHash"> & Partial<Pick<User, "dateOfBirthEnc" | "dateOfBirthRequired">>,
+    ) => {
       if (byEmail(data.email)) return null;
       const user = makeUser({ ...data });
       users.set(user.id, user);
       return user;
+    },
+    setDateOfBirth: async (id: string, dateOfBirthEnc: string) => {
+      const u = users.get(id);
+      if (!u || u.dateOfBirthEnc !== null) return false;
+      update(id, { dateOfBirthEnc, dateOfBirthRequired: false });
+      return true;
+    },
+    deletePendingDateOfBirth: async (id: string) => {
+      const u = users.get(id);
+      if (!u || !u.dateOfBirthRequired || u.dateOfBirthEnc !== null || u.role !== "creator") return false;
+      return users.delete(id);
     },
     recordLoginSuccess: async (id: string) => update(id, { failedLoginCount: 0, lockedUntil: null }),
     incrementFailedLogins: async (id: string) => {
