@@ -63,6 +63,7 @@ const OG_FILES = ["./styles/tokens.css", "./node_modules/@fontsource/geist-sans/
 const nextConfig: NextConfig = {
   experimental: {
     agentFeedback: true,
+    agentUpgrade: "security",
     authInterrupts: true,
     // allowedOrigins is intentionally unset: Server Actions then accept only same-origin calls.
     serverActions: { bodySizeLimit: "1mb" },
