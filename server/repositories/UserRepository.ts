@@ -4,7 +4,10 @@ import type { Executor } from "@/server/db/client";
 import { accounts, passwordResetTokens, users, verificationTokens, type NewUser, type Role, type User, type UserStatus } from "@/server/db/schema";
 import { BaseRepository } from "./BaseRepository";
 
-export type UserAuthState = Pick<User, "id" | "role" | "status" | "sessionVersion" | "emailVerified">;
+export type UserAuthState = Pick<User, "id" | "role" | "status" | "sessionVersion" | "emailVerified"> & {
+  /** Required and still missing: a new Google sign-up that hasn't given a date of birth yet. */
+  needsDateOfBirth: boolean;
+};
 
 export class UserRepository extends BaseRepository {
   async findById(id: string, tx?: Executor): Promise<User | null> {
@@ -27,6 +30,7 @@ export class UserRepository extends BaseRepository {
         status: users.status,
         sessionVersion: users.sessionVersion,
         emailVerified: users.emailVerified,
+        needsDateOfBirth: sql<boolean>`(${users.dateOfBirthRequired} AND ${users.dateOfBirthEnc} IS NULL)`,
       })
       .from(users)
       .where(eq(users.id, id))
@@ -36,7 +40,7 @@ export class UserRepository extends BaseRepository {
 
   /** Insert unless the email is taken. Returns null on conflict (no error, no enumeration). */
   async insertIfEmailFree(
-    data: Pick<NewUser, "email" | "name" | "passwordHash">,
+    data: Pick<NewUser, "email" | "name" | "passwordHash" | "dateOfBirthEnc" | "dateOfBirthRequired">,
     tx?: Executor,
   ): Promise<User | null> {
     const [row] = await this.exec(tx)
@@ -45,6 +49,28 @@ export class UserRepository extends BaseRepository {
       .onConflictDoNothing({ target: users.email })
       .returning();
     return row ?? null;
+  }
+
+  /** Record the date of birth once. Returns false if it was already set (or the user is gone). */
+  async setDateOfBirth(id: string, dateOfBirthEnc: string, tx?: Executor): Promise<boolean> {
+    const rows = await this.exec(tx)
+      .update(users)
+      .set({ dateOfBirthEnc, dateOfBirthRequired: false })
+      .where(and(eq(users.id, id), isNull(users.dateOfBirthEnc)))
+      .returning({ id: users.id });
+    return rows.length > 0;
+  }
+
+  /**
+   * Delete a sign-up that never gave a date of birth (an under-18 Google sign-up). Guarded so it
+   * can only remove an account still waiting at the age gate; linked Google accounts cascade.
+   */
+  async deletePendingDateOfBirth(id: string, tx?: Executor): Promise<boolean> {
+    const rows = await this.exec(tx)
+      .delete(users)
+      .where(and(eq(users.id, id), eq(users.dateOfBirthRequired, true), isNull(users.dateOfBirthEnc), eq(users.role, "creator")))
+      .returning({ id: users.id });
+    return rows.length > 0;
   }
 
   async recordLoginSuccess(id: string, tx?: Executor): Promise<void> {

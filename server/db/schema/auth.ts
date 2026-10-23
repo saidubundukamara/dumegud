@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   index,
   integer,
@@ -51,6 +52,13 @@ export const users = pgTable(
     sessionVersion: integer().notNull().default(1),
     failedLoginCount: integer().notNull().default(0),
     lockedUntil: timestamp({ withTimezone: true }),
+    /** `YYYY-MM-DD`, encrypted with encryptField. Null for accounts made before it was asked. */
+    dateOfBirthEnc: text(),
+    /**
+     * True until the user gives a date of birth. Google sign-ups start without one and are sent to
+     * /welcome/age; accounts that existed before the field (and seeded staff) are exempt.
+     */
+    dateOfBirthRequired: boolean().notNull().default(true),
     ...timestamps(),
   },
   (t) => [check("users_email_lowercase", sql`${t.email} = lower(${t.email})`)],

@@ -49,7 +49,7 @@ async function main() {
       }
       const [created] = await tx
         .insert(schema.users)
-        .values({ name, email, emailVerified: new Date(), passwordHash: await hashPassword(password), role: "super_admin" })
+        .values({ name, email, emailVerified: new Date(), passwordHash: await hashPassword(password), role: "super_admin", dateOfBirthRequired: false })
         .returning({ id: schema.users.id });
       await tx.insert(schema.auditLogs).values({
         actorRole: "seed",
