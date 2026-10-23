@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { parseMajorToMinor } from "@/lib/money";
+import { dateOfBirthSchema } from "./auth";
 
 export const KYC_DOCS = ["id_front", "id_back", "selfie"] as const;
 export type KycDoc = (typeof KYC_DOCS)[number];
@@ -13,14 +14,7 @@ const plain = (max: number) =>
 
 export const kycSubmitSchema = z.object({
   legalName: plain(120).refine((v) => v.split(" ").length >= 2, "Enter your full name as it appears on your ID."),
-  dateOfBirth: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Enter your date of birth.")
-    .refine((v) => {
-      const d = new Date(`${v}T00:00:00Z`);
-      const age = (Date.now() - d.getTime()) / (365.25 * 86_400_000);
-      return !Number.isNaN(d.getTime()) && age >= 18 && age < 120;
-    }, "You must be at least 18."),
+  dateOfBirth: dateOfBirthSchema("You must be at least 18."),
   idType: z.enum(["national_id", "passport", "drivers_license", "voter_id"]),
   idNumber: z
     .string()

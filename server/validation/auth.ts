@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { checkDateOfBirth } from "@/lib/age";
 import { COMMON_PASSWORDS } from "./common-passwords";
 
 export const PASSWORD_MIN = 10;
@@ -21,10 +22,23 @@ export const newPasswordSchema = z
 
 const nameSchema = z.string().trim().min(1, "Enter your name.").max(80, "Use at most 80 characters.");
 
+export const MISSING_DOB_MESSAGE = "Enter your date of birth.";
+export const INVALID_DOB_MESSAGE = "That date doesn't look right. Check the day, month and year.";
+export const UNDER_AGE_MESSAGE = "Sorry, you need to be 18 to make a DuMeGud page.";
+
+/** `YYYY-MM-DD`, a real date, and 18 or older today. Shared by sign-up and KYC. */
+export function dateOfBirthSchema(underAgeMessage = UNDER_AGE_MESSAGE) {
+  return z.string().superRefine((v, ctx) => {
+    const check = checkDateOfBirth(v);
+    if (check === "invalid") ctx.addIssue({ code: "custom", message: v ? INVALID_DOB_MESSAGE : MISSING_DOB_MESSAGE });
+    else if (check === "under_age") ctx.addIssue({ code: "custom", message: underAgeMessage });
+  });
+}
+
 // Field allow-lists: z.object strips unknown keys, so a form can't smuggle in `role`/`status`.
 
 export const registerSchema = z
-  .object({ name: nameSchema, email: emailSchema, password: newPasswordSchema })
+  .object({ name: nameSchema, email: emailSchema, dateOfBirth: dateOfBirthSchema(), password: newPasswordSchema })
   .refine((v) => v.password.toLowerCase() !== v.email, {
     path: ["password"],
     message: "Your password can't be your email address.",

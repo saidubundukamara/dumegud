@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { loginSchema, registerSchema, resetPasswordSchema } from "@/server/validation/auth";
+import { INVALID_DOB_MESSAGE, loginSchema, registerSchema, resetPasswordSchema, UNDER_AGE_MESSAGE } from "@/server/validation/auth";
 
 describe("registerSchema", () => {
-  const valid = { name: "Aminata", email: "  Aminata@Example.COM ", password: "a long passphrase" };
+  const valid = { name: "Aminata", email: "  Aminata@Example.COM ", dateOfBirth: "1998-04-27", password: "a long passphrase" };
 
   it("normalises the email", () => {
     expect(registerSchema.parse(valid).email).toBe("aminata@example.com");
@@ -10,7 +10,7 @@ describe("registerSchema", () => {
 
   it("strips fields outside the allow-list (no mass assignment)", () => {
     const parsed = registerSchema.parse({ ...valid, role: "super_admin", status: "active", sessionVersion: 99 });
-    expect(Object.keys(parsed).sort()).toEqual(["email", "name", "password"]);
+    expect(Object.keys(parsed).sort()).toEqual(["dateOfBirth", "email", "name", "password"]);
   });
 
   it.each([
@@ -25,6 +25,19 @@ describe("registerSchema", () => {
   it("rejects a password equal to the email", () => {
     const r = registerSchema.safeParse({ ...valid, email: "aminata@example.com", password: "aminata@example.com" });
     expect(r.success).toBe(false);
+  });
+
+  it("requires a date of birth and refuses anyone under 18", () => {
+    const today = new Date();
+    const iso = (yearsAgo: number, dayShift = 0) => {
+      const d = new Date(Date.UTC(today.getUTCFullYear() - yearsAgo, today.getUTCMonth(), today.getUTCDate() + dayShift));
+      return d.toISOString().slice(0, 10);
+    };
+    const error = (dateOfBirth: string) => registerSchema.safeParse({ ...valid, dateOfBirth }).error?.issues[0]?.message;
+    expect(error("")).toBe("Enter your date of birth.");
+    expect(error("27/04/1998")).toBe(INVALID_DOB_MESSAGE);
+    expect(error(iso(18, 1))).toBe(UNDER_AGE_MESSAGE);
+    expect(registerSchema.safeParse({ ...valid, dateOfBirth: iso(18) }).success).toBe(true);
   });
 
   it("rejects an invalid email", () => {
