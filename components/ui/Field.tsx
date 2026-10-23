@@ -19,17 +19,49 @@ function FieldShell({
   children: (ids: { id: string; describedBy?: string; invalid?: true }) => ReactNode;
 }) {
   const id = useId();
-  const hintId = `${id}-hint`;
-  const errorId = `${id}-error`;
-  const hasError = Boolean(errors?.length);
-  const describedBy = [hint ? hintId : null, hasError ? errorId : null].filter(Boolean).join(" ") || undefined;
-
+  const { describedBy, invalid, messages } = fieldMessages(id, hint, errors);
   return (
     <div className={`flex flex-col gap-1.5 ${className ?? ""}`}>
       <label htmlFor={id} className="text-[0.9375rem] font-semibold">
         {label}
       </label>
-      {children({ id, describedBy, invalid: hasError || undefined })}
+      {children({ id, describedBy, invalid })}
+      {messages}
+    </div>
+  );
+}
+
+/**
+ * Several controls answering one question (a date as day, month and year): a fieldset whose
+ * legend is the label. The hint and errors describe every control in the group.
+ */
+export function FieldGroup({
+  label,
+  errors,
+  hint,
+  className,
+  children,
+}: Omit<Common, "name"> & {
+  children: (ids: { id: string; describedBy?: string; invalid?: true }) => ReactNode;
+}) {
+  const id = useId();
+  const { describedBy, invalid, messages } = fieldMessages(id, hint, errors);
+  return (
+    <fieldset className={`flex min-w-0 flex-col gap-1.5 ${className ?? ""}`}>
+      <legend className="mb-1.5 text-[0.9375rem] font-semibold">{label}</legend>
+      {children({ id, describedBy, invalid })}
+      {messages}
+    </fieldset>
+  );
+}
+
+function fieldMessages(id: string, hint: ReactNode, errors: string[] | undefined) {
+  const hintId = `${id}-hint`;
+  const errorId = `${id}-error`;
+  const hasError = Boolean(errors?.length);
+  const describedBy = [hint ? hintId : null, hasError ? errorId : null].filter(Boolean).join(" ") || undefined;
+  const messages = (
+    <>
       {hint ? (
         <p id={hintId} className="text-sm text-muted">
           {hint}
@@ -45,8 +77,9 @@ function FieldShell({
           ))}
         </ul>
       ) : null}
-    </div>
+    </>
   );
+  return { describedBy, invalid: hasError || undefined, messages };
 }
 
 export function Field({ label, name, errors, hint, className, ...input }: Common & InputHTMLAttributes<HTMLInputElement>) {
