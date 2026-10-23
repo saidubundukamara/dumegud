@@ -145,6 +145,7 @@ export class PayoutMethodService {
               maskedNumber: maskMsisdn(method.msisdnLast3),
               cooldownHours: hours,
               url: `${this.deps.appBaseUrl.replace(/\/$/, "")}/dashboard/payout-method`,
+              resetUrl: `${this.deps.appBaseUrl.replace(/\/$/, "")}/forgot-password`,
             }),
           })
           .catch((err) => logger.error("payout method change email failed", { err }));

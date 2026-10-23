@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { formatDate } from "@/lib/dates";
 import { formatSLE } from "@/lib/money";
 import type { Payment } from "@/server/db/schema";
 import type { EmailService } from "@/server/integrations/email";
@@ -182,15 +183,20 @@ export class OrderService implements Fulfilment {
     const order = await this.repos.orders.findByPaymentId(payment.id);
     if (!order || !(await this.repos.orders.claimReceipt(order.id, this.now()))) return;
     try {
-      const [product, entitlement] = await Promise.all([
+      const [product, entitlement, listing] = await Promise.all([
         this.repos.products.findById(order.productId),
         this.repos.orders.findEntitlementByOrder(order.id),
+        // Only for the creator's name on the receipt; a product unpublished since the sale has none.
+        this.deps.products.getPublic(order.productId).catch(() => null),
       ]);
       await this.deps.email.send({
         to: decryptField(order.buyerEmailEnc),
         ...orderReceiptTemplate({
           productTitle: product?.title ?? "your purchase",
+          creatorName: listing?.creator.displayName ?? null,
           orderRef: orderRef(order.id),
+          amount: formatSLE(payment.grossMinor),
+          paidOn: formatDate(payment.settledAt ?? this.now()),
           libraryUrl: this.libraryUrl(decryptField(order.accessTokenEnc)),
           downloadLimit: entitlement?.downloadLimit ?? 0,
           accessDays: product?.accessDays ?? 0,
@@ -255,7 +261,6 @@ export class OrderService implements Fulfilment {
       to: email,
       ...libraryLinksTemplate({
         items: rows.map((r) => ({ title: r.productTitle, url: this.libraryUrl(decryptField(r.order.accessTokenEnc)) })),
-        recoverUrl: `${this.base()}/library`,
       }),
     });
   }

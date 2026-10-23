@@ -200,10 +200,16 @@ export class KycService {
 
     const user = await this.repos.users.findById(decided.userId);
     if (user) {
+      const base = this.deps.appBaseUrl.replace(/\/$/, "");
       await this.deps.email
         .send({
           to: user.email,
-          ...kycDecisionTemplate({ outcome: decision.outcome, note: decision.note, url: `${this.deps.appBaseUrl.replace(/\/$/, "")}/dashboard/verification` }),
+          ...kycDecisionTemplate({
+            outcome: decision.outcome,
+            note: decision.note,
+            url: `${base}/dashboard/verification`,
+            payoutMethodUrl: `${base}/dashboard/payout-method`,
+          }),
         })
         .catch((err) => logger.error("kyc decision email failed", { err }));
     }
