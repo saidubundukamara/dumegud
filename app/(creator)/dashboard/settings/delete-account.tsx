@@ -10,13 +10,16 @@ import { keepAccount, requestAccountDeletion } from "../actions";
 
 /**
  * The last step: says plainly what happens, then asks the creator to type their handle (and
- * password, if they have one). The button stays disabled until the handle matches.
+ * password, if they have one). The button stays disabled until the handle matches. The password
+ * starts read-only so browsers and password managers can't fill the form on load: deleting an
+ * account should take deliberate typing (a saved password can still be picked once it's focused).
  */
 export function DeleteAccountForm({ confirmWith, hasPassword, forfeitableMinor }: { confirmWith: string; hasPassword: boolean; forfeitableMinor: number }) {
   const [state, action] = useActionState(requestAccountDeletion, initialFormState);
   const [typed, setTyped] = useState(state.values?.handle ?? "");
   const [forfeit, setForfeit] = useState(false);
   const [password, setPassword] = useState("");
+  const [unlocked, setUnlocked] = useState(false);
   const matches = typed.trim().replace(/^@/, "").toLowerCase() === confirmWith.replace(/^@/, "").toLowerCase();
   // Every required field filled in: the handle typed exactly, the password (if the account has one)
   // and, when a remainder is left, consent to give it up.
@@ -50,20 +53,31 @@ export function DeleteAccountForm({ confirmWith, hasPassword, forfeitableMinor }
         autoComplete="off"
         autoCapitalize="none"
         spellCheck={false}
+        data-1p-ignore
+        data-lpignore="true"
+        data-bwignore
+        data-form-type="other"
         value={typed}
         onChange={(e) => setTyped(e.target.value)}
         errors={state.fieldErrors?.handle}
       />
       {hasPassword ? (
-        <Field
-          label="Your password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          errors={state.fieldErrors?.password}
-        />
+        <>
+          {/* Gives a password-manager fill somewhere to put the username other than the handle field. */}
+          <input type="text" autoComplete="username" className="hidden" tabIndex={-1} aria-hidden="true" />
+          <Field
+            label="Your password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            readOnly={!unlocked}
+            onPointerDown={() => setUnlocked(true)}
+            onFocus={() => setUnlocked(true)}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            errors={state.fieldErrors?.password}
+          />
+        </>
       ) : null}
 
       <SubmitButton
