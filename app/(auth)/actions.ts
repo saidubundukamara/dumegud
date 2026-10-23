@@ -5,9 +5,10 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { signIn, signOut } from "@/auth";
+import { isoFromParts } from "@/lib/age";
 import type { FormState } from "@/lib/form-state";
 import { safeRedirectPath } from "@/lib/redirect";
-import { getSession } from "@/server/dal/session";
+import { getSession, verifySession } from "@/server/dal/session";
 import { assertNotBot } from "@/server/lib/bot";
 import { field, invalidForm, runForm } from "@/server/lib/form";
 import { logger } from "@/server/lib/logger";
@@ -64,13 +65,20 @@ export async function signInWithGoogle(formData: FormData): Promise<void> {
 }
 
 export async function register(_prev: FormState, formData: FormData): Promise<FormState> {
-  const values = { name: field(formData, "name"), email: field(formData, "email") };
+  const dob = dateOfBirthFrom(formData);
+  const values = { name: field(formData, "name"), email: field(formData, "email"), ...dob.values };
   return runForm(async () => {
     await assertNotBot();
     const ctx = getRequestContext(await headers());
     await enforceRateLimit("register:ip", ctx.ip);
 
-    const parsed = registerSchema.safeParse({ ...values, password: field(formData, "password") });
+    // An under-18 date fails here, before anything is stored.
+    const parsed = registerSchema.safeParse({
+      name: values.name,
+      email: values.email,
+      dateOfBirth: dob.dateOfBirth,
+      password: field(formData, "password"),
+    });
     if (!parsed.success) return invalidForm(parsed.error, values);
 
     const outcome = await services.auth.register(parsed.data);
@@ -84,6 +92,40 @@ export async function register(_prev: FormState, formData: FormData): Promise<Fo
       message: `We've sent a link to ${parsed.data.email}. Open it to confirm your email, then sign in.`,
     };
   }, values);
+}
+
+/** The three date-of-birth boxes, echoed back as typed, and joined into `YYYY-MM-DD`. */
+function dateOfBirthFrom(formData: FormData) {
+  const values = { dobDay: field(formData, "dobDay"), dobMonth: field(formData, "dobMonth"), dobYear: field(formData, "dobYear") };
+  return { values, dateOfBirth: isoFromParts(values.dobDay, values.dobMonth, values.dobYear) };
+}
+
+/**
+ * The age gate for Google sign-ups (/welcome/age). An under-18 date is repeated back first
+ * (`values.confirmUnderAge`); only the second, confirmed submit deletes the account.
+ */
+export async function confirmDateOfBirth(_prev: FormState, formData: FormData): Promise<FormState> {
+  const { values, dateOfBirth } = dateOfBirthFrom(formData);
+  const result = await runForm(async () => {
+    const session = await verifySession({ allowMissingDateOfBirth: true });
+    if (!session.needsDateOfBirth) return { status: "success", message: "confirmed" };
+    const outcome = await services.auth.confirmDateOfBirth(session.actor, dateOfBirth, {
+      underAgeConfirmed: field(formData, "underAgeConfirmed") === "yes",
+    });
+    if (outcome === "confirm_under_age") return { status: "idle", values: { ...values, confirmUnderAge: "yes" } };
+    if (outcome === "deleted") await signOut({ redirect: false });
+    return { status: "success", message: outcome };
+  }, values);
+  if (result.status !== "success") return result;
+  redirect(result.message === "deleted" ? "/welcome/under-18" : "/dashboard");
+}
+
+/** "Use a different account" on the age gate: remove the unfinished sign-up and sign out. */
+export async function leaveAgeGate(): Promise<void> {
+  const session = await verifySession({ allowMissingDateOfBirth: true });
+  if (session.needsDateOfBirth) await services.auth.abandonPendingSignUp(session.actor);
+  await signOut({ redirect: false });
+  redirect("/login");
 }
 
 export async function verifyEmail(_prev: FormState, formData: FormData): Promise<FormState> {

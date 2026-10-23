@@ -6,9 +6,12 @@ import { SubmitButton } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { initialFormState } from "@/lib/form-state";
 import { register } from "../actions";
+import { DateOfBirthField } from "../date-of-birth-field";
+import { useFocusFirstError } from "../use-focus-first-error";
 
 export function RegisterForm() {
   const [state, action] = useActionState(register, initialFormState);
+  const formRef = useFocusFirstError(state);
 
   if (state.status === "success") {
     return (
@@ -20,7 +23,7 @@ export function RegisterForm() {
   }
 
   return (
-    <form action={action} className="flex flex-col gap-4" noValidate>
+    <form ref={formRef} action={action} className="flex flex-col gap-4" noValidate>
       {state.status === "error" && state.message ? <Alert tone="danger">{state.message}</Alert> : null}
       <Field
         label="Your name"
@@ -30,6 +33,11 @@ export function RegisterForm() {
         maxLength={80}
         defaultValue={state.values?.name}
         errors={state.fieldErrors?.name}
+      />
+      <DateOfBirthField
+        values={state.values}
+        hint="DuMeGud is for people 18 and over. We never show your birthday."
+        errors={state.fieldErrors?.dateOfBirth}
       />
       <Field
         label="Email"

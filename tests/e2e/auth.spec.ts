@@ -1,4 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function fillDateOfBirth(page: Page, day: string, month: string, year: string) {
+  await page.getByLabel("Day").fill(day);
+  await page.getByLabel("Month").selectOption({ label: month });
+  await page.getByLabel("Year").fill(year);
+}
 
 // Database-free auth checks: pages render accessibly without CSP violations, and the proxy
 // sends signed-out visitors to /login. Full register → verify → login flows need a database
@@ -10,6 +16,7 @@ const pages = [
   { path: "/forgot-password", heading: "Reset your password" },
   { path: "/reset-password?token=abc", heading: "Choose a new password" },
   { path: "/verify-email", heading: "Confirm your email" },
+  { path: "/welcome/under-18", heading: "Come back when you're 18" },
 ];
 
 for (const { path, heading } of pages) {
@@ -57,8 +64,29 @@ test("register validates on the server and keeps typed values", async ({ page })
   await page.goto("/register");
   await page.getByLabel("Your name").fill("Aminata");
   await page.getByLabel("Email").fill("aminata@example.com");
+  await fillDateOfBirth(page, "27", "April", "1998");
   await page.getByLabel("Password").fill("qwertyuiop");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByText("That password is too common. Choose another.")).toBeVisible();
   await expect(page.getByLabel("Email")).toHaveValue("aminata@example.com");
+});
+
+test("register refuses an under-18 date of birth and keeps what was typed", async ({ page }) => {
+  const year = String(new Date().getUTCFullYear() - 16);
+  await page.goto("/register");
+  await page.getByLabel("Your name").fill("Aminata");
+  await page.getByLabel("Email").fill("aminata@example.com");
+  await fillDateOfBirth(page, "15", "June", year);
+  await page.getByLabel("Password").fill("a long passphrase");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByText("Sorry, you need to be 18 to make a DuMeGud page.")).toBeVisible();
+  await expect(page.getByLabel("Year")).toHaveValue(year);
+  await expect(page.getByLabel("Month")).toHaveValue("6");
+  await expect(page.getByLabel("Day")).toBeFocused();
+  await expect(page.getByLabel("Email")).toHaveValue("aminata@example.com");
+});
+
+test("signed-out visitors to the age gate are sent to /login", async ({ page }) => {
+  await page.goto("/welcome/age");
+  await expect(page).toHaveURL(/\/login/);
 });
