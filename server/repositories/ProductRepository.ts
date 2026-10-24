@@ -27,6 +27,12 @@ export class ProductRepository extends BaseRepository {
     return row;
   }
 
+  /** Row-locks the product: serialises review decisions, file changes and edits. */
+  async lockById(id: string, tx: Executor): Promise<Product | null> {
+    const [row] = await tx.select().from(products).where(eq(products.id, id)).for("update").limit(1);
+    return row ?? null;
+  }
+
   async findById(id: string, tx?: Executor): Promise<Product | null> {
     const [row] = await this.exec(tx).select().from(products).where(eq(products.id, id)).limit(1);
     return row ?? null;
@@ -87,14 +93,35 @@ export class ProductRepository extends BaseRepository {
     return this.exec(tx).select().from(products).where(eq(products.status, status)).orderBy(asc(products.updatedAt)).limit(limit);
   }
 
-  /** Owner-scoped edit of a product that isn't suspended. */
-  async updateOwned(creatorId: string, id: string, patch: Partial<Product>, tx?: Executor): Promise<Product | null> {
+  /**
+   * Owner-scoped edit of a product that isn't suspended. `expectedStatus` is the status the edit
+   * was decided against: if a review decision or unpublish changed it meanwhile, nothing is written.
+   */
+  async updateOwned(
+    creatorId: string,
+    id: string,
+    patch: Partial<Product>,
+    expectedStatus?: ProductStatus,
+    tx?: Executor,
+  ): Promise<Product | null> {
     const [row] = await this.exec(tx)
       .update(products)
       .set(patch)
-      .where(and(eq(products.id, id), eq(products.creatorId, creatorId), ne(products.status, "suspended")))
+      .where(
+        and(
+          eq(products.id, id),
+          eq(products.creatorId, creatorId),
+          ne(products.status, "suspended"),
+          expectedStatus ? eq(products.status, expectedStatus) : undefined,
+        ),
+      )
       .returning();
     return row ?? null;
+  }
+
+  /** Marks the product changed (its files changed): staff approval checks `updatedAt`. */
+  async touch(id: string, tx?: Executor): Promise<void> {
+    await this.exec(tx).update(products).set({ updatedAt: new Date() }).where(eq(products.id, id));
   }
 
   /** Guarded status change (any actor). */
@@ -132,11 +159,26 @@ export class ProductRepository extends BaseRepository {
     return row ?? null;
   }
 
-  async setScanStatus(productId: string, from: ScanStatus, to: ScanStatus, tx?: Executor): Promise<void> {
+  /** Only the listed assets (the ones a reviewer actually saw), and only while still in `from`. */
+  async setScanStatus(productId: string, assetIds: string[], from: ScanStatus, to: ScanStatus, tx?: Executor): Promise<void> {
+    if (!assetIds.length) return;
     await this.exec(tx)
       .update(productAssets)
       .set({ scanStatus: to })
-      .where(and(eq(productAssets.productId, productId), eq(productAssets.scanStatus, from)));
+      .where(and(eq(productAssets.productId, productId), inArray(productAssets.id, assetIds), eq(productAssets.scanStatus, from)));
+  }
+
+  /**
+   * Finish an upload: only one confirm wins. Guarded by the state it was verified in (still
+   * `uploading`, same object key), so a second click can't overwrite or reject a finished asset.
+   */
+  async finishUpload(id: string, expectedKey: string, patch: Partial<ProductAsset>, tx?: Executor): Promise<ProductAsset | null> {
+    const [row] = await this.exec(tx)
+      .update(productAssets)
+      .set(patch)
+      .where(and(eq(productAssets.id, id), eq(productAssets.scanStatus, "uploading"), eq(productAssets.r2Key, expectedKey)))
+      .returning();
+    return row ?? null;
   }
 
   async deleteAsset(id: string, tx?: Executor): Promise<void> {

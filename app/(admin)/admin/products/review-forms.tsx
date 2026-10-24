@@ -7,7 +7,7 @@ import { Field } from "@/components/ui/Field";
 import { initialFormState } from "@/lib/form-state";
 import { approveProduct, rejectProduct } from "./actions";
 
-export function ReviewForms({ productId }: { productId: string }) {
+export function ReviewForms({ productId, version }: { productId: string; version: string }) {
   const [approved, approve] = useActionState(approveProduct, initialFormState);
   const [rejected, reject] = useActionState(rejectProduct, initialFormState);
   const latest = approved.status !== "idle" ? approved : rejected;
@@ -17,6 +17,7 @@ export function ReviewForms({ productId }: { productId: string }) {
       {latest.message ? <Alert tone="danger">{latest.message}</Alert> : null}
       <form action={approve}>
         <input type="hidden" name="productId" value={productId} />
+        <input type="hidden" name="version" value={version} />
         <SubmitButton pendingLabel="Publishing…">Approve and publish</SubmitButton>
       </form>
       <form action={reject} className="flex flex-col gap-2">

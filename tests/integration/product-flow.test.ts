@@ -27,7 +27,7 @@ import { TransferService } from "@/server/services/TransferService";
 import { WalletService } from "@/server/services/WalletService";
 import { WebhookService } from "@/server/services/WebhookService";
 import { createMemoryStorage } from "../fixtures/creator-fakes";
-import { createTestDb, type TestDb } from "./db";
+import { createTestDb, racingTransaction, type TestDb } from "./db";
 
 const SECRET = "test-download-signing-secret-0123456789";
 const buckets = { products: "products", uploads: "uploads", public: "public" };
@@ -296,5 +296,65 @@ describe("purchase → entitlement → download", () => {
     const links = sent.filter((m) => m.tag === "library-links");
     expect(links).toHaveLength(1);
     expect(links[0].text).toContain("Krio Recipes: https://dumegud.test/library/");
+  });
+});
+
+describe("races", () => {
+  const tick = () => new Promise((r) => setTimeout(r, 5)); // updatedAt has millisecond precision
+
+  it("approval refuses a product the creator changed after staff opened it", async () => {
+    const { productId } = await products.create(creator, productInput);
+    await (await upload(productId, "a.pdf", await pdfBytes())).confirm();
+    await products.submitForReview(creator, productId, true);
+    const [seen] = await review.listPending(staff);
+    await tick();
+    await products.update(creator, productId, { ...productInput, price: 99_000 }); // still pending_review
+    await expect(review.approve(staff, productId, new Date(seen.version))).rejects.toThrow(/changed this product/);
+    expect((await repos.products.findById(productId))!.status).toBe("pending_review");
+
+    const [fresh] = await review.listPending(staff);
+    await tick();
+    await (await upload(productId, "b.pdf", await pdfBytes())).confirm(); // a file staff haven't seen
+    await expect(review.approve(staff, productId, new Date(fresh.version))).rejects.toThrow(/changed this product/);
+    const [latest] = await review.listPending(staff);
+    await review.approve(staff, productId, new Date(latest.version));
+    expect((await repos.products.listAssets(productId, "file")).map((a) => a.scanStatus)).toEqual(["clean", "clean"]);
+  });
+
+  it("a file can't be deleted once an approval lands between the check and the delete", async () => {
+    const { productId } = await products.create(creator, productInput);
+    const { assetId, confirm } = await upload(productId, "a.pdf", await pdfBytes());
+    await confirm();
+    await products.submitForReview(creator, productId, true);
+    const racing = new ProductService({
+      repos,
+      settings: new PlatformSettingsService(repos.settings),
+      storage: store.storage,
+      buckets,
+      publicAssetUrl: () => null,
+      rateLimit: async () => {},
+      transaction: racingTransaction(() => review.approve(staff, productId)),
+    });
+    await expect(racing.deleteAsset(creator, assetId)).rejects.toThrow(/can't be removed/);
+    expect(await repos.products.findAsset(assetId)).not.toBeNull();
+  });
+
+  it("an edit decided against a stale status writes nothing", async () => {
+    const { productId } = await products.create(creator, productInput);
+    await (await upload(productId, "a.pdf", await pdfBytes())).confirm();
+    await products.submitForReview(creator, productId, true);
+    await review.reject(staff, productId, "Add a cover");
+    // The edit read `pending_review` before the rejection: it must not put it back in the queue.
+    expect(await repos.products.updateOwned(creator.userId, productId, { title: "x", status: "pending_review" }, "pending_review")).toBeNull();
+    expect((await repos.products.findById(productId))!).toMatchObject({ status: "draft", title: productInput.title });
+  });
+
+  it("confirming the same upload twice keeps one finished asset and one public object", async () => {
+    const { productId } = await products.create(creator, productInput);
+    const png = await sharp({ create: { width: 400, height: 300, channels: 3, background: "#123456" } }).png().toBuffer();
+    const preview = await upload(productId, "cover.png", png, "preview_image");
+    await Promise.all([preview.confirm(), preview.confirm()]);
+    expect(await repos.products.findAsset(preview.assetId)).toMatchObject({ scanStatus: "clean" });
+    expect([...store.objects.keys()].filter((k) => k.startsWith("public/previews/"))).toHaveLength(1);
   });
 });

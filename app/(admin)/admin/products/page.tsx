@@ -38,7 +38,7 @@ async function Queue() {
               </li>
             ))}
           </ul>
-          <ReviewForms productId={p.id} />
+          <ReviewForms productId={p.id} version={p.version} />
         </li>
       ))}
     </ul>

@@ -17,6 +17,7 @@ import type { ProductInput } from "@/server/validation/product";
 import type { Actor } from "./actor";
 import { noRestrictions, type RestrictionGuard } from "./compliance";
 import type { PlatformSettingsService } from "./PlatformSettingsService";
+import { runInTransaction, type Tx } from "./transaction";
 
 const MAX_FILES = 10;
 const MAX_PREVIEWS = 4;
@@ -94,7 +95,8 @@ export type ProductServiceDeps = {
   rateLimit?: (policy: RateLimitPolicy, id: string) => Promise<void>;
   restrictions?: RestrictionGuard;
   /** While an account deletion is scheduled, nothing new goes on sale. */
-  deletions?: { hasOpenRequest(userId: string): Promise<boolean> };
+  deletions?: { hasOpenRequest(userId: string, tx?: Tx): Promise<boolean> };
+  transaction?: typeof runInTransaction;
 };
 
 /**
@@ -114,8 +116,10 @@ export class ProductService {
   private readonly rateLimit: (policy: RateLimitPolicy, id: string) => Promise<void>;
   private readonly restrictions: RestrictionGuard;
   private readonly deletions: ProductServiceDeps["deletions"];
+  private readonly transaction: typeof runInTransaction;
 
   constructor(deps: ProductServiceDeps) {
+    this.transaction = deps.transaction ?? runInTransaction;
     this.deletions = deps.deletions;
     this.restrictions = deps.restrictions ?? noRestrictions;
     this.repos = deps.repos;
@@ -175,8 +179,9 @@ export class ProductService {
     await this.checkInput(input);
     // Changes to something buyers can see go back through review.
     const status: ProductStatus = product.status === "published" ? "pending_review" : product.status;
-    const updated = await this.repos.products.updateOwned(actor.userId, productId, { ...this.write(input), status });
-    if (!updated) throw new ConflictError("This product can't be edited right now.");
+    // Guarded by the status read above: a review decision or unpublish in between wins.
+    const updated = await this.repos.products.updateOwned(actor.userId, productId, { ...this.write(input), status }, product.status);
+    if (!updated) throw new ConflictError("This product changed while saving. Reload it and try again.");
     return this.change(updated);
   }
 
@@ -191,9 +196,14 @@ export class ProductService {
     if (!ownershipDeclared) missing.push("confirm you own the rights to sell it");
     if (missing.length) throw new ConflictError(`Before submitting: ${missing.join("; ")}.`);
 
-    const updated = await this.repos.products.setStatus(productId, ["draft", "unpublished"], "pending_review", {
-      ownershipDeclaredAt: this.now(),
-      reviewNote: null,
+    // The user row lock serialises this with a deletion request (which takes it too): a deletion
+    // committed since the check above is seen here, and nothing new goes on sale.
+    const updated = await this.transaction(async (tx) => {
+      await this.repos.users.lockById(actor.userId, tx);
+      if (await this.deletions?.hasOpenRequest(actor.userId, tx)) {
+        throw new ConflictError("Your account is scheduled for deletion. Keep your account first, then put products on sale.");
+      }
+      return this.repos.products.setStatus(productId, ["draft", "unpublished"], "pending_review", { ownershipDeclaredAt: this.now(), reviewNote: null }, tx);
     });
     if (!updated) throw new ConflictError("This product changed while submitting. Please try again.");
     return this.change(updated);
@@ -244,25 +254,31 @@ export class ProductService {
     const maxBytes = input.kind === "preview_image" ? MAX_PREVIEW_BYTES : settings.maxUploadBytes;
     if (input.size > maxBytes) throw new ValidationError(`That file is too large. The limit is ${Math.floor(maxBytes / 1024 / 1024)} MB.`);
 
-    const existing = (await this.repos.products.listAssets(product.id, input.kind)).filter((a) => a.scanStatus !== "rejected");
-    if (existing.length >= (input.kind === "file" ? MAX_FILES : MAX_PREVIEWS)) {
-      throw new ValidationError(input.kind === "file" ? `A product can have at most ${MAX_FILES} files.` : `Add at most ${MAX_PREVIEWS} preview images.`);
-    }
-
     // Random keys: nothing about the filename or buyer leaks into storage.
     const key =
       input.kind === "file"
         ? `products/${actor.userId}/${product.id}/${randomUUID()}`
         : `staging/previews/${actor.userId}/${randomUUID()}`;
-    const asset = await this.repos.products.insertAsset({
-      productId: product.id,
-      kind: input.kind,
-      r2Key: key,
-      originalFilename: safeFilename(input.filename),
-      mimeType: type!.mime,
-      sizeBytes: input.size,
-      scanStatus: "uploading",
-      watermarkable: input.kind === "file" && Boolean(type!.watermarkable),
+    // Count and insert under the product lock, so parallel requests can't go over the limit.
+    const asset = await this.transaction(async (tx) => {
+      await this.repos.products.lockById(product.id, tx);
+      const existing = (await this.repos.products.listAssets(product.id, input.kind, tx)).filter((a) => a.scanStatus !== "rejected");
+      if (existing.length >= (input.kind === "file" ? MAX_FILES : MAX_PREVIEWS)) {
+        throw new ValidationError(input.kind === "file" ? `A product can have at most ${MAX_FILES} files.` : `Add at most ${MAX_PREVIEWS} preview images.`);
+      }
+      return this.repos.products.insertAsset(
+        {
+          productId: product.id,
+          kind: input.kind,
+          r2Key: key,
+          originalFilename: safeFilename(input.filename),
+          mimeType: type!.mime,
+          sizeBytes: input.size,
+          scanStatus: "uploading",
+          watermarkable: input.kind === "file" && Boolean(type!.watermarkable),
+        },
+        tx,
+      );
     });
     const url = await storage.presignPut({
       bucket: input.kind === "file" ? this.buckets.products : this.buckets.uploads,
@@ -292,16 +308,16 @@ export class ProductService {
     const ext = extensionOf(asset.originalFilename)!;
     const sample = await storage.getRange(bucket, asset.r2Key, 0, SNIFF_BYTES - 1);
     if (head.size !== asset.sizeBytes || !sample || !(await sniffMatches(ext, sample))) {
-      await this.reject(asset, bucket, head.size !== asset.sizeBytes ? "size mismatch" : "content does not match its type");
-      throw new ValidationError(`That file isn't a real .${ext} file, so it was removed.`);
-    }
-
-    if (asset.kind === "preview_image") {
+      if (await this.reject(asset, bucket, head.size !== asset.sizeBytes ? "size mismatch" : "content does not match its type")) {
+        throw new ValidationError(`That file isn't a real .${ext} file, so it was removed.`);
+      }
+    } else if (asset.kind === "preview_image") {
       await this.publishPreview(storage, asset);
-    } else {
-      await this.repos.products.updateAsset(asset.id, { scanStatus: "pending" });
-      // New downloadable content on a live product needs review again.
-      if (product.status === "published") await this.repos.products.setStatus(product.id, ["published"], "pending_review");
+    } else if (await this.repos.products.finishUpload(asset.id, asset.r2Key, { scanStatus: "pending" })) {
+      // New downloadable content on a live product needs review again. Both writes are guarded on
+      // the current state, not on the status read above (an approval may have landed meanwhile).
+      await this.repos.products.setStatus(product.id, ["published"], "pending_review");
+      await this.repos.products.touch(product.id);
     }
     return this.change((await this.repos.products.findById(product.id)) ?? product);
   }
@@ -322,10 +338,15 @@ export class ProductService {
     const asset = await this.repos.products.findAsset(assetId);
     if (!asset) throw new NotFoundError("That file couldn't be found.");
     const product = await this.owned(actor, asset.productId);
-    if (asset.kind === "file" && product.publishedAt) {
-      throw new ConflictError("Files of a product that has been on sale can't be removed: buyers rely on them.");
-    }
-    await this.repos.products.deleteAsset(asset.id);
+    // Re-checked under the product lock: an approval in between puts these files on sale.
+    await this.transaction(async (tx) => {
+      const locked = await this.repos.products.lockById(product.id, tx);
+      if (asset.kind === "file" && (product.publishedAt || locked?.publishedAt)) {
+        throw new ConflictError("Files of a product that has been on sale can't be removed: buyers rely on them.");
+      }
+      await this.repos.products.deleteAsset(asset.id, tx);
+      await this.repos.products.touch(product.id, tx);
+    });
     const bucket = asset.kind === "file" ? this.buckets.products : asset.scanStatus === "clean" ? this.buckets.public : this.buckets.uploads;
     await storage.deleteObject(bucket, asset.r2Key).catch((err) => logger.warn("asset object delete failed", { err }));
     return this.change(product);
@@ -423,7 +444,7 @@ export class ProductService {
       if (!(err instanceof ObjectTooLargeError)) logger.warn("preview re-encode failed", { err });
     }
     if (!webp) {
-      await this.reject(asset, this.buckets.uploads, "unreadable image");
+      if (!(await this.reject(asset, this.buckets.uploads, "unreadable image"))) return;
       throw new ValidationError("That image couldn't be read. Use a JPG, PNG or WebP.");
     }
     const publicKey = `previews/${asset.productId}/${randomUUID()}.webp`;
@@ -434,19 +455,27 @@ export class ProductService {
       contentType: "image/webp",
       cacheControl: "public, max-age=31536000, immutable",
     });
-    await this.repos.products.updateAsset(asset.id, {
+    const finished = await this.repos.products.finishUpload(asset.id, asset.r2Key, {
       r2Key: publicKey,
       mimeType: "image/webp",
       sizeBytes: webp.byteLength,
       scanStatus: "clean",
     });
+    if (!finished) {
+      // A concurrent confirm already finished this upload: drop our copy, keep theirs.
+      await storage.deleteObject(this.buckets.public, publicKey).catch(() => {});
+      return;
+    }
+    await this.repos.products.touch(asset.productId);
     await storage.deleteObject(this.buckets.uploads, asset.r2Key).catch(() => {});
   }
 
-  private async reject(asset: ProductAsset, bucket: string, detail: string) {
-    await this.repos.products.updateAsset(asset.id, { scanStatus: "rejected", scanDetail: detail });
+  /** Returns false when a concurrent confirm already finished the upload (nothing is changed then). */
+  private async reject(asset: ProductAsset, bucket: string, detail: string): Promise<boolean> {
+    if (!(await this.repos.products.finishUpload(asset.id, asset.r2Key, { scanStatus: "rejected", scanDetail: detail }))) return false;
     await this.storage?.deleteObject(bucket, asset.r2Key).catch(() => {});
     logger.warn("upload rejected", { assetId: asset.id, detail });
+    return true;
   }
 
   private requireStorage(): ObjectStorage {

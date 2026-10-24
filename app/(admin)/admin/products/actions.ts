@@ -10,7 +10,9 @@ import { services } from "@/server/services";
 export async function approveProduct(_prev: FormState, formData: FormData): Promise<FormState> {
   const { actor } = await requireRole("staff", "super_admin");
   return runForm(async () => {
-    productChangeTags(await services.productReview.approve(actor, field(formData, "productId"))).forEach((t) => updateTag(t));
+    const version = new Date(field(formData, "version"));
+    if (Number.isNaN(version.getTime())) return { status: "error", message: "Reload the page and review this product again." };
+    productChangeTags(await services.productReview.approve(actor, field(formData, "productId"), version)).forEach((t) => updateTag(t));
     return { status: "success", message: "Published." };
   });
 }
