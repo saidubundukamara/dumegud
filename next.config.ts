@@ -75,6 +75,8 @@ const nextConfig: NextConfig = {
   // Files read at runtime by generated images (brand colours, the Geist woff files for share cards).
   outputFileTracingIncludes: {
     "/api/shoutouts/image": ["./styles/tokens.css"],
+    "/api/recaps/image": OG_FILES,
+    "/api/milestones/image": OG_FILES,
     "/opengraph-image": OG_FILES,
     "/[handle]/opengraph-image": OG_FILES,
     "/p/[productId]/opengraph-image": OG_FILES,

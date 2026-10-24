@@ -18,7 +18,8 @@ export const OG_CONTENT_TYPE = "image/png";
 const FONT_DIR = path.join(process.cwd(), "node_modules/@fontsource/geist-sans/files");
 let fonts: Promise<{ regular: Buffer; bold: Buffer }> | undefined;
 
-function loadFonts() {
+/** Geist 400 and 700, for every generated card. */
+export function loadFonts() {
   fonts ??= Promise.all([
     readFile(path.join(FONT_DIR, "geist-sans-latin-400-normal.woff")),
     readFile(path.join(FONT_DIR, "geist-sans-latin-700-normal.woff")),
