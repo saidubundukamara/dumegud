@@ -6,6 +6,7 @@ import type { ProductRepository } from "@/server/repositories/ProductRepository"
 import type { RiskRepository } from "@/server/repositories/RiskRepository";
 import { isStaff, type Actor, type RequestContext } from "./actor";
 import type { AuditLogger } from "./compliance";
+import { runInTransaction } from "./transaction";
 
 export type ReportInput = {
   targetType: "creator" | "product";
@@ -27,6 +28,7 @@ export class ReportService {
     private readonly repos: { risk: RiskRepository; products: ProductRepository; profiles: CreatorProfileRepository },
     private readonly audit: AuditLogger,
     private readonly now: () => Date = () => new Date(),
+    private readonly transaction: typeof runInTransaction = runInTransaction,
   ) {}
 
   /** Always succeeds for a real target; reports for unknown targets are refused quietly. */
@@ -60,21 +62,25 @@ export class ReportService {
 
   async resolve(actor: Actor, reportId: string, input: { action: "dismiss" | "suspend"; reason: string }): Promise<ModerationChange> {
     this.staff(actor);
-    const report = await this.repos.risk.resolveReport(reportId, input.action === "dismiss" ? "dismissed" : "actioned", actor.userId, this.now());
-    if (!report) throw new NotFoundError("This report was already handled.");
-    const tags: string[] = [];
-    if (input.action === "suspend") {
-      if (report.targetType === "product") {
-        const product = await this.repos.products.setStatus(report.targetId, ["draft", "pending_review", "published", "unpublished"], "suspended");
-        if (product) tags.push(`product:${product.id}`);
-        const profile = product ? await this.repos.profiles.findByUserId(product.creatorId) : null;
-        if (profile) tags.push(`creator:${profile.id}`);
-      } else {
-        const profile = await this.repos.profiles.setStatusByStaff(report.targetId, "suspended");
-        if (profile) tags.push(`creator:${profile.id}`, `handle:${profile.handleLower}`);
+    // One transaction: a report is only marked actioned if the suspension really happened.
+    const { report, tags } = await this.transaction(async (tx) => {
+      const report = await this.repos.risk.resolveReport(reportId, input.action === "dismiss" ? "dismissed" : "actioned", actor.userId, this.now(), tx);
+      if (!report) throw new NotFoundError("This report was already handled.");
+      const tags: string[] = [];
+      if (input.action === "suspend") {
+        if (report.targetType === "product") {
+          const product = await this.repos.products.setStatus(report.targetId, ["draft", "pending_review", "published", "unpublished"], "suspended", {}, tx);
+          if (product) tags.push(`product:${product.id}`);
+          const profile = product ? await this.repos.profiles.findByUserId(product.creatorId, tx) : null;
+          if (profile) tags.push(`creator:${profile.id}`);
+        } else {
+          const profile = await this.repos.profiles.setStatusByStaff(report.targetId, "suspended", tx);
+          if (profile) tags.push(`creator:${profile.id}`, `handle:${profile.handleLower}`);
+        }
+        await this.repos.risk.insertModerationAction({ targetType: report.targetType, targetId: report.targetId, action: "suspend", reason: input.reason, actorId: actor.userId }, tx);
       }
-      await this.repos.risk.insertModerationAction({ targetType: report.targetType, targetId: report.targetId, action: "suspend", reason: input.reason, actorId: actor.userId });
-    }
+      return { report, tags };
+    });
     await this.audit.log({
       actor,
       action: `report.${input.action}`,

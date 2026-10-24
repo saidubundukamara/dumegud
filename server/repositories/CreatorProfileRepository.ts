@@ -163,8 +163,14 @@ export class CreatorProfileRepository extends BaseRepository {
     await this.exec(tx).update(creatorProfiles).set({ verificationTier: tier }).where(eq(creatorProfiles.userId, userId));
   }
 
-  async setRiskTier(userId: string, tier: CreatorProfile["riskTier"], tx?: Executor): Promise<void> {
-    await this.exec(tx).update(creatorProfiles).set({ riskTier: tier }).where(eq(creatorProfiles.userId, userId));
+  /** Moves the risk tier only from the tier it was decided against, so it can never be lowered by a stale read. */
+  async raiseRiskTier(userId: string, from: CreatorProfile["riskTier"], to: CreatorProfile["riskTier"], tx?: Executor): Promise<boolean> {
+    const rows = await this.exec(tx)
+      .update(creatorProfiles)
+      .set({ riskTier: to })
+      .where(and(eq(creatorProfiles.userId, userId), eq(creatorProfiles.riskTier, from)))
+      .returning({ id: creatorProfiles.id });
+    return rows.length > 0;
   }
 
   async setStatusByStaff(profileId: string, status: ProfileStatus, tx?: Executor): Promise<CreatorProfile | null> {

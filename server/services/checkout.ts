@@ -1,9 +1,12 @@
 import "server-only";
 import type { Payment } from "@/server/db/schema";
 import type { Metadata, MonimeClient } from "@/server/integrations/monime";
-import { ExternalServiceError } from "@/server/lib/errors";
+import { ConflictError, ExternalServiceError } from "@/server/lib/errors";
 import { logger } from "@/server/lib/logger";
+import type { CreatorWalletRepository } from "@/server/repositories/CreatorWalletRepository";
 import type { PaymentRepository } from "@/server/repositories/PaymentRepository";
+import type { LimitOutcome, LimitService } from "./LimitService";
+import type { Tx } from "./transaction";
 
 export type CheckoutDeps = { monime: MonimeClient; payments: PaymentRepository; platformAccountId: () => string };
 
@@ -66,4 +69,25 @@ export async function openCheckout(
   });
   await deps.payments.transition(payment.id, ["created"], "pending", { source: "app" });
   return session.redirectUrl;
+}
+
+/**
+ * Inside the checkout insert transaction: lock the creator's wallet row (serialising concurrent
+ * checkouts for this creator) and run the limit precheck again, now counting every pending
+ * checkout. Returns the payment's `reviewHold`. `first` is the early, unlocked result.
+ */
+export async function recheckLimitsLocked(
+  deps: { limits?: Pick<LimitService, "precheck">; wallets: CreatorWalletRepository },
+  input: Parameters<LimitService["precheck"]>[0],
+  first: LimitOutcome,
+  blockedMessage: string,
+  tx: Tx,
+): Promise<string | null> {
+  let outcome = first;
+  if (deps.limits) {
+    await deps.wallets.lockByUserId(input.creatorId, tx);
+    outcome = await deps.limits.precheck(input, tx);
+    if (outcome.outcome === "block") throw new ConflictError(blockedMessage);
+  }
+  return outcome.outcome === "review" ? outcome.breaches.map((b) => `${b.scope}/${b.window}`).join(",") : null;
 }

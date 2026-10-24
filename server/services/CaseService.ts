@@ -34,9 +34,9 @@ export class CaseService {
 
   async openCase(actor: Actor, input: { creatorId: string; alertIds: string[]; note: string }): Promise<RiskCase> {
     this.staff(actor);
-    const alerts = await this.repos.risk.findAlerts(input.alertIds);
-    if (alerts.some((a) => a.creatorId !== input.creatorId)) throw new ValidationError("Those alerts belong to different creators.");
     const created = await this.transaction(async (tx) => {
+      const alerts = await this.repos.risk.findAlerts(input.alertIds, tx);
+      if (alerts.some((a) => a.creatorId !== input.creatorId)) throw new ValidationError("Those alerts belong to different creators.");
       const c = await this.repos.risk.insertCase(
         {
           creatorId: input.creatorId,
@@ -46,7 +46,11 @@ export class CaseService {
         },
         tx,
       );
-      await this.repos.risk.updateAlerts(input.alertIds, { status: "escalated", caseId: c.id }, tx);
+      // Claimed atomically: two staff opening cases from the same alerts can't both take them.
+      const claimed = await this.repos.risk.claimAlertsForCase(input.alertIds, c.id, input.creatorId, tx);
+      if (claimed.length !== new Set(input.alertIds).size) {
+        throw new ConflictError("Some of those alerts were just dismissed or added to another case. Reload and try again.");
+      }
       return c;
     });
     await this.audit.log({ actor, action: "case.open", targetType: "risk_case", targetId: created.id, after: { creatorId: input.creatorId, alertIds: input.alertIds } });
@@ -55,16 +59,14 @@ export class CaseService {
 
   async dismissAlert(actor: Actor, alertId: string): Promise<void> {
     this.staff(actor);
-    await this.repos.risk.updateAlerts([alertId], { status: "dismissed" });
+    if (!(await this.repos.risk.dismissOpenAlert(alertId))) throw new ConflictError("This alert is no longer open.");
     await this.audit.log({ actor, action: "alert.dismiss", targetType: "risk_alert", targetId: alertId });
   }
 
   async addNote(actor: Actor, caseId: string, text: string): Promise<void> {
     this.staff(actor);
-    const c = await this.repos.risk.findCase(caseId);
-    if (!c) throw new NotFoundError();
-    const notes = [...((c.notes as unknown[]) ?? []), { by: actor.userId, at: this.now().toISOString(), text: text.slice(0, 2000) }];
-    await this.repos.risk.updateCase(caseId, { notes });
+    const note = { by: actor.userId, at: this.now().toISOString(), text: text.slice(0, 2000) };
+    if (!(await this.repos.risk.appendCaseNote(caseId, note))) throw new NotFoundError();
     await this.audit.log({ actor, action: "case.note", targetType: "risk_case", targetId: caseId });
   }
 
@@ -109,12 +111,7 @@ export class CaseService {
         tx,
       );
       if (closes) {
-        const alerts = await this.repos.risk.listAlerts("escalated", 500, tx);
-        await this.repos.risk.updateAlerts(
-          alerts.filter((a) => a.caseId === caseId).map((a) => a.id),
-          { status: input.decision === "dismiss" ? "dismissed" : "actioned" },
-          tx,
-        );
+        await this.repos.risk.closeCaseAlerts(caseId, input.decision === "dismiss" ? "dismissed" : "actioned", tx);
       }
       return { applied: true, before: c };
     });

@@ -39,19 +39,24 @@ export class LimitService {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
-  async precheck(input: { creatorId: string; amountMinor: number; ipHash: string | null } & Tiers): Promise<LimitOutcome> {
-    const limits = await this.applicable(["per_contribution", "creator_receipts", "velocity_count"], input);
+  /**
+   * Run once early (for the message and alerts), then again with `tx` inside the checkout insert
+   * transaction after the creator's wallet row is locked: that serialises concurrent checkouts
+   * for one creator, so each sees the others' pending payments and the cap can't be overshot.
+   */
+  async precheck(input: { creatorId: string; amountMinor: number; ipHash: string | null } & Tiers, tx?: Tx): Promise<LimitOutcome> {
+    const limits = await this.applicable(["per_contribution", "creator_receipts", "velocity_count"], input, tx);
     const breaches: LimitBreach[] = [];
     for (const limit of limits) {
       if (limit.scope === "per_contribution" && limit.maxAmountMinor !== null && input.amountMinor > limit.maxAmountMinor) {
         breaches.push(this.breach(limit, `amount ${input.amountMinor} > ${limit.maxAmountMinor}`));
       }
       if (limit.scope === "creator_receipts" && limit.maxAmountMinor !== null && limit.window !== "single") {
-        const total = await this.repo.creatorReceipts(input.creatorId, this.since(limit.window));
+        const total = await this.repo.creatorReceipts(input.creatorId, this.since(limit.window), tx);
         if (total + input.amountMinor > limit.maxAmountMinor) breaches.push(this.breach(limit, `receipts ${total} + ${input.amountMinor} > ${limit.maxAmountMinor}`));
       }
       if (limit.scope === "velocity_count" && limit.maxCount !== null && limit.window !== "single" && input.ipHash) {
-        const count = await this.repo.checkoutsFromIp(input.ipHash, this.since(limit.window));
+        const count = await this.repo.checkoutsFromIp(input.ipHash, this.since(limit.window), tx);
         if (count + 1 > limit.maxCount) breaches.push(this.breach(limit, `checkouts from network ${count + 1} > ${limit.maxCount}`));
       }
     }
@@ -60,6 +65,10 @@ export class LimitService {
 
   async postcheck(payment: Payment, tiers: Tiers, tx?: Tx): Promise<LimitOutcome> {
     if (!payment.payerFingerprintHash) return { outcome: "allow", breaches: [] };
+    // Two payments from one payer settling at once would each see only their own (uncommitted)
+    // row. There is no payer row to lock, so a transaction-scoped advisory lock on the fingerprint
+    // serialises them: the second reads the totals after the first commits.
+    if (tx) await this.repo.lockPayer(payment.payerFingerprintHash, tx);
     const limits = await this.applicable(["supporter_to_creator", "supporter_global"], tiers, tx);
     const breaches: LimitBreach[] = [];
     for (const limit of limits) {

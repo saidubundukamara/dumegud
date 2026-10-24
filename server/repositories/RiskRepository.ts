@@ -47,6 +47,11 @@ export class RiskRepository extends BaseRepository {
     return row ?? null;
   }
 
+  async lockLimit(id: string, tx: Executor) {
+    const [row] = await tx.select().from(transactionLimits).where(eq(transactionLimits.id, id)).for("update").limit(1);
+    return row ?? null;
+  }
+
   async insertLimit(data: typeof transactionLimits.$inferInsert, tx?: Executor) {
     const [row] = await this.exec(tx).insert(transactionLimits).values(data).returning();
     return row;
@@ -61,6 +66,12 @@ export class RiskRepository extends BaseRepository {
     return this.exec(tx).select().from(riskRules).orderBy(riskRules.code);
   }
 
+  /** Row-locks a rule, for an accurate audit `before` (any rule, active or not). */
+  async lockRule(code: string, tx: Executor) {
+    const [row] = await tx.select().from(riskRules).where(eq(riskRules.code, code)).for("update").limit(1);
+    return row ?? null;
+  }
+
   async updateRule(code: string, patch: Partial<typeof riskRules.$inferInsert>, tx?: Executor) {
     const [row] = await this.exec(tx).update(riskRules).set({ ...patch, updatedAt: new Date() }).where(eq(riskRules.code, code)).returning();
     return row ?? null;
@@ -71,6 +82,11 @@ export class RiskRepository extends BaseRepository {
   }
 
   // ── Window statistics ─────────────────────────────────────────────────────────
+
+  /** Transaction-scoped advisory lock on a payer fingerprint (released at commit; pool-safe). */
+  async lockPayer(fingerprint: string, tx: Executor): Promise<void> {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"payer:" + fingerprint}))`);
+  }
 
   /** Money committed to a creator since `since` (open + settled), for receipt limits. */
   async creatorReceipts(creatorId: string, since: Date, tx?: Executor): Promise<number> {
@@ -193,6 +209,38 @@ export class RiskRepository extends BaseRepository {
     await this.exec(tx).update(riskAlerts).set(patch).where(inArray(riskAlerts.id, ids));
   }
 
+  /**
+   * Attach open, unassigned alerts to a case. Returns the ids actually taken: an alert another
+   * case claimed, or one dismissed, in the meantime is left alone.
+   */
+  async claimAlertsForCase(ids: string[], caseId: string, creatorId: string, tx?: Executor): Promise<string[]> {
+    if (!ids.length) return [];
+    const rows = await this.exec(tx)
+      .update(riskAlerts)
+      .set({ status: "escalated", caseId })
+      .where(and(inArray(riskAlerts.id, ids), eq(riskAlerts.creatorId, creatorId), eq(riskAlerts.status, "open"), isNull(riskAlerts.caseId)))
+      .returning({ id: riskAlerts.id });
+    return rows.map((r) => r.id);
+  }
+
+  /** Only an alert still open: never overwrites one escalated into a case or already actioned. */
+  async dismissOpenAlert(id: string, tx?: Executor): Promise<boolean> {
+    const rows = await this.exec(tx)
+      .update(riskAlerts)
+      .set({ status: "dismissed" })
+      .where(and(eq(riskAlerts.id, id), eq(riskAlerts.status, "open")))
+      .returning({ id: riskAlerts.id });
+    return rows.length > 0;
+  }
+
+  /** Close every alert still escalated into this case. */
+  async closeCaseAlerts(caseId: string, status: "dismissed" | "actioned", tx?: Executor): Promise<void> {
+    await this.exec(tx)
+      .update(riskAlerts)
+      .set({ status })
+      .where(and(eq(riskAlerts.caseId, caseId), eq(riskAlerts.status, "escalated")));
+  }
+
   async countOpenHighAlerts(creatorId: string, since: Date, tx?: Executor): Promise<number> {
     const [row] = await this.exec(tx)
       .select({ v: sql<string>`count(*)` })
@@ -216,6 +264,16 @@ export class RiskRepository extends BaseRepository {
   async findCase(id: string, tx?: Executor): Promise<RiskCase | null> {
     const [row] = await this.exec(tx).select().from(riskCases).where(eq(riskCases.id, id)).limit(1);
     return row ?? null;
+  }
+
+  /** Atomic append, so two staff adding notes at once both keep theirs. */
+  async appendCaseNote(id: string, note: { by: string; at: string; text: string }, tx?: Executor): Promise<boolean> {
+    const rows = await this.exec(tx)
+      .update(riskCases)
+      .set({ notes: sql`coalesce(${riskCases.notes}, '[]'::jsonb) || ${JSON.stringify([note])}::jsonb`, updatedAt: new Date() })
+      .where(eq(riskCases.id, id))
+      .returning({ id: riskCases.id });
+    return rows.length > 0;
   }
 
   async updateCase(id: string, patch: Partial<RiskCase>, tx?: Executor) {

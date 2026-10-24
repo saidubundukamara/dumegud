@@ -36,7 +36,7 @@ async function Settings() {
                 {key} <span className="text-sm font-normal text-muted">{row ? `v${row.version}` : "default"}</span>
               </p>
               {editable ? (
-                <ActionForm action={updateSetting} hidden={{ key }} label="Save">
+                <ActionForm action={updateSetting} hidden={{ key, version: String(row?.version ?? 0) }} label="Save">
                   <textarea
                     name="value"
                     aria-label={`Value for ${key}`}

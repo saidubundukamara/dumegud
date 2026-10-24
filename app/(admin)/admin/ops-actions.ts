@@ -97,7 +97,8 @@ export async function updateSetting(_prev: FormState, formData: FormData): Promi
     } catch {
       return { status: "error", message: "The value must be valid JSON (numbers as-is, text in quotes, true/false)." };
     }
-    const version = await services.adminConfig.updateSetting(actor, field(formData, "key"), value);
+    const seen = Number(field(formData, "version"));
+    const version = await services.adminConfig.updateSetting(actor, field(formData, "key"), value, Number.isInteger(seen) ? seen : undefined);
     return { status: "success", message: `Saved as version ${version}.` };
   });
 }

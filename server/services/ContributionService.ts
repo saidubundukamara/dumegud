@@ -19,7 +19,7 @@ import type { Actor, RequestContext } from "./actor";
 import { noRestrictions, type RestrictionGuard } from "./compliance";
 import type { LimitService } from "./LimitService";
 import type { RiskService } from "./RiskService";
-import { openCheckout } from "./checkout";
+import { openCheckout, recheckLimitsLocked } from "./checkout";
 import type { PlatformSettingsService } from "./PlatformSettingsService";
 import { runInTransaction } from "./transaction";
 
@@ -146,8 +146,15 @@ export class ContributionService {
     const handle = consent && input.socialHandle && input.socialPlatform ? { socialPlatform: input.socialPlatform, socialHandle: input.socialHandle } : null;
     const claimSecret = randomToken();
 
-    const payment = await this.transaction((tx) =>
-      this.repos.payments.insertContribution(
+    const payment = await this.transaction(async (tx) => {
+      const held = await recheckLimitsLocked(
+        { limits: this.deps.limits, wallets: this.repos.wallets },
+        { creatorId: profile.userId, amountMinor: input.amount, ipHash, verificationTier: profile.verificationTier, riskTier: profile.riskTier },
+        limit,
+        "This creator can't receive this amount right now.",
+        tx,
+      );
+      return this.repos.payments.insertContribution(
         {
           kind: "contribution",
           creatorId: profile.userId,
@@ -155,7 +162,7 @@ export class ContributionService {
           platformFeeBps: settings.contributionFeeBps,
           idempotencyKey: randomUUID(),
           ipHash,
-          reviewHold: limit.outcome === "review" ? limit.breaches.map((b) => `${b.scope}/${b.window}`).join(",") : null,
+          reviewHold: held,
           trafficSource: input.source ?? null,
         },
         {
@@ -170,8 +177,8 @@ export class ContributionService {
           messageVisibility: "creator_only",
         },
         tx,
-      ),
-    );
+      );
+    });
 
     if (limit.breaches.length) {
       await this.deps.risk?.raiseLimitBreaches({ type: "payment", id: payment.id, creatorId: profile.userId }, limit.breaches);

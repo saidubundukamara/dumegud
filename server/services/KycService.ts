@@ -179,6 +179,15 @@ export class KycService {
     let decided: KycSubmission | null;
     try {
       decided = await this.transaction(async (tx) => {
+        // The user row lock serialises decisions on this person's submissions, so two staff
+        // approving two of them at once can't leave two approved identities (two legal names).
+        const submission = await this.repos.kyc.findById(submissionId, tx);
+        if (!submission) return null;
+        await this.repos.users.lockById(submission.userId, tx);
+        if (decision.outcome === "approved") {
+          const approved = await this.repos.kyc.approvedForUser(submission.userId, tx);
+          if (approved && approved.id !== submissionId) throw new ConflictError("This person's identity is already verified by another submission.");
+        }
         const row = await this.repos.kyc.decide(submissionId, decision.outcome, review, tx);
         if (row && decision.outcome === "approved") await this.repos.profiles.setVerificationTier(row.userId, "id_verified", tx);
         return row;

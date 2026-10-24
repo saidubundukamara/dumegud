@@ -166,6 +166,9 @@ describe("admin-configured limits", () => {
     expect((await settings.get()).contributionFeeBps).toBe(250);
     const { rows } = await t.client.query<{ version: number }>("select version from platform_settings_history where key = 'fees.contributionBps'");
     expect(rows).toEqual([{ version: 2 }]);
+    // An editor who opened the page at version 1 can't silently overwrite version 2.
+    await expect(config.updateSetting(superAdmin, "fees.contributionBps", 300, 1)).rejects.toThrow(/Someone else changed/);
+    expect(await config.updateSetting(superAdmin, "fees.contributionBps", 300, 2)).toBe(3);
     expect((await repos.audit.listForTarget("platform_setting", "fees.contributionBps"))[0].action).toBe("setting.update");
   });
 });
@@ -241,5 +244,42 @@ describe("reports", () => {
     expect((await repos.profiles.findByUserId(creator.userId))!.status).toBe("suspended");
     await expect(reports.resolve(staff, open.id, { action: "dismiss", reason: "" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect((await repos.audit.listForTarget("creator", profile.id))[0].action).toBe("report.suspend");
+  });
+});
+
+describe("races", () => {
+  const alert = (ruleCode: string, severity: "low" | "medium" | "high" = "medium") =>
+    repos.risk.insertAlert({ ruleCode, subjectType: "creator", subjectId: creator.userId, creatorId: creator.userId, severity, evidence: {} });
+
+  it("the risk tier is only raised from the tier it was decided against (never lowered)", async () => {
+    await t.client.query("update creator_profiles set risk_tier = 'high' where user_id = $1", [creator.userId]);
+    // A signal that read `low` before staff raised the tier must not write `medium` over `high`.
+    expect(await repos.profiles.raiseRiskTier(creator.userId, "low", "medium")).toBe(false);
+    expect((await repos.profiles.findByUserId(creator.userId))!.riskTier).toBe("high");
+  });
+
+  it("one signal raised twice at once records one alert", async () => {
+    const risk = new RiskService(repos);
+    const input = { ruleCode: "RAPID_REPEAT", subjectType: "creator" as const, subjectId: creator.userId, creatorId: creator.userId, severity: "high" as const, evidence: {} };
+    await Promise.all([risk.raise(input), risk.raise(input)]);
+    const { rows } = await t.client.query("select id from risk_alerts where rule_code = 'RAPID_REPEAT'");
+    expect(rows).toHaveLength(1);
+    expect((await repos.profiles.findByUserId(creator.userId))!.riskTier).toBe("medium");
+  });
+
+  it("an alert already in a case can't be pulled into another, and dismissing it is refused", async () => {
+    const a = await alert("SELF_FUNDING");
+    const first = await cases.openCase(staff, { creatorId: creator.userId, alertIds: [a.id], note: "" });
+    await expect(cases.openCase(staff2, { creatorId: creator.userId, alertIds: [a.id], note: "" })).rejects.toThrow(/another case/);
+    await expect(cases.dismissAlert(staff2, a.id)).rejects.toThrow(/no longer open/);
+    expect((await repos.risk.findAlerts([a.id]))[0]).toMatchObject({ status: "escalated", caseId: first.id });
+    expect(await cases.listOpen(staff)).toHaveLength(1); // the second case was rolled back
+  });
+
+  it("notes added at the same time are all kept", async () => {
+    const c = await cases.openCase(staff, { creatorId: creator.userId, alertIds: [], note: "" });
+    await Promise.all([cases.addNote(staff, c.id, "one"), cases.addNote(staff2, c.id, "two")]);
+    const notes = (await repos.risk.findCase(c.id))!.notes as { text: string }[];
+    expect(notes.map((n) => n.text).sort()).toEqual(["one", "two"]);
   });
 });

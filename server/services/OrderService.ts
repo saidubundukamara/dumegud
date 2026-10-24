@@ -18,7 +18,7 @@ import type { Actor, RequestContext } from "./actor";
 import { noRestrictions, type RestrictionGuard } from "./compliance";
 import type { LimitService } from "./LimitService";
 import type { RiskService } from "./RiskService";
-import { openCheckout } from "./checkout";
+import { openCheckout, recheckLimitsLocked } from "./checkout";
 import type { PlatformSettingsService } from "./PlatformSettingsService";
 import type { ProductService } from "./ProductService";
 import type { Fulfilment } from "./SettlementService";
@@ -113,6 +113,13 @@ export class OrderService implements Fulfilment {
     const accessToken = randomToken();
     const claimSecret = randomToken();
     const payment = await this.transaction(async (tx) => {
+      const held = await recheckLimitsLocked(
+        { limits: this.deps.limits, wallets: this.repos.wallets },
+        { creatorId: row.creatorId, amountMinor: row.priceMinor, ipHash, verificationTier: null, riskTier: null },
+        limit,
+        "This product can't be bought right now.",
+        tx,
+      );
       const created = await this.repos.payments.insertPayment(
         {
           kind: "order",
@@ -121,7 +128,7 @@ export class OrderService implements Fulfilment {
           platformFeeBps: settings.productFeeBps,
           idempotencyKey: randomUUID(),
           ipHash,
-          reviewHold: limit.outcome === "review" ? limit.breaches.map((b) => `${b.scope}/${b.window}`).join(",") : null,
+          reviewHold: held,
         },
         tx,
       );

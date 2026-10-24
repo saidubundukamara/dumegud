@@ -18,6 +18,12 @@ export class PlatformSettingsRepository extends BaseRepository {
     return row ?? null;
   }
 
+  /** Row-locks a stored setting (null if it was never saved: the upsert's conflict handles that). */
+  async lock(key: string, tx: Executor) {
+    const [row] = await tx.select().from(platformSettings).where(eq(platformSettings.key, key)).for("update").limit(1);
+    return row ?? null;
+  }
+
   /** Upsert a setting, bump its version and append the history row (same transaction). */
   async set(key: string, value: unknown, changedBy: string, tx: Executor): Promise<number> {
     const [row] = await tx

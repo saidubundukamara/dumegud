@@ -6,6 +6,7 @@ import type { PaymentRepository } from "@/server/repositories/PaymentRepository"
 import type { RiskRepository } from "@/server/repositories/RiskRepository";
 import type { UserRepository } from "@/server/repositories/UserRepository";
 import type { LimitBreach } from "./LimitService";
+import { runInTransaction, type Tx } from "./transaction";
 
 type Params = Record<string, number>;
 const MIN = 60_000;
@@ -31,6 +32,7 @@ export class RiskService {
   constructor(
     private readonly repos: { risk: RiskRepository; payments: PaymentRepository; profiles: CreatorProfileRepository; users: UserRepository },
     private readonly now: () => Date = () => new Date(),
+    private readonly transaction: typeof runInTransaction = runInTransaction,
   ) {}
 
   /** After a payment settles. */
@@ -88,19 +90,25 @@ export class RiskService {
   /** Create an alert unless the same rule already has an open one for this subject today. */
   async raise(input: AlertInput): Promise<void> {
     const since = new Date(this.now().getTime() - DAY);
-    if (await this.repos.risk.recentOpenAlert(input.ruleCode, input.subjectId, since)) return;
-    await this.repos.risk.insertAlert(input);
-    logger.warn("risk alert raised", { ruleCode: input.ruleCode, severity: input.severity });
-    if (input.severity === "high" && input.creatorId) await this.raiseTier(input.creatorId);
+    const raised = await this.transaction(async (tx) => {
+      // The creator's profile row serialises concurrent signals for them: two settlements at once
+      // would otherwise both miss the other's alert, insert duplicates and over-count for the tier.
+      if (input.creatorId) await this.repos.profiles.lockByUserId(input.creatorId, tx);
+      if (await this.repos.risk.recentOpenAlert(input.ruleCode, input.subjectId, since, tx)) return false;
+      await this.repos.risk.insertAlert(input, tx);
+      if (input.severity === "high" && input.creatorId) await this.raiseTier(input.creatorId, tx);
+      return true;
+    });
+    if (raised) logger.warn("risk alert raised", { ruleCode: input.ruleCode, severity: input.severity });
   }
 
   /** low → medium on a high-severity signal; medium → high on repeated ones. Never lowers. */
-  private async raiseTier(creatorId: string) {
-    const profile = await this.repos.profiles.findByUserId(creatorId);
+  private async raiseTier(creatorId: string, tx: Tx) {
+    const profile = await this.repos.profiles.findByUserId(creatorId, tx);
     if (!profile) return;
-    const highs = await this.repos.risk.countOpenHighAlerts(creatorId, new Date(this.now().getTime() - 7 * DAY));
+    const highs = await this.repos.risk.countOpenHighAlerts(creatorId, new Date(this.now().getTime() - 7 * DAY), tx);
     const next = profile.riskTier === "low" ? "medium" : profile.riskTier === "medium" && highs >= 2 ? "high" : null;
-    if (next) await this.repos.profiles.setRiskTier(creatorId, next);
+    if (next) await this.repos.profiles.raiseRiskTier(creatorId, profile.riskTier, next, tx);
   }
 
   // ── Rules ─────────────────────────────────────────────────────────────────────

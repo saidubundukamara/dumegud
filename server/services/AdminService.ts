@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import type { PaymentStatus, Role, UserStatus } from "@/server/db/schema";
+import type { PaymentStatus, Role, User, UserStatus } from "@/server/db/schema";
 import { availableBalanceMinor, type MonimeClient } from "@/server/integrations/monime";
 import { parseMonimeEvent } from "@/server/integrations/monime/webhook";
 import { decryptField } from "@/server/lib/crypto";
@@ -19,6 +19,7 @@ import type { JobService } from "./JobService";
 import type { PayoutService } from "./PayoutService";
 import type { SettlementService } from "./SettlementService";
 import type { TransferService } from "./TransferService";
+import { runInTransaction } from "./transaction";
 import type { WebhookService } from "./WebhookService";
 
 type AdminRepos = {
@@ -42,7 +43,11 @@ export type AdminServiceDeps = {
   webhooks: () => Pick<WebhookService, "replay">;
   jobs?: Pick<JobService, "history">;
   now?: () => Date;
+  transaction?: typeof runInTransaction;
 };
+
+/** Erasure leaves the row with a placeholder address; nothing about it may be changed again. */
+const isErased = (user: User) => user.email.endsWith("@users.invalid");
 
 const ruleParamsSchema = z.record(z.string().regex(/^[a-zA-Z]{1,40}$/), z.number().finite().min(0).max(1e12));
 
@@ -55,10 +60,12 @@ const ruleParamsSchema = z.record(z.string().regex(/^[a-zA-Z]{1,40}$/), z.number
 export class AdminService {
   private readonly repos: AdminRepos;
   private readonly now: () => Date;
+  private readonly transaction: typeof runInTransaction;
 
   constructor(private readonly deps: AdminServiceDeps) {
     this.repos = deps.repos;
     this.now = deps.now ?? (() => new Date());
+    this.transaction = deps.transaction ?? runInTransaction;
   }
 
   // ── Read ──────────────────────────────────────────────────────────────────────
@@ -145,19 +152,28 @@ export class AdminService {
     this.staff(actor);
     if (status === "closed" && actor.role !== "super_admin") throw new ForbiddenError("Only a super admin can close accounts.");
     if (userId === actor.userId) throw new ForbiddenError("You can't change your own account status.");
-    const before = await this.repos.users.findById(userId);
-    if (!before) throw new NotFoundError();
-    if (isStaff(before.role) && actor.role !== "super_admin") throw new ForbiddenError("Only a super admin can change staff accounts.");
-    await this.repos.users.setStatus(userId, status);
+    // Checked against the locked row: a promotion to staff or an erasure in between must win.
+    const before = await this.transaction(async (tx) => {
+      const user = await this.repos.users.lockById(userId, tx);
+      if (!user) throw new NotFoundError();
+      if (isStaff(user.role) && actor.role !== "super_admin") throw new ForbiddenError("Only a super admin can change staff accounts.");
+      if (isErased(user)) throw new ConflictError("This account was deleted.");
+      await this.repos.users.setStatus(userId, status, tx);
+      return user;
+    });
     await this.deps.audit.log({ actor, action: "user.status", targetType: "user", targetId: userId, before: { status: before.status }, after: { status, reason } });
   }
 
   async setUserRole(actor: Actor, userId: string, role: Role) {
     if (actor.role !== "super_admin") throw new ForbiddenError("Only a super admin can change roles.");
     if (userId === actor.userId) throw new ForbiddenError("You can't change your own role.");
-    const before = await this.repos.users.findById(userId);
-    if (!before) throw new NotFoundError();
-    await this.repos.users.setRole(userId, role);
+    const before = await this.transaction(async (tx) => {
+      const user = await this.repos.users.lockById(userId, tx);
+      if (!user) throw new NotFoundError();
+      if (isErased(user)) throw new ConflictError("This account was deleted.");
+      await this.repos.users.setRole(userId, role, tx);
+      return user;
+    });
     await this.deps.audit.log({ actor, action: "user.role", targetType: "user", targetId: userId, before: { role: before.role }, after: { role } });
   }
 
@@ -219,9 +235,12 @@ export class AdminService {
     if (actor.role !== "super_admin") throw new ForbiddenError("Only a super admin can change risk rules.");
     const params = ruleParamsSchema.safeParse(input.params);
     if (!params.success) throw new ValidationError("Rule parameters must be named numbers.");
-    const before = (await this.repos.risk.activeRules()).find((r) => r.code === code) ?? null;
-    const after = await this.repos.risk.updateRule(code, { params: params.data, severity: input.severity, active: input.active, updatedBy: actor.userId });
-    if (!after) throw new NotFoundError();
+    const { before, after } = await this.transaction(async (tx) => {
+      const before = await this.repos.risk.lockRule(code, tx);
+      if (!before) throw new NotFoundError();
+      const after = await this.repos.risk.updateRule(code, { params: params.data, severity: input.severity, active: input.active, updatedBy: actor.userId }, tx);
+      return { before, after };
+    });
     await this.deps.audit.log({ actor, action: "risk_rule.update", targetType: "risk_rule", targetId: code, before, after });
   }
 
