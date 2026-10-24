@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from
 import type { Executor } from "@/server/db/client";
 import {
   contributions,
+  creatorWallets,
   paymentEvents,
   payments,
   type Contribution,
@@ -68,23 +69,28 @@ export class PaymentRepository extends BaseRepository {
     tx?: Executor,
   ): Promise<Payment | null> {
     if (!from.length) return null;
-    const db = this.exec(tx);
-    const [before] = await db.select({ status: payments.status }).from(payments).where(eq(payments.id, id)).limit(1);
-    const [row] = await db
-      .update(payments)
-      .set({ ...patch, status: to })
-      .where(and(eq(payments.id, id), inArray(payments.status, [...from])))
-      .returning();
-    if (!row) return null;
-    await db.insert(paymentEvents).values({
-      paymentId: id,
-      fromStatus: before?.status ?? null,
-      toStatus: to,
-      source: event.source,
-      providerEventId: event.providerEventId ?? null,
-      detail: event.detail ?? null,
-    });
-    return row;
+    // The status read and the guarded update share one row lock, so the event's `fromStatus` is
+    // the status actually left (without a transaction a concurrent change could slip between).
+    const run = async (db: Executor) => {
+      const [before] = await db.select({ status: payments.status }).from(payments).where(eq(payments.id, id)).for("update").limit(1);
+      if (!before || !from.includes(before.status)) return null;
+      const [row] = await db
+        .update(payments)
+        .set({ ...patch, status: to })
+        .where(and(eq(payments.id, id), inArray(payments.status, [...from])))
+        .returning();
+      if (!row) return null;
+      await db.insert(paymentEvents).values({
+        paymentId: id,
+        fromStatus: before.status,
+        toStatus: to,
+        source: event.source,
+        providerEventId: event.providerEventId ?? null,
+        detail: event.detail ?? null,
+      });
+      return row;
+    };
+    return tx ? run(tx) : this.exec().transaction(run);
   }
 
   /** Unguarded field update (references, split, transfer bookkeeping). Never changes status. */
@@ -100,7 +106,8 @@ export class PaymentRepository extends BaseRepository {
   async claimTransfer(id: string, tx?: Executor): Promise<Payment | null> {
     const [row] = await this.exec(tx)
       .update(payments)
-      .set({ transferStatus: "pending" })
+      // A new attempt has no transfer yet: clearing the old id keeps failures of it from matching.
+      .set({ transferStatus: "pending", transferId: null })
       .where(
         and(
           eq(payments.id, id),
@@ -108,6 +115,63 @@ export class PaymentRepository extends BaseRepository {
           isNotNull(payments.creatorNetMinor),
           eq(payments.settlementFrozen, false),
           inArray(payments.transferStatus, ["none", "failed"]),
+          // Re-checked here, not just before: a wallet frozen in between must not receive money.
+          sql`exists (select 1 from ${creatorWallets} where ${creatorWallets.userId} = ${payments.creatorId} and ${creatorWallets.status} = 'active')`,
+        ),
+      )
+      .returning();
+    return row ?? null;
+  }
+
+  /**
+   * Mark this payment's live transfer attempt failed. Guarded by the attempt it belongs to, so a
+   * late or replayed failure can never fail (or bump the key of) a newer attempt:
+   * `attempt` = the claimed attempt that got no transfer id back; `transferId` = a known transfer.
+   * Bumping `transferAttempts` changes the Monime idempotency key, so only a definitive failure does.
+   */
+  async markTransferFailed(
+    id: string,
+    expect: { attempt: number } | { transferId: string },
+    bump: boolean,
+    lastError: string,
+    tx?: Executor,
+  ): Promise<Payment | null> {
+    const [row] = await this.exec(tx)
+      .update(payments)
+      .set({
+        transferStatus: "failed",
+        transferAttempts: bump ? sql`${payments.transferAttempts} + 1` : payments.transferAttempts,
+        lastError,
+      })
+      .where(
+        and(
+          eq(payments.id, id),
+          eq(payments.transferStatus, "pending"),
+          eq(payments.settlementFrozen, false),
+          "attempt" in expect
+            ? and(eq(payments.transferAttempts, expect.attempt), isNull(payments.transferId))
+            : eq(payments.transferId, expect.transferId),
+        ),
+      )
+      .returning();
+    return row ?? null;
+  }
+
+  /**
+   * Release a transfer claim that never got a transfer id back (the request may or may not have
+   * reached Monime), keeping the attempt count so the retry re-sends the same key. Only claims
+   * untouched for `olderThan` qualify, so a request still in flight is never raced.
+   */
+  async releaseStaleTransferClaim(id: string, olderThan: Date, tx?: Executor): Promise<Payment | null> {
+    const [row] = await this.exec(tx)
+      .update(payments)
+      .set({ transferStatus: "failed" })
+      .where(
+        and(
+          eq(payments.id, id),
+          eq(payments.transferStatus, "pending"),
+          isNull(payments.transferId),
+          lt(payments.updatedAt, olderThan),
         ),
       )
       .returning();

@@ -19,9 +19,13 @@ export class MonimeApiError extends Error {
     this.name = "MonimeApiError";
   }
 
-  /** Worth retrying later (network, 5xx, rate limit). 4xx validation/auth errors are not. */
+  /**
+   * Worth retrying later (network, 5xx, rate limit). 4xx validation/auth errors are not. A 409
+   * counts as retryable: two concurrent calls with the same idempotency key can conflict while
+   * the first is still in flight, so the outcome is unknown and must be re-sent with that key.
+   */
   get retryable(): boolean {
-    return this.code === "NETWORK_ERROR" || (this.status ?? 0) >= 500 || this.status === 429;
+    return this.code === "NETWORK_ERROR" || (this.status ?? 0) >= 500 || this.status === 429 || this.status === 409;
   }
 }
 

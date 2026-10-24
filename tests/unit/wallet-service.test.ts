@@ -30,10 +30,13 @@ function walletRepo() {
     markActive: async (userId: string, account: { id: string; uvan: string }) => {
       const row = rows.get(userId)!;
       if (row.monimeFinancialAccountId && row.monimeFinancialAccountId !== account.id) throw new Error("unique violation");
-      rows.set(userId, { ...row, monimeFinancialAccountId: account.id, uvan: account.uvan, status: "active", lastError: null });
+      const next = { ...row, monimeFinancialAccountId: account.id, uvan: account.uvan, status: row.status === "frozen" ? row.status : ("active" as const), lastError: null };
+      rows.set(userId, next);
+      return next;
     },
     recordFailure: async (userId: string, error: string, failAfter: number) => {
       const row = rows.get(userId)!;
+      if (row.status !== "pending" && row.status !== "failed") return row;
       const attempts = row.attempts + 1;
       const next = { ...row, attempts, lastError: error, status: attempts >= failAfter ? ("failed" as const) : ("pending" as const) };
       rows.set(userId, next);

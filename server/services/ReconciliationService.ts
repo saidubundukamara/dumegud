@@ -91,7 +91,7 @@ export class ReconciliationService {
 
     const stuck = await this.repos.payments.listTransferRetry(this.ago(ctx, 2 * MIN), TRANSFER_CRON_MAX_ATTEMPTS, BATCH);
     const transfers = await this.each(ctx, "retry-transfers", stuck, async (p) => {
-      if (p.transferStatus === "pending") await this.deps.transfers.refreshPending(p.id);
+      if (p.transferStatus === "pending") await this.deps.transfers.refreshPending(p.id, ctx.now);
       else await this.deps.transfers.settleToCreator(p.id);
     });
     return { processed: fees.processed + transfers.processed, errors: fees.errors + transfers.errors };

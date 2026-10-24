@@ -45,16 +45,7 @@ export class WalletService {
         },
         `creator-wallet-${userId}`,
       );
-      const at = this.now();
-      await this.repos.wallets.markActive(userId, { id: account.id, uvan: account.uvan }, at);
-      return {
-        ...wallet,
-        status: "active",
-        monimeFinancialAccountId: account.id,
-        uvan: account.uvan,
-        lastError: null,
-        lastAttemptAt: at,
-      };
+      return await this.repos.wallets.markActive(userId, { id: account.id, uvan: account.uvan }, this.now());
     } catch (err) {
       // Only Monime's code/message are stored: never the raw response.
       const message = err instanceof MonimeApiError ? `${err.code}: ${err.message}` : "unexpected error";

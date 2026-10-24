@@ -32,6 +32,9 @@ describe("parseMonimeError", () => {
     expect(parseMonimeError({ code: "x", message: "y" }, 500)).toMatchObject({ code: "x", retryable: true });
     expect(parseMonimeError(null, 429)).toMatchObject({ code: "API_ERROR", message: "HTTP 429", retryable: true });
   });
+  it("treats a 409 as an unknown outcome (same-key call still in flight), never definitive", () => {
+    expect(parseMonimeError({ code: "idempotency_conflict", message: "in use" }, 409)).toMatchObject({ retryable: true });
+  });
 });
 
 describe("availableBalanceMinor", () => {

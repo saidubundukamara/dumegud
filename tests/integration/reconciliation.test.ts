@@ -197,18 +197,18 @@ describe("reconcile-payments", () => {
   });
 });
 
-describe("retry-transfers", () => {
-  async function settledWithFailedTransfer() {
-    const id = await startSupport();
-    monimeServer.failNext(400, "validation_error", "Simulated rejection", "/internal-transfers");
-    await settlement.resync(id); // completes the checkout through the poll path...
-    monimeServer.completeCheckout((await payment(id)).monimeCheckoutSessionId!);
-    await settlement.resync(id);
-    await settlement.settleWithEstimate(id); // ...splits and tries the transfer, which Monime rejects
-    expect(await payment(id)).toMatchObject({ transferStatus: "failed", transferAttempts: 1 });
-    return id;
-  }
+async function settledWithFailedTransfer() {
+  const id = await startSupport();
+  monimeServer.failNext(400, "validation_error", "Simulated rejection", "/internal-transfers");
+  await settlement.resync(id); // completes the checkout through the poll path...
+  monimeServer.completeCheckout((await payment(id)).monimeCheckoutSessionId!);
+  await settlement.resync(id);
+  await settlement.settleWithEstimate(id); // ...splits and tries the transfer, which Monime rejects
+  expect(await payment(id)).toMatchObject({ transferStatus: "failed", transferAttempts: 1 });
+  return id;
+}
 
+describe("retry-transfers", () => {
   it("retries a failed transfer with a fresh key", async () => {
     const id = await settledWithFailedTransfer();
     expect((await reconciliation.retryTransfers(later(1))).processed).toBe(0); // touched too recently
@@ -232,6 +232,48 @@ describe("retry-transfers", () => {
     await t.client.query("update payments set transfer_attempts = 5 where id = $1", [id]);
     expect((await reconciliation.retryTransfers(later(3))).processed).toBe(0);
     expect((await payment(id)).transferStatus).toBe("failed");
+  });
+});
+
+describe("transfer races", () => {
+  it("a late failure of an older transfer can't fail a newer attempt or change its key", async () => {
+    const id = await settledWithFailedTransfer();
+    await t.client.query("update payments set transfer_status = 'pending', transfer_id = 'trf-new' where id = $1", [id]);
+    expect(await repos.payments.markTransferFailed(id, { transferId: "trf-old" }, true, "replayed")).toBeNull();
+    expect(await repos.payments.markTransferFailed(id, { attempt: 1 }, true, "stale start")).toBeNull(); // has a transfer id now
+    expect(await payment(id)).toMatchObject({ transferStatus: "pending", transferId: "trf-new", transferAttempts: 1 });
+  });
+
+  it("a new claim clears the previous attempt's transfer id", async () => {
+    const id = await settledWithFailedTransfer();
+    await t.client.query("update payments set transfer_id = 'trf-old' where id = $1", [id]);
+    expect(await repos.payments.claimTransfer(id)).toMatchObject({ transferStatus: "pending", transferId: null });
+  });
+
+  it("refreshPending leaves a fresh claim (request in flight) alone, and re-sends a stale one", async () => {
+    const id = await settledWithFailedTransfer();
+    await t.client.query("update payments set transfer_status = 'pending', transfer_id = null, updated_at = now() where id = $1", [id]);
+    const sent = () => monimeServer.requests.filter((r) => r.path === "/internal-transfers").length;
+    const before = sent();
+    expect(await reconciliationDeps.transfers.refreshPending(id, new Date())).toBe("pending");
+    expect(sent()).toBe(before);
+    expect(await reconciliationDeps.transfers.refreshPending(id, later(3).now)).toBe("completed");
+    expect(sent()).toBe(before + 1);
+  });
+
+  it("never claims a transfer into a wallet frozen after the check", async () => {
+    const id = await settledWithFailedTransfer();
+    await repos.wallets.freeze(creatorId);
+    expect(await repos.payments.claimTransfer(id)).toBeNull();
+    expect((await payment(id)).transferStatus).toBe("failed");
+  });
+
+  it("wallet provisioning finishing after a freeze keeps the wallet frozen", async () => {
+    const user = (await repos.users.insertIfEmailFree({ email: "musa@example.com", name: "Musa", passwordHash: null }))!;
+    await repos.wallets.ensure(user.id);
+    await repos.wallets.freeze(user.id);
+    expect(await repos.wallets.markActive(user.id, { id: "fac-late", uvan: "u" }, new Date())).toMatchObject({ status: "frozen", monimeFinancialAccountId: "fac-late" });
+    expect(await repos.wallets.recordFailure(user.id, "x", 5, new Date())).toMatchObject({ status: "frozen", attempts: 0 });
   });
 });
 

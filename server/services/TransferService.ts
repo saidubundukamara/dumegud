@@ -19,7 +19,11 @@ export type TransferServiceDeps = {
   sleep?: (ms: number) => Promise<void>;
   /** Short in-request polling for the transfer to complete before handing over to the cron. */
   pollAttempts?: number;
+  now?: () => Date;
 };
+
+/** A claim with no transfer id is only taken over once untouched this long (request in flight). */
+const STALE_CLAIM_MS = 2 * 60_000;
 
 /**
  * Moves a settled payment's creator net from the platform account to the creator's wallet
@@ -36,6 +40,7 @@ export class TransferService {
   private readonly platformAccountId: () => string;
   private readonly transaction: typeof runInTransaction;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly now: () => Date;
   private readonly pollAttempts: number;
 
   constructor(deps: TransferServiceDeps) {
@@ -45,6 +50,7 @@ export class TransferService {
     this.transaction = deps.transaction ?? runInTransaction;
     this.sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.pollAttempts = deps.pollAttempts ?? 3;
+    this.now = deps.now ?? (() => new Date());
   }
 
   async settleToCreator(paymentId: string): Promise<TransferOutcome> {
@@ -62,10 +68,10 @@ export class TransferService {
     }
 
     const claimed = await this.repos.payments.claimTransfer(paymentId);
-    if (!claimed) return "skipped"; // someone else has it
+    if (!claimed) return "skipped"; // someone else has it, or the wallet was frozen in between
 
     if (claimed.creatorNetMinor! <= 0) {
-      // Monime rejects zero-value transfers; there is nothing to move.
+      // Monime rejects zero-value transfers; there is nothing to move. We hold the claim.
       await this.repos.payments.update(paymentId, { transferStatus: "completed", settlementFrozen: true });
       return "completed";
     }
@@ -84,13 +90,15 @@ export class TransferService {
       );
     } catch (err) {
       const definitive = err instanceof MonimeApiError && !err.retryable;
-      await this.repos.payments.update(paymentId, {
-        transferStatus: "failed",
-        transferAttempts: claimed.transferAttempts + (definitive ? 1 : 0),
-        lastError: err instanceof MonimeApiError ? `${err.code}: ${err.message}` : "transfer request failed",
-      });
+      // Guarded by our attempt: if a stale-claim takeover already moved on, leave its attempt alone.
+      const failed = await this.repos.payments.markTransferFailed(
+        paymentId,
+        { attempt: claimed.transferAttempts },
+        definitive,
+        err instanceof MonimeApiError ? `${err.code}: ${err.message}` : "transfer request failed",
+      );
       logger.error("creator transfer failed to start", { paymentId, definitive, err });
-      return "failed";
+      return failed ? "failed" : "skipped";
     }
 
     await this.repos.payments.update(paymentId, { transferId: transfer.id });
@@ -105,12 +113,13 @@ export class TransferService {
    * For the retry cron (Phase 9): resolve a transfer left `pending`. Reads the stored transfer
    * first; if the request never got an id back, re-sends it with the same idempotency key.
    */
-  async refreshPending(paymentId: string): Promise<TransferOutcome> {
+  async refreshPending(paymentId: string, now: Date = this.now()): Promise<TransferOutcome> {
     const payment = await this.repos.payments.findById(paymentId);
     if (!payment || payment.transferStatus !== "pending") return "skipped";
     if (!payment.transferId) {
-      await this.repos.payments.update(paymentId, { transferStatus: "failed" }); // same attempt count → same key
-      return this.settleToCreator(paymentId);
+      // Same attempt count → same key. Only a claim untouched for a while: a fresh one is in flight.
+      const released = await this.repos.payments.releaseStaleTransferClaim(paymentId, new Date(now.getTime() - STALE_CLAIM_MS));
+      return released ? this.settleToCreator(paymentId) : "pending";
     }
     return this.apply(paymentId, await this.monime.getInternalTransfer(payment.transferId));
   }
@@ -129,14 +138,15 @@ export class TransferService {
       return "completed";
     }
     if (transfer.status === "failed") {
-      const payment = await this.repos.payments.findById(paymentId);
-      await this.repos.payments.update(paymentId, {
-        transferStatus: "failed",
-        transferAttempts: (payment?.transferAttempts ?? 0) + 1,
-        lastError: describeMonimeFailure(transfer, "Transfer failed"),
-      });
-      logger.error("creator transfer failed", { paymentId, transferId: transfer.id });
-      return "failed";
+      // One bump per failed transfer: a replayed failure (or one for an older transfer) matches nothing.
+      const failed = await this.repos.payments.markTransferFailed(
+        paymentId,
+        { transferId: transfer.id },
+        true,
+        describeMonimeFailure(transfer, "Transfer failed"),
+      );
+      if (failed) logger.error("creator transfer failed", { paymentId, transferId: transfer.id });
+      return failed ? "failed" : "skipped";
     }
     return "pending"; // the retry-transfers cron picks it up
   }

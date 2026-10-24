@@ -18,14 +18,35 @@ export class CreatorWalletRepository extends BaseRepository {
     return row ?? null;
   }
 
-  async markActive(userId: string, account: { id: string; uvan: string }, at: Date, tx?: Executor): Promise<void> {
-    await this.exec(tx)
-      .update(creatorWallets)
-      .set({ monimeFinancialAccountId: account.id, uvan: account.uvan, status: "active", lastError: null, lastAttemptAt: at })
-      .where(eq(creatorWallets.userId, userId));
+  /** Row-locks the wallet: the per-creator lock for payouts, deletion and erasure. */
+  async lockByUserId(userId: string, tx: Executor): Promise<CreatorWallet | null> {
+    const [row] = await tx.select().from(creatorWallets).where(eq(creatorWallets.userId, userId)).for("update").limit(1);
+    return row ?? null;
   }
 
-  /** Count a failed attempt; the wallet becomes `failed` once `failAfter` attempts are used up. */
+  /**
+   * Record the Monime account. A wallet frozen while the provider call was in flight keeps the
+   * account id but stays `frozen`: provisioning must never undo a freeze.
+   */
+  async markActive(userId: string, account: { id: string; uvan: string }, at: Date, tx?: Executor): Promise<CreatorWallet> {
+    const [row] = await this.exec(tx)
+      .update(creatorWallets)
+      .set({
+        monimeFinancialAccountId: account.id,
+        uvan: account.uvan,
+        status: sql`case when ${creatorWallets.status} = 'frozen' then 'frozen'::creator_wallet_status else 'active'::creator_wallet_status end`,
+        lastError: null,
+        lastAttemptAt: at,
+      })
+      .where(eq(creatorWallets.userId, userId))
+      .returning();
+    return row;
+  }
+
+  /**
+   * Count a failed attempt; the wallet becomes `failed` once `failAfter` attempts are used up.
+   * Only a wallet still being provisioned changes: a frozen or active one is returned as is.
+   */
   async recordFailure(userId: string, error: string, failAfter: number, at: Date, tx?: Executor): Promise<CreatorWallet> {
     const [row] = await this.exec(tx)
       .update(creatorWallets)
@@ -35,9 +56,9 @@ export class CreatorWalletRepository extends BaseRepository {
         lastAttemptAt: at,
         status: sql`case when ${creatorWallets.attempts} + 1 >= ${failAfter} then 'failed'::creator_wallet_status else 'pending'::creator_wallet_status end`,
       })
-      .where(eq(creatorWallets.userId, userId))
+      .where(and(eq(creatorWallets.userId, userId), inArray(creatorWallets.status, ["pending", "failed"])))
       .returning();
-    return row;
+    return row ?? (await this.findByUserId(userId, tx))!;
   }
 
   /** provision-wallets cron: wallets still without a Monime account, least recently tried first. */
