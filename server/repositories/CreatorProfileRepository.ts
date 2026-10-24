@@ -93,6 +93,15 @@ export class CreatorProfileRepository extends BaseRepository {
     return row ?? null;
   }
 
+  async setEmailPreferencesOwned(userId: string, prefs: { recapEmails: boolean; milestoneEmails: boolean }, tx?: Executor): Promise<boolean> {
+    const rows = await this.exec(tx)
+      .update(creatorProfiles)
+      .set(prefs)
+      .where(eq(creatorProfiles.userId, userId))
+      .returning({ id: creatorProfiles.id });
+    return rows.length > 0;
+  }
+
   /**
    * With `expected` (the key the caller read), nothing is written if the photo changed meanwhile,
    * so a concurrent upload or removal is never overwritten. Returns whether it was written.

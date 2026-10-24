@@ -504,3 +504,59 @@ export function accountDeletedTemplate(): Rendered {
     footer: "This is the last email you'll get from us about this account.",
   });
 }
+
+// ── Creators: recaps and milestones ───────────────────────────────────────────
+
+export function monthlyRecapTemplate(p: {
+  name: string | null;
+  month: string;
+  supporters: number;
+  newSupporters: number;
+  productsSold: number;
+  received: string;
+  bestMonth: boolean;
+  url: string;
+  settingsUrl: string;
+}): Rendered {
+  const name = firstName(p.name);
+  const people = `${p.supporters} ${plural(p.supporters, "person", "people")}`;
+  const rows: [string, string][] = [];
+  if (p.supporters) rows.push(["Supporters", String(p.supporters)]);
+  if (p.newSupporters) rows.push(["New this month", String(p.newSupporters)]);
+  if (p.productsSold) rows.push(["Products sold", String(p.productsSold)]);
+  rows.push(["Received after fees", nowrap(p.received)]);
+  const lead = p.supporters
+    ? `${people} supported you in ${p.month}.`
+    : `Fans bought what you make in ${p.month}.`;
+  return email({
+    tag: "monthly-recap",
+    subject: p.bestMonth ? `${p.month} was your best month yet` : `Your ${p.month} on DuMeGud`,
+    preheader: p.supporters ? `${people} supported you. Your recap card is ready to share.` : "Your recap card is ready to share.",
+    heading: p.bestMonth ? `${p.month} was your best month yet` : name ? `${name}, here's your ${p.month}` : `Here's your ${p.month}`,
+    blocks: [
+      para(lead),
+      { kind: "details", rows },
+      para("We made you a card for it. Amounts stay off unless you add them, so it's ready to post to your Status or Stories."),
+    ],
+    action: { label: "See my recap", url: p.url },
+    secondary: { label: "Stop monthly recap emails", url: p.settingsUrl },
+    footer: "You get this on the 1st whenever the month before had gifts or sales.",
+  });
+}
+
+export function milestoneTemplate(p: { name: string | null; title: string; you: string; url: string; settingsUrl: string }): Rendered {
+  const name = firstName(p.name);
+  return email({
+    tag: "milestone",
+    subject: `${p.you}`,
+    preheader: "We made you a card to celebrate. Share it with the people who got you here.",
+    heading: name ? `${p.you}, ${name}` : p.you,
+    blocks: [
+      para(`You just reached a new milestone on DuMeGud: ${p.title}.`),
+      para("We made you a card for it. Share it on your Status or Stories so the people who got you here can celebrate with you."),
+    ],
+    action: { label: "Get my card", url: p.url },
+    secondary: { label: "Stop milestone emails", url: p.settingsUrl },
+    footer: "We send this when you reach a milestone on DuMeGud.",
+  });
+}

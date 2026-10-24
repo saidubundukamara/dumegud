@@ -51,6 +51,8 @@ export type SettlementServiceDeps = {
   transaction?: typeof runInTransaction;
   limits?: Pick<LimitService, "postcheck">;
   risk?: Pick<RiskService, "evaluatePayment" | "raiseLimitBreaches">;
+  /** Celebrations only: runs after commit, and a failure never fails the webhook. */
+  milestones?: { checkAfterPayment(payment: PaymentRow): Promise<void> };
 };
 
 export type PollOptions = { source?: PaymentEventSource; expireBefore?: Date };
@@ -90,9 +92,11 @@ export class SettlementService {
   private readonly fulfilment: NonNullable<SettlementServiceDeps["fulfilment"]>;
   private readonly limits: SettlementServiceDeps["limits"];
   private readonly risk: SettlementServiceDeps["risk"];
+  private readonly milestones: SettlementServiceDeps["milestones"];
 
   constructor(deps: SettlementServiceDeps) {
     this.limits = deps.limits;
+    this.milestones = deps.milestones;
     this.risk = deps.risk;
     this.repos = deps.repos;
     this.fulfilment = deps.fulfilment ?? {};
@@ -388,6 +392,13 @@ export class SettlementService {
       }
     }
     if (payment.status === "succeeded" && payment.creatorNetMinor !== null) await this.startTransfer(payment.id);
+    if (payment.status === "succeeded" && this.milestones) {
+      try {
+        await this.milestones.checkAfterPayment(payment);
+      } catch (err) {
+        logger.error("milestone check failed", { paymentId: payment.id, err });
+      }
+    }
     const profile = await this.repos.profiles.findByUserId(payment.creatorId);
     return { status: "processed", revalidate: profile ? [creatorTag(profile.id)] : [] };
   }

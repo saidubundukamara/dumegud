@@ -50,6 +50,9 @@ export type OwnProfileDTO = {
   handleLockedUntil: Date | null;
 };
 
+/** Which creator emails the creator wants (recap on the 1st, milestones). */
+export type EmailPreferences = { recapEmails: boolean; milestoneEmails: boolean };
+
 export type ChecklistItem = { key: string; label: string; done: boolean };
 
 /** Cache tags to refresh after a change (internal ids and public handles only, no PII). */
@@ -213,6 +216,15 @@ export class CreatorService {
     const profile = await this.repos.profiles.findByUserId(actor.userId);
     if (!profile) throw new ConflictError("Set up your page before accepting the creator terms.");
     if (!profile.creatorTermsAcceptedAt) await this.repos.profiles.acceptTermsOwned(actor.userId, this.now()); // keeps the first acceptance
+  }
+
+  async getEmailPreferences(actor: Actor): Promise<EmailPreferences | null> {
+    const profile = await this.repos.profiles.findByUserId(actor.userId);
+    return profile ? { recapEmails: profile.recapEmails, milestoneEmails: profile.milestoneEmails } : null;
+  }
+
+  async setEmailPreferences(actor: Actor, prefs: EmailPreferences): Promise<void> {
+    if (!(await this.repos.profiles.setEmailPreferencesOwned(actor.userId, prefs))) throw new ConflictError("Set up your page first.");
   }
 
   /** What still stands between the creator and a live page. Shown on the dashboard. */

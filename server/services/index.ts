@@ -12,6 +12,7 @@ import { AuthTokenRepository } from "@/server/repositories/AuthTokenRepository";
 import { CategoryRepository } from "@/server/repositories/CategoryRepository";
 import { CreatorProfileRepository } from "@/server/repositories/CreatorProfileRepository";
 import { CreatorWalletRepository } from "@/server/repositories/CreatorWalletRepository";
+import { EngagementRepository } from "@/server/repositories/EngagementRepository";
 import { HandleRepository } from "@/server/repositories/HandleRepository";
 import { JobRepository } from "@/server/repositories/JobRepository";
 import { LedgerRepository } from "@/server/repositories/LedgerRepository";
@@ -40,12 +41,14 @@ import { DownloadService } from "./DownloadService";
 import { JobService } from "./JobService";
 import { KycService } from "./KycService";
 import { LimitService } from "./LimitService";
+import { MilestoneService } from "./MilestoneService";
 import { OrderService } from "./OrderService";
 import { PayoutMethodService } from "./PayoutMethodService";
 import { PayoutService } from "./PayoutService";
 import { ProductReviewService } from "./ProductReviewService";
 import { ProductService } from "./ProductService";
 import { ReconciliationService } from "./ReconciliationService";
+import { RecapService } from "./RecapService";
 import { ReportService } from "./ReportService";
 import { RiskService } from "./RiskService";
 import { PlatformSettingsService } from "./PlatformSettingsService";
@@ -84,6 +87,7 @@ export const repos = {
   shoutouts: new ShoutoutRepository(),
   accountDeletions: new AccountDeletionRepository(),
   jobs: new JobRepository(),
+  engagement: new EngagementRepository(),
 };
 
 // Compliance hooks shared by most services (stateless, safe to create at import).
@@ -120,6 +124,8 @@ let admin: AdminService | undefined;
 let accountDeletions: AccountDeletionService | undefined;
 let jobs: JobService | undefined;
 let reconciliation: ReconciliationService | undefined;
+let recaps: RecapService | undefined;
+let milestones: MilestoneService | undefined;
 
 /** Null while R2 isn't configured. */
 function getStorage(): R2Storage | null {
@@ -204,6 +210,7 @@ export const services = {
       limits,
       risk,
       fulfilment: { order: services.orders },
+      milestones: services.milestones,
       transfers: services.transfers,
       settings: services.settings,
       monime: getMonime(),
@@ -372,6 +379,14 @@ export const services = {
       buckets: { products: env.R2_PRODUCTS_BUCKET, public: env.R2_PUBLIC_BUCKET },
     });
     return reconciliation;
+  },
+  get recaps(): RecapService {
+    recaps ??= new RecapService({ repos, email: getEmail(), appBaseUrl: getEnv().APP_BASE_URL });
+    return recaps;
+  },
+  get milestones(): MilestoneService {
+    milestones ??= new MilestoneService({ repos, email: getEmail(), appBaseUrl: getEnv().APP_BASE_URL });
+    return milestones;
   },
   get audit(): AuditService {
     return audit;

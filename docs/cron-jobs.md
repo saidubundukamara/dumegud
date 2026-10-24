@@ -15,6 +15,8 @@ On the **Vercel Hobby** plan, Vercel only runs crons once a day. So jobs are spl
 | --- | --- | --- |
 | `cleanup` | daily 03:30 UTC | Vercel (`vercel.ts`) |
 | `account-deletions` | daily 04:00 UTC | Vercel (`vercel.ts`) |
+| `milestones` | daily 06:30 UTC | Vercel (`vercel.ts`) |
+| `recaps` | daily 07:00 UTC | Vercel (`vercel.ts`) |
 | `provision-wallets` | every 5 min | cron-job.org |
 | `retry-transfers` | every 5 min | cron-job.org |
 | `reconcile-payments` | every 10 min | cron-job.org |

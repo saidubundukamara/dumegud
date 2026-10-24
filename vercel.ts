@@ -20,5 +20,10 @@ export const config: VercelConfig = {
     { path: "/api/cron/cleanup", schedule: "30 3 * * *" },
     // Erase accounts whose 30-day deletion grace period has ended (04:00 UTC = 04:00 in Freetown).
     { path: "/api/cron/account-deletions", schedule: "0 4 * * *" },
+    // Milestone sweep: anniversaries, missed webhooks, failed emails (06:30 UTC = 06:30 in Freetown).
+    { path: "/api/cron/milestones", schedule: "30 6 * * *" },
+    // Last month's recaps and emails (07:00 in Freetown). Daily rather than monthly so a failed
+    // 1st is picked up on the 2nd; it does nothing once every recap is built and emailed.
+    { path: "/api/cron/recaps", schedule: "0 7 * * *" },
   ],
 };
