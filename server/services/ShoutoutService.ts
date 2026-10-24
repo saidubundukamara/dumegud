@@ -145,12 +145,15 @@ export class ShoutoutService {
     const at = this.now();
     const { thanked, shoutoutId } = await this.transaction(async (tx) => {
       const thanked = await this.deps.repos.shoutouts.markThanked(actor.userId, ids, at, tx);
+      // A double submit: the first one already thanked everyone, so there is no new post to record.
+      if (thanked === 0) return { thanked, shoutoutId: null };
       const row = await this.deps.repos.shoutouts.insert(
         { creatorId: actor.userId, period: opts.period, platform: opts.platform, includeTop: opts.includeTop, contributionIds: named },
         tx,
       );
       return { thanked, shoutoutId: row.id };
     });
+    if (!shoutoutId) return { thanked };
     await this.deps.audit?.log({
       actor,
       action: "shoutout.posted",

@@ -190,6 +190,18 @@ describe("changePassword / signOutEverywhere", () => {
     expect(fakes.users.get(user.id)).toMatchObject({ passwordHash: "hashed:brand new password", sessionVersion: 2 });
   });
 
+  it("doesn't overwrite a password reset that landed while the new password was hashing", async () => {
+    const user = fakes.addUser({ passwordHash: `hashed:${PASSWORD}` });
+    const stale = { ...fakes.users.get(user.id)! };
+    fakes.users.set(user.id, { ...stale, passwordHash: "hashed:reset by the owner" }); // the reset commits
+    const repo = fakes.deps.repos.users as unknown as { findById: (id: string) => Promise<unknown> };
+    repo.findById = async () => stale; // what changePassword read before it
+    await expect(
+      service.changePassword(actorFor(user.id), { currentPassword: PASSWORD, password: "brand new password", confirmPassword: "brand new password" }, ctx),
+    ).rejects.toThrow(/just changed/);
+    expect(fakes.users.get(user.id)?.passwordHash).toBe("hashed:reset by the owner");
+  });
+
   it("signOutEverywhere bumps the session version", async () => {
     const user = fakes.addUser({});
     await service.signOutEverywhere(actorFor(user.id), ctx);

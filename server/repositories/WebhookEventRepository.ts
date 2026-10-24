@@ -52,8 +52,13 @@ export class WebhookEventRepository extends BaseRepository {
     return { claimed: false, status: existing?.status ?? "processing" };
   }
 
+  /**
+   * Record the outcome of one claim. Guarded by the claim's attempt number (every claim and
+   * reclaim bumps it): a slow handler whose claim went stale and was taken over can't overwrite
+   * the newer attempt's outcome.
+   */
   async finish(
-    id: string,
+    claim: { id: string; attempts: number },
     status: Extract<WebhookEventStatus, "processed" | "ignored" | "failed" | "dead">,
     now: Date,
     error?: string,
@@ -66,7 +71,7 @@ export class WebhookEventRepository extends BaseRepository {
         lastError: error ?? null,
         processedAt: status === "processed" || status === "ignored" ? now : null,
       })
-      .where(eq(webhookEvents.id, id));
+      .where(and(eq(webhookEvents.id, claim.id), eq(webhookEvents.attempts, claim.attempts)));
   }
 
   /** Staff replay of a failed/dead event: take it back into processing (guarded). */

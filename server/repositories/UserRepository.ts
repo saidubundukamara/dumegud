@@ -93,13 +93,22 @@ export class UserRepository extends BaseRepository {
     return row?.count ?? 0;
   }
 
+  /** Never shortens a lockout: failed logins finishing out of order can't replace a longer one. */
   async setLockedUntil(id: string, lockedUntil: Date, tx?: Executor): Promise<void> {
-    await this.exec(tx).update(users).set({ lockedUntil }).where(eq(users.id, id));
+    const until = sql`${lockedUntil.toISOString()}::timestamptz`;
+    await this.exec(tx)
+      .update(users)
+      .set({ lockedUntil: sql`greatest(coalesce(${users.lockedUntil}, ${until}), ${until})` })
+      .where(eq(users.id, id));
   }
 
-  /** Set a new password, clear lockout and revoke every existing session. */
-  async setPasswordHash(id: string, passwordHash: string, tx?: Executor): Promise<void> {
-    await this.exec(tx)
+  /**
+   * Set a new password, clear lockout and revoke every existing session. With `expectedHash`
+   * (a change that verified the current password) nothing is written if the password changed
+   * meanwhile, e.g. by a reset. Returns whether it was written.
+   */
+  async setPasswordHash(id: string, passwordHash: string, tx?: Executor, opts: { expectedHash?: string } = {}): Promise<boolean> {
+    const rows = await this.exec(tx)
       .update(users)
       .set({
         passwordHash,
@@ -107,7 +116,9 @@ export class UserRepository extends BaseRepository {
         lockedUntil: null,
         sessionVersion: sql`${users.sessionVersion} + 1`,
       })
-      .where(eq(users.id, id));
+      .where(and(eq(users.id, id), opts.expectedHash !== undefined ? eq(users.passwordHash, opts.expectedHash) : undefined))
+      .returning({ id: users.id });
+    return rows.length > 0;
   }
 
   async bumpSessionVersion(id: string, tx?: Executor): Promise<void> {

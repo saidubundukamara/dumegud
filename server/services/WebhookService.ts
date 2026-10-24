@@ -60,15 +60,15 @@ export class WebhookService {
     const event = parse(claim.payload);
     const handler = event ? this.handlers[event.event.name] : undefined;
     if (!event || !handler) {
-      await this.events.finish(claim.id, "ignored", this.now());
+      await this.events.finish(claim, "ignored", this.now());
       return "ignored";
     }
     try {
       const result = await handler(event);
-      await this.events.finish(claim.id, result.status, this.now());
+      await this.events.finish(claim, result.status, this.now());
       return result.status;
     } catch (err) {
-      await this.events.finish(claim.id, "failed", this.now(), err instanceof Error ? err.message.slice(0, 500) : "unknown error");
+      await this.events.finish(claim, "failed", this.now(), err instanceof Error ? err.message.slice(0, 500) : "unknown error");
       return "failed";
     }
   }
@@ -97,13 +97,13 @@ export class WebhookService {
     const handler = this.handlers[event.event.name];
     if (!handler) {
       logger.warn("monime webhook: no handler for event type; recorded as ignored", fields);
-      await this.events.finish(claim.id, "ignored", this.now());
+      await this.events.finish(claim, "ignored", this.now());
       return { response: "ok", revalidate: [] };
     }
 
     try {
       const result = await handler(event);
-      await this.events.finish(claim.id, result.status, this.now());
+      await this.events.finish(claim, result.status, this.now());
       return { response: "ok", revalidate: result.revalidate ?? [] };
     } catch (err) {
       const message = err instanceof Error ? err.message.slice(0, 500) : "unknown error";
@@ -112,11 +112,11 @@ export class WebhookService {
       if (permanent) {
         // Phase 7 turns this into an admin alert row.
         logger.error("monime webhook: permanently failed; needs staff attention", { ...fields, err });
-        await this.events.finish(claim.id, "dead", this.now(), message);
+        await this.events.finish(claim, "dead", this.now(), message);
         return { response: "ok", revalidate: [] };
       }
       logger.warn("monime webhook: failed; provider will retry", { ...fields, err });
-      await this.events.finish(claim.id, "failed", this.now(), message);
+      await this.events.finish(claim, "failed", this.now(), message);
       return { response: "retry", revalidate: [] };
     }
   }

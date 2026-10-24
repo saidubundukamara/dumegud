@@ -76,9 +76,11 @@ export function createAuthFakes(opts: { now?: Date } = {}) {
       return count;
     },
     setLockedUntil: async (id: string, lockedUntil: Date) => update(id, { lockedUntil }),
-    setPasswordHash: async (id: string, passwordHash: string) => {
+    setPasswordHash: async (id: string, passwordHash: string, _tx?: unknown, opts: { expectedHash?: string } = {}) => {
       const u = users.get(id)!;
+      if (opts.expectedHash !== undefined && u.passwordHash !== opts.expectedHash) return false;
       update(id, { passwordHash, failedLoginCount: 0, lockedUntil: null, sessionVersion: u.sessionVersion + 1 });
+      return true;
     },
     bumpSessionVersion: async (id: string) => update(id, { sessionVersion: users.get(id)!.sessionVersion + 1 }),
     markEmailVerified: async (id: string, at: Date) => {
@@ -101,6 +103,9 @@ export function createAuthFakes(opts: { now?: Date } = {}) {
     replacePasswordResetToken: async (userId: string, tokenHash: string, expiresAt: Date) => {
       for (const [k, v] of resets) if (v.userId === userId && !v.usedAt) resets.delete(k);
       resets.set(tokenHash, { userId, expiresAt, usedAt: null });
+    },
+    invalidateUnusedResetTokens: async (userId: string) => {
+      for (const [k, v] of resets) if (v.userId === userId && !v.usedAt) resets.delete(k);
     },
     consumePasswordResetToken: async (tokenHash: string, at: Date) => {
       const row = resets.get(tokenHash);

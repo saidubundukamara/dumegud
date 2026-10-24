@@ -29,8 +29,9 @@ function fakeEvents() {
       }
       return { claimed: false, status: row.status };
     },
-    async finish(id: string, status: WebhookEventStatus, _now: Date, error?: string) {
-      Object.assign(rows.get(id)!, { status, lastError: error });
+    async finish(claim: { id: string; attempts: number }, status: WebhookEventStatus, _now: Date, error?: string) {
+      const row = rows.get(claim.id)!;
+      if (row.attempts === claim.attempts) Object.assign(row, { status, lastError: error });
     },
   };
   return { rows, repo: repo as unknown as WebhookEventRepository };
@@ -129,6 +130,24 @@ describe("WebhookService.handleMonime", () => {
     await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(2));
     releases.forEach((release) => release());
     await Promise.all([first, second]);
+    expect(events.rows.get("wkd-1")).toMatchObject({ status: "processed", attempts: 2 });
+  });
+
+  it("a slow handler whose claim was taken over can't overwrite the newer outcome", async () => {
+    const releases: ((ok: boolean) => void)[] = [];
+    const handler = vi.fn<WebhookHandler>(
+      () => new Promise((resolve, reject) => releases.push((ok) => (ok ? resolve({ status: "processed" }) : reject(new Error("late failure"))))),
+    );
+    const svc = service({ "payment.processing_completed": handler });
+    const first = svc.handleMonime(event(), {});
+    await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(1));
+    now = new Date(now.getTime() + STALE_CLAIM_MS + 1);
+    const second = svc.handleMonime(event(), {});
+    await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(2));
+    releases[1](true); // the takeover succeeds...
+    await second;
+    releases[0](false); // ...then the original, stale attempt fails
+    await first;
     expect(events.rows.get("wkd-1")).toMatchObject({ status: "processed", attempts: 2 });
   });
 });

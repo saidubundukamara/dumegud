@@ -9,7 +9,7 @@ import {
 } from "@/server/integrations/email/templates";
 import { checkDateOfBirth } from "@/lib/age";
 import { encryptField, randomToken, sha256 } from "@/server/lib/crypto";
-import { ValidationError } from "@/server/lib/errors";
+import { ConflictError, ValidationError } from "@/server/lib/errors";
 import { pepperedHash } from "@/server/lib/hash";
 import { logger } from "@/server/lib/logger";
 import { hashPassword, verifyAgainstDummy, verifyPassword } from "@/server/lib/password";
@@ -156,7 +156,11 @@ export class AuthService {
       logger.info("under-18 sign-up removed at the age gate");
       return "deleted";
     }
-    await this.repos.users.setDateOfBirth(actor.userId, encryptField(dateOfBirth));
+    // False when the sign-up was abandoned (deleted) meanwhile: then there is no one to provision.
+    if (!(await this.repos.users.setDateOfBirth(actor.userId, encryptField(dateOfBirth)))) {
+      const current = await this.repos.users.findById(actor.userId);
+      if (!current) return "deleted";
+    }
     if (this.wallets) {
       await this.wallets.provisionForCreator(actor.userId).catch((err) => {
         logger.error("wallet provisioning threw after the age gate", { userId: actor.userId, err });
@@ -292,6 +296,7 @@ export class AuthService {
       const id = await this.repos.authTokens.consumePasswordResetToken(sha256(input.token), now, tx);
       if (!id) return null;
       await this.repos.users.setPasswordHash(id, passwordHash, tx);
+      await this.repos.authTokens.invalidateUnusedResetTokens(id, tx);
       await this.repos.users.markEmailVerified(id, now, tx);
       await this.logEvent(id, "password_changed", ctx, tx);
       return id;
@@ -311,10 +316,13 @@ export class AuthService {
       throw new ValidationError(undefined, { currentPassword: ["That password is incorrect."] });
     }
     const passwordHash = await hashPassword(input.password);
-    await this.transaction(async (tx) => {
-      await this.repos.users.setPasswordHash(user.id, passwordHash, tx);
+    // Only over the password just verified: a reset that landed during the slow hashing wins.
+    const changed = await this.transaction(async (tx) => {
+      if (!(await this.repos.users.setPasswordHash(user.id, passwordHash, tx, { expectedHash: user.passwordHash! }))) return false;
       await this.logEvent(user.id, "password_changed", ctx, tx);
+      return true;
     });
+    if (!changed) throw new ConflictError("Your password was just changed. Sign in again with the new one.");
     await this.sendPasswordChangedEmail(user.id);
   }
 
