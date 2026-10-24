@@ -15,6 +15,12 @@ export class UserRepository extends BaseRepository {
     return row ?? null;
   }
 
+  /** Row-locks the user: serialises publishing, deletion requests and token issuing per account. */
+  async lockById(id: string, tx: Executor): Promise<User | null> {
+    const [row] = await tx.select().from(users).where(eq(users.id, id)).for("update").limit(1);
+    return row ?? null;
+  }
+
   /** `email` must already be normalised (trimmed, lowercased). */
   async findByEmail(email: string, tx?: Executor): Promise<User | null> {
     const [row] = await this.exec(tx).select().from(users).where(eq(users.email, email)).limit(1);

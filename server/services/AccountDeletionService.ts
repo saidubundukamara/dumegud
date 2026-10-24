@@ -29,7 +29,7 @@ import type { AuthService } from "./AuthService";
 import { noAudit, type AuditLogger } from "./compliance";
 import { accounts, forfeitJournal } from "./ledger";
 import type { RiskService } from "./RiskService";
-import { runInTransaction } from "./transaction";
+import { runInTransaction, type Tx } from "./transaction";
 
 const DAY = 24 * 60 * 60 * 1000;
 export const DELETION_GRACE_DAYS = 30;
@@ -90,6 +90,12 @@ export type DeletionReadiness = {
 
 export type DeletionStatus = { eraseAfter: Date; forfeitedMinor: number } | null;
 
+/** The database half of the money checks: re-read under the wallet lock before acting on it. */
+type MoneyState = { openPayout: boolean; unsettled: number; pendingTransfer: number; owed: number };
+
+const sameMoneyState = (a: MoneyState, b: MoneyState) =>
+  a.openPayout === b.openPayout && a.unsettled === b.unsettled && a.pendingTransfer === b.pendingTransfer && a.owed === b.owed;
+
 /**
  * A creator deleting their own account (see the plan in implementation.md, "Account deletion").
  *
@@ -126,7 +132,8 @@ export class AccountDeletionService {
   }
 
   async readiness(actor: Actor): Promise<DeletionReadiness> {
-    return this.check(actor.userId);
+    const { checks, canDelete, forfeitableMinor } = await this.check(actor.userId);
+    return { checks, canDelete, forfeitableMinor };
   }
 
   /**
@@ -162,11 +169,18 @@ export class AccountDeletionService {
     let deletion: AccountDeletion;
     try {
       deletion = await this.transaction(async (tx) => {
+        // Lock order: user (serialises with publishing), then wallet (serialises with withdrawals).
+        // The checks above ran without locks, so re-read the money state and refuse if it moved.
+        await this.repos.users.lockById(actor.userId, tx);
+        await this.repos.wallets.lockByUserId(actor.userId, tx);
+        if (!sameMoneyState(readiness.money, await this.moneyState(actor.userId, now, tx))) {
+          throw new ConflictError("Something changed in your account while you were deleting it. Please check and try again.");
+        }
         const row = await this.repos.accountDeletions.insert(
           { userId: actor.userId, requestedAt: now, eraseAfter, forfeitedMinor: readiness.forfeitableMinor },
           tx,
         );
-        if (profile && profile.status === "published") await this.repos.profiles.setStatusOwned(actor.userId, "unpublished", null, tx);
+        await this.repos.profiles.unpublishIfPublished(actor.userId, tx); // the current status, not the one read above
         await this.repos.users.bumpSessionVersion(actor.userId, tx);
         return row;
       });
@@ -253,6 +267,11 @@ export class AccountDeletionService {
     const erased = await this.transaction(async (tx) => {
       const open = await this.repos.accountDeletions.lockOpen(deletion.id, tx);
       if (!open) return null; // cancelled or erased by another run meanwhile
+      // Money that arrived after the check above (a late webhook claiming a transfer, a payout)
+      // must hold the erasure: re-check under the wallet lock, before freezing it.
+      await this.repos.wallets.lockByUserId(userId, tx);
+      const money = await this.moneyState(userId, this.now(), tx);
+      if (money.openPayout || money.unsettled > 0 || money.pendingTransfer > 0 || money.owed > 0) return "blocked" as const;
       const before = await this.repos.profiles.anonymise(userId, placeholderHandle(), tx);
       if (before) await this.repos.handles.deleteHistory(before.handleLower, tx);
       await this.repos.products.unpublishAllForCreator(userId, tx);
@@ -264,6 +283,10 @@ export class AccountDeletionService {
       return { before };
     });
     if (!erased) return "skipped";
+    if (erased === "blocked") {
+      logger.warn("account erasure blocked: money moved during erasure", { deletionId: deletion.id });
+      return "blocked";
+    }
     await this.audit.log({ actor: null, action: "account.erased", targetType: "user", targetId: userId, after: { deletionId: deletion.id } });
 
     // Files after commit, best effort: a leftover object holds nothing the database still links to.
@@ -283,19 +306,25 @@ export class AccountDeletionService {
 
   // ── Internals ─────────────────────────────────────────────────────────────────
 
-  private async check(userId: string): Promise<DeletionReadiness> {
+  private async moneyState(userId: string, now: Date, tx?: Tx): Promise<MoneyState> {
+    // Sequential: a transaction runs one statement at a time.
+    const openPayout = Boolean(await this.repos.payouts.findOpenForCreator(userId, tx));
+    const unsettled = await this.repos.payments.countUnsettledForCreator(userId, new Date(now.getTime() - UNSETTLED_LOOKBACK_MS), tx);
+    const pendingTransfer = await this.repos.payments.pendingTransferTotal(userId, tx);
+    // creator_payable is a liability (credits negative), so what we owe is its negation.
+    const owed = Math.max(0, -(await this.repos.ledger.balance(accounts.creatorPayable(userId), tx)));
+    return { openPayout, unsettled, pendingTransfer, owed };
+  }
+
+  private async check(userId: string): Promise<DeletionReadiness & { money: MoneyState }> {
     const now = this.now();
-    const [openCase, restrictions, openPayout, unsettled, pendingTransfer, payableBalance, wallet] = await Promise.all([
+    const [openCase, restrictions, money, wallet] = await Promise.all([
       this.repos.risk.openCaseForCreator(userId),
       this.repos.risk.activeRestrictions(userId, now),
-      this.repos.payouts.findOpenForCreator(userId),
-      this.repos.payments.countUnsettledForCreator(userId, new Date(now.getTime() - UNSETTLED_LOOKBACK_MS)),
-      this.repos.payments.pendingTransferTotal(userId),
-      this.repos.ledger.balance(accounts.creatorPayable(userId)),
+      this.moneyState(userId, now),
       this.repos.wallets.findByUserId(userId),
     ]);
-    // creator_payable is a liability (credits negative), so what we owe is its negation.
-    const owed = Math.max(0, -payableBalance);
+    const { openPayout, unsettled, pendingTransfer, owed } = money;
 
     let live: number | null = 0;
     if (wallet?.monimeFinancialAccountId && wallet.status !== "pending") {
@@ -358,7 +387,7 @@ export class AccountDeletionService {
       },
     ];
     const canDelete = checks.every((c) => c.done || (c.key === "balance" && forfeitable > 0));
-    return { checks, canDelete, forfeitableMinor: forfeitable };
+    return { checks, canDelete, forfeitableMinor: forfeitable, money };
   }
 
   /**

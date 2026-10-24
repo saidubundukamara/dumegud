@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, ne, notInArray } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne, notInArray, sql } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import {
   categories,
@@ -28,6 +28,12 @@ export type PublicProfileRow = {
 export class CreatorProfileRepository extends BaseRepository {
   async findByUserId(userId: string, tx?: Executor): Promise<CreatorProfile | null> {
     const [row] = await this.exec(tx).select().from(creatorProfiles).where(eq(creatorProfiles.userId, userId)).limit(1);
+    return row ?? null;
+  }
+
+  /** Row-locks the profile (handle changes, risk tier). */
+  async lockByUserId(userId: string, tx: Executor): Promise<CreatorProfile | null> {
+    const [row] = await tx.select().from(creatorProfiles).where(eq(creatorProfiles.userId, userId)).for("update").limit(1);
     return row ?? null;
   }
 
@@ -87,15 +93,29 @@ export class CreatorProfileRepository extends BaseRepository {
     return row ?? null;
   }
 
-  async setAvatarKeyOwned(userId: string, avatarKey: string | null, tx?: Executor): Promise<void> {
-    await this.exec(tx).update(creatorProfiles).set({ avatarKey }).where(eq(creatorProfiles.userId, userId));
+  /**
+   * With `expected` (the key the caller read), nothing is written if the photo changed meanwhile,
+   * so a concurrent upload or removal is never overwritten. Returns whether it was written.
+   */
+  async setAvatarKeyOwned(userId: string, avatarKey: string | null, tx?: Executor, opts: { expected?: string | null } = {}): Promise<boolean> {
+    const rows = await this.exec(tx)
+      .update(creatorProfiles)
+      .set({ avatarKey })
+      .where(
+        and(
+          eq(creatorProfiles.userId, userId),
+          opts.expected !== undefined ? sql`${creatorProfiles.avatarKey} is not distinct from ${opts.expected}` : undefined,
+        ),
+      )
+      .returning({ id: creatorProfiles.id });
+    return rows.length > 0;
   }
 
   async acceptTermsOwned(userId: string, at: Date, tx?: Executor): Promise<void> {
     await this.exec(tx)
       .update(creatorProfiles)
       .set({ creatorTermsAcceptedAt: at })
-      .where(eq(creatorProfiles.userId, userId));
+      .where(and(eq(creatorProfiles.userId, userId), isNull(creatorProfiles.creatorTermsAcceptedAt)));
   }
 
   /** Status change, never touching a suspended profile (only staff lift suspensions). */
@@ -109,6 +129,16 @@ export class CreatorProfileRepository extends BaseRepository {
       .update(creatorProfiles)
       .set(publishedAt ? { status, publishedAt } : { status })
       .where(and(eq(creatorProfiles.userId, userId), ne(creatorProfiles.status, "suspended")))
+      .returning();
+    return row ?? null;
+  }
+
+  /** Takes a live page offline; any other status (draft, suspended, …) is left alone. */
+  async unpublishIfPublished(userId: string, tx?: Executor): Promise<CreatorProfile | null> {
+    const [row] = await this.exec(tx)
+      .update(creatorProfiles)
+      .set({ status: "unpublished" })
+      .where(and(eq(creatorProfiles.userId, userId), eq(creatorProfiles.status, "published")))
       .returning();
     return row ?? null;
   }

@@ -29,6 +29,7 @@ export function createCreatorFakes(opts: { now?: Date } = {}) {
 
   const profileRepo = {
     findByUserId: async (userId: string) => byUser(userId),
+    lockByUserId: async (userId: string) => byUser(userId),
     findByHandleLower: async (h: string) => byHandle(h),
     findById: async (id: string) => profiles.get(id) ?? null,
     findPublicByHandleLower: async (h: string) => {
@@ -70,9 +71,11 @@ export function createCreatorFakes(opts: { now?: Date } = {}) {
       profiles.set(p.id, next);
       return next;
     },
-    setAvatarKeyOwned: async (userId: string, avatarKey: string | null) => {
+    setAvatarKeyOwned: async (userId: string, avatarKey: string | null, _tx?: unknown, opts: { expected?: string | null } = {}) => {
       const p = byUser(userId);
-      if (p) profiles.set(p.id, { ...p, avatarKey });
+      if (!p || (opts.expected !== undefined && p.avatarKey !== opts.expected)) return false;
+      profiles.set(p.id, { ...p, avatarKey });
+      return true;
     },
     acceptTermsOwned: async (userId: string, at: Date) => {
       const p = byUser(userId);

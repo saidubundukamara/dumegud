@@ -75,7 +75,11 @@ export class AvatarService {
       contentType: "image/webp",
       cacheControl: "public, max-age=31536000, immutable",
     });
-    await this.profiles.setAvatarKeyOwned(actor.userId, publicKey);
+    // Only over the photo read above: if another upload or a removal got in first, keep theirs.
+    if (!(await this.profiles.setAvatarKeyOwned(actor.userId, publicKey, undefined, { expected: profile.avatarKey }))) {
+      await this.deleteQuietly(this.buckets.public, publicKey);
+      throw new ConflictError("Your photo changed while this one was uploading. Reload the page to see it.");
+    }
     if (profile.avatarKey) await this.deleteQuietly(this.buckets.public, profile.avatarKey);
     return { profileId: profile.id, handles: [profile.handleLower] };
   }
@@ -83,7 +87,7 @@ export class AvatarService {
   async removeAvatar(actor: Actor): Promise<ProfileChange | null> {
     const profile = await this.profiles.findByUserId(actor.userId);
     if (!profile?.avatarKey) return null;
-    await this.profiles.setAvatarKeyOwned(actor.userId, null);
+    if (!(await this.profiles.setAvatarKeyOwned(actor.userId, null, undefined, { expected: profile.avatarKey }))) return null; // already replaced
     await this.deleteQuietly(this.buckets.public, profile.avatarKey);
     return { profileId: profile.id, handles: [profile.handleLower] };
   }

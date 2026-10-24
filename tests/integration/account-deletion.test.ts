@@ -21,7 +21,7 @@ import { accounts, settleJournal, transferJournal } from "@/server/services/ledg
 import { runInTransaction } from "@/server/services/transaction";
 import { WalletService } from "@/server/services/WalletService";
 import { createMemoryStorage } from "../fixtures/creator-fakes";
-import { createTestDb, type TestDb } from "./db";
+import { createTestDb, racingTransaction, type TestDb } from "./db";
 
 // Creators deleting their own account: never while money is owed, a 30-day grace period, then
 // erasure that keeps money records but nothing personal.
@@ -38,6 +38,7 @@ let now: Date;
 let creator: Actor;
 let walletAccountId: string;
 let deletions: AccountDeletionService;
+let deletionDeps: ConstructorParameters<typeof AccountDeletionService>[0];
 
 const repos = {
   accountDeletions: new AccountDeletionRepository(),
@@ -81,7 +82,7 @@ beforeEach(async () => {
   store.put("public", "avatars/a.webp", new Uint8Array([1]));
   creator = { userId: user.id, role: "creator", status: "active", emailVerified: true };
 
-  deletions = new AccountDeletionService({
+  deletionDeps = {
     repos,
     monime,
     auth: { confirmPassword: async (_actor, password) => password === PASSWORD },
@@ -93,8 +94,17 @@ beforeEach(async () => {
     risk: { raise: async (a) => void alerts.push(a) },
     now: () => now,
     rateLimit: async () => {},
-  });
+  };
+  deletions = new AccountDeletionService(deletionDeps);
 });
+
+/** A settled payment whose transfer to the wallet hasn't happened yet. */
+const moneyOnItsWay = () =>
+  t.client.query(
+    `insert into payments (kind, creator_id, status, gross_minor, platform_fee_bps, idempotency_key, creator_net_minor, settlement_frozen)
+     values ('contribution', $1, 'succeeded', 2000, 0, $2, 2000, false)`,
+    [creator.userId, `late-${crypto.randomUUID()}`],
+  );
 
 /** Money the creator earned: settled, transferred to their wallet (ledger + fake Monime). */
 async function earn(amountMinor: number) {
@@ -272,5 +282,36 @@ describe("erasure", () => {
     await deletions.cancelDeletion(creator);
     now = new Date(now.getTime() + 31 * DAY);
     expect((await deletions.eraseDue()).erased).toBe(0);
+  });
+});
+
+describe("races", () => {
+  it("refuses the deletion if money moved between the checks and the lock", async () => {
+    const racing = new AccountDeletionService({ ...deletionDeps, transaction: racingTransaction(moneyOnItsWay) });
+    await expect(racing.requestDeletion(creator, confirm)).rejects.toThrow(/Something changed/);
+    expect(await deletions.status(creator)).toBeNull();
+    expect((await repos.profiles.findByUserId(creator.userId))!.status).toBe("published");
+  });
+
+  it("holds the erasure if money arrived between its checks and the freeze", async () => {
+    await deletions.requestDeletion(creator, confirm);
+    now = new Date(now.getTime() + 31 * DAY);
+    const racing = new AccountDeletionService({ ...deletionDeps, transaction: racingTransaction(moneyOnItsWay) });
+    expect(await racing.eraseDue()).toMatchObject({ erased: 0, blocked: 1 });
+    expect((await repos.users.findById(creator.userId))!.status).toBe("active");
+    expect((await repos.wallets.findByUserId(creator.userId))!.status).toBe("active");
+  });
+
+  it("won't publish when a deletion committed after publish checked for one", async () => {
+    await repos.profiles.setStatusOwned(creator.userId, "unpublished", null);
+    await repos.profiles.acceptTermsOwned(creator.userId, now);
+    const creators = new CreatorService({
+      repos,
+      publicAssetUrl: () => null,
+      deletions: repos.accountDeletions,
+      transaction: racingTransaction(() => deletions.requestDeletion(creator, confirm)),
+    });
+    await expect(creators.publish(creator)).rejects.toThrow(/scheduled for deletion/);
+    expect((await repos.profiles.findByUserId(creator.userId))!.status).toBe("unpublished");
   });
 });

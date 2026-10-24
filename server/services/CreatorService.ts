@@ -11,7 +11,7 @@ import type { HandleRepository } from "@/server/repositories/HandleRepository";
 import type { ProfileInput } from "@/server/validation/creator";
 import type { Actor } from "./actor";
 import { noAudit, noRestrictions, type AuditLogger, type RestrictionGuard } from "./compliance";
-import { runInTransaction } from "./transaction";
+import { runInTransaction, type Tx } from "./transaction";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -71,7 +71,7 @@ export type CreatorServiceDeps = {
   audit?: AuditLogger;
   restrictions?: RestrictionGuard;
   /** While an account deletion is scheduled, the page can't go live again (cancel it first). */
-  deletions?: { hasOpenRequest(userId: string): Promise<boolean> };
+  deletions?: { hasOpenRequest(userId: string, tx?: Tx): Promise<boolean> };
 };
 
 export class CreatorService {
@@ -157,6 +157,19 @@ export class CreatorService {
 
     try {
       const profile = await this.transaction(async (tx) => {
+        if (existing) {
+          // Everything above was decided against `existing`: if another save (a second tab) got in
+          // first, its handle, cooldown and released-handle history would be overwritten.
+          const locked = await this.repos.profiles.lockByUserId(actor.userId, tx);
+          if (
+            !locked ||
+            locked.status === "suspended" ||
+            locked.handleLower !== existing.handleLower ||
+            locked.handleChangedAt?.getTime() !== existing.handleChangedAt?.getTime()
+          ) {
+            throw new ConflictError("Your profile changed while saving. Please try again.");
+          }
+        }
         const saved = existing
           ? await this.repos.profiles.updateOwned(actor.userId, write, tx)
           : await this.repos.profiles.insert(actor.userId, write, tx);
@@ -199,7 +212,7 @@ export class CreatorService {
   async acceptCreatorTerms(actor: Actor): Promise<void> {
     const profile = await this.repos.profiles.findByUserId(actor.userId);
     if (!profile) throw new ConflictError("Set up your page before accepting the creator terms.");
-    if (!profile.creatorTermsAcceptedAt) await this.repos.profiles.acceptTermsOwned(actor.userId, this.now());
+    if (!profile.creatorTermsAcceptedAt) await this.repos.profiles.acceptTermsOwned(actor.userId, this.now()); // keeps the first acceptance
   }
 
   /** What still stands between the creator and a live page. Shown on the dashboard. */
@@ -231,7 +244,16 @@ export class CreatorService {
     if (missing.length) {
       throw new ConflictError(`Before publishing: ${missing.map((i) => i.label.toLowerCase()).join("; ")}.`);
     }
-    const profile = await this.repos.profiles.setStatusOwned(actor.userId, "published", this.now());
+    // The profile row lock serialises this with a deletion request, which unpublishes the same
+    // row in its transaction: either the deletion sees the page live and takes it down, or we see
+    // the committed deletion and refuse.
+    const profile = await this.transaction(async (tx) => {
+      if (!(await this.repos.profiles.lockByUserId(actor.userId, tx))) return null;
+      if (await this.deletions?.hasOpenRequest(actor.userId, tx)) {
+        throw new ConflictError("Your account is scheduled for deletion. Keep your account first, then make your page live.");
+      }
+      return this.repos.profiles.setStatusOwned(actor.userId, "published", this.now(), tx);
+    });
     if (!profile) throw new ConflictError("Your page can't be published right now.");
     return { profileId: profile.id, handles: [profile.handleLower] };
   }
