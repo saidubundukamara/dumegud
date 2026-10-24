@@ -94,6 +94,8 @@ export const payments = pgTable(
   },
   (t) => [
     index().on(t.creatorId, t.status, t.createdAt),
+    // Monthly recaps and milestones (sums over a creator's settled payments by date).
+    index().on(t.creatorId, t.status, t.settledAt),
     index().on(t.status, t.createdAt),
     index().on(t.payerFingerprintHash, t.settledAt),
     index().on(t.ipHash, t.createdAt),

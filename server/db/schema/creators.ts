@@ -68,6 +68,10 @@ export const creatorProfiles = pgTable(
       .notNull()
       .default(sql`'{2000,5000,10000}'::integer[]`),
     supportMessageEnabled: boolean().notNull().default(true),
+    /** Email the monthly recap on the 1st. */
+    recapEmails: boolean().notNull().default(true),
+    /** Email when a milestone is reached. */
+    milestoneEmails: boolean().notNull().default(true),
     status: profileStatus().notNull().default("draft"),
     publishedAt: timestamp({ withTimezone: true }),
     creatorTermsAcceptedAt: timestamp({ withTimezone: true }),

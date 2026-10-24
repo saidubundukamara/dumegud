@@ -52,6 +52,8 @@ export function createCreatorFakes(opts: { now?: Date } = {}) {
         categoryId: data.categoryId ?? null,
         suggestedAmountsMinor: [2000, 5000, 10000],
         supportMessageEnabled: data.supportMessageEnabled ?? true,
+        recapEmails: true,
+        milestoneEmails: true,
         status: "draft",
         publishedAt: null,
         creatorTermsAcceptedAt: null,
