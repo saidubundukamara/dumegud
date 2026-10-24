@@ -52,8 +52,12 @@ export class PayoutMethodRepository extends BaseRepository {
     return rows.length;
   }
 
+  /** Never revives a disabled method (replaced by a new bind, or erased). */
   async setStatus(id: string, status: PayoutMethodStatus, tx?: Executor): Promise<void> {
-    await this.exec(tx).update(payoutMethods).set({ status }).where(eq(payoutMethods.id, id));
+    await this.exec(tx)
+      .update(payoutMethods)
+      .set({ status })
+      .where(and(eq(payoutMethods.id, id), ne(payoutMethods.status, "disabled")));
   }
 
   /**

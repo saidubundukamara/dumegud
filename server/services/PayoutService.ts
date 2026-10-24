@@ -11,6 +11,7 @@ import { decryptField } from "@/server/lib/crypto";
 import { ConflictError, ExternalServiceError, ForbiddenError, NotFoundError, ValidationError } from "@/server/lib/errors";
 import { logger } from "@/server/lib/logger";
 import { isUniqueViolation } from "@/server/repositories/BaseRepository";
+import type { AccountDeletionRepository } from "@/server/repositories/AccountDeletionRepository";
 import type { CreatorProfileRepository } from "@/server/repositories/CreatorProfileRepository";
 import type { CreatorWalletRepository } from "@/server/repositories/CreatorWalletRepository";
 import type { LedgerRepository } from "@/server/repositories/LedgerRepository";
@@ -20,7 +21,7 @@ import type { UserRepository } from "@/server/repositories/UserRepository";
 import { isStaff, type Actor } from "./actor";
 import type { BalanceService } from "./BalanceService";
 import type { KycService } from "./KycService";
-import { payoutJournal } from "./ledger";
+import { accounts, payoutJournal } from "./ledger";
 import type { PayoutMethodService } from "./PayoutMethodService";
 import type { PlatformSettingsService } from "./PlatformSettingsService";
 import { noAudit, noRestrictions, type AuditLogger, type RestrictionGuard } from "./compliance";
@@ -36,6 +37,7 @@ type PayoutRepos = {
   ledger: LedgerRepository;
   profiles: CreatorProfileRepository;
   users: UserRepository;
+  accountDeletions: AccountDeletionRepository;
 };
 
 export type PayoutServiceDeps = {
@@ -153,6 +155,18 @@ export class PayoutService {
     let payout: Payout;
     try {
       payout = await this.transaction(async (tx) => {
+        // The wallet row is the per-creator money lock (also taken by deletion and erasure).
+        // Everything read before it may be stale, so re-check what money and state depend on.
+        const locked = await this.repos.wallets.lockByUserId(actor.userId, tx);
+        if (locked?.status !== "active") throw new ConflictError("Your wallet isn't ready for withdrawals.");
+        if (await this.repos.accountDeletions.hasOpenRequest(actor.userId, tx)) {
+          throw new ConflictError("Your account is scheduled for deletion. Cancel the deletion to withdraw.");
+        }
+        // A payout completed since the balance was read has already debited the ledger.
+        const ledgerNow = await this.repos.ledger.balance(accounts.creatorWallet(actor.userId), tx);
+        if (input.amountMinor + quotedFee > Math.min(balance.availableMinor!, ledgerNow)) {
+          throw new ConflictError("Your balance changed while you were withdrawing. Please check it and try again.");
+        }
         const id = crypto.randomUUID();
         return this.repos.payouts.insert(
           {
@@ -240,21 +254,38 @@ export class PayoutService {
    * stuck in `requested`). Only a definitive Monime rejection marks it failed.
    */
   async dispatch(payoutId: string): Promise<Payout> {
-    const payout = await this.repos.payouts.findById(payoutId);
-    if (!payout) throw new NotFoundError();
-    if (payout.status !== "requested") return payout;
+    const current = await this.repos.payouts.findById(payoutId);
+    if (!current) throw new NotFoundError();
+    if (current.status !== "requested") return current;
+    // Only one dispatcher at a time (request, release, the reconcile cron, a staff redispatch).
+    const payout = await this.repos.payouts.claimDispatch(payoutId);
+    if (!payout) return (await this.repos.payouts.findById(payoutId)) ?? current;
     const [method, wallet] = await Promise.all([
       this.repos.payoutMethods.findById(payout.payoutMethodId),
       this.repos.wallets.findByUserId(payout.creatorId),
     ]);
+    // Re-checked at send time: a payout can wait in review while either changes. A payout already
+    // sent once (unknown outcome, `lastError` set) may exist at Monime, so it is never failed here.
+    if (method?.status !== "active" || wallet?.status !== "active" || !wallet.monimeFinancialAccountId) {
+      if (payout.lastError) {
+        logger.error("payout re-send held: method or wallet no longer active", { payoutId, method: method?.status, wallet: wallet?.status });
+        return (await this.repos.payouts.update(payout.id, { lastError: payout.lastError })) ?? payout; // ends the claim
+      }
+      const failed = await this.repos.payouts.transition(payout.id, ["requested"], "failed", {
+        failureCode: "destination_unavailable",
+        failureMessage: method?.status !== "active" ? "The payout number is no longer active." : "The wallet is not active.",
+      });
+      logger.warn("payout not sent: method or wallet no longer active", { payoutId, method: method?.status, wallet: wallet?.status });
+      return failed ?? payout;
+    }
 
     let result: MonimePayout;
     try {
       result = await this.deps.monime.createPayout(
         {
-          destination: { type: "momo", providerId: method!.providerId, phoneNumber: decryptField(method!.msisdnEnc) },
+          destination: { type: "momo", providerId: method.providerId, phoneNumber: decryptField(method.msisdnEnc) },
           amount: { currency: "SLE", value: payout.amountMinor },
-          source: { financialAccountId: wallet!.monimeFinancialAccountId! },
+          source: { financialAccountId: wallet.monimeFinancialAccountId },
           metadata: { payoutId: payout.id, creatorId: payout.creatorId },
         },
         payout.idempotencyKey,

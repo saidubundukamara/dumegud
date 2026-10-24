@@ -12,6 +12,7 @@ import { LedgerRepository } from "@/server/repositories/LedgerRepository";
 import { PaymentRepository } from "@/server/repositories/PaymentRepository";
 import { ShoutoutRepository } from "@/server/repositories/ShoutoutRepository";
 import { PayoutMethodRepository } from "@/server/repositories/PayoutMethodRepository";
+import { AccountDeletionRepository } from "@/server/repositories/AccountDeletionRepository";
 import { PayoutRepository } from "@/server/repositories/PayoutRepository";
 import { PlatformSettingsRepository } from "@/server/repositories/PlatformSettingsRepository";
 import { RiskRepository } from "@/server/repositories/RiskRepository";
@@ -53,6 +54,7 @@ const repos = {
   kyc: new KycRepository(),
   payoutMethods: new PayoutMethodRepository(),
   payouts: new PayoutRepository(),
+  accountDeletions: new AccountDeletionRepository(),
 };
 
 let admin: AdminService;

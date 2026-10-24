@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, lt } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import { payouts, type Payout, type PayoutStatus } from "@/server/db/schema";
 import { BaseRepository } from "./BaseRepository";
@@ -23,6 +23,21 @@ export class PayoutRepository extends BaseRepository {
 
   async lockByMonimeId(monimePayoutId: string, tx: Executor): Promise<Payout | null> {
     const [row] = await tx.select().from(payouts).where(eq(payouts.monimePayoutId, monimePayoutId)).for("update").limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Take the right to send this `requested` payout to Monime: only one caller wins. The claim is a
+   * lease kept in `updated_at` (pushed 2 minutes ahead), so a concurrent dispatch, the reconcile
+   * cron and a staff redispatch skip it; any later write resets `updated_at` and ends the lease.
+   * The 5 s slack tolerates app/database clock skew on rows the app last touched.
+   */
+  async claimDispatch(id: string, tx?: Executor): Promise<Payout | null> {
+    const [row] = await this.exec(tx)
+      .update(payouts)
+      .set({ updatedAt: sql`now() + interval '2 minutes'` })
+      .where(and(eq(payouts.id, id), eq(payouts.status, "requested"), sql`${payouts.updatedAt} <= now() + interval '5 seconds'`))
+      .returning();
     return row ?? null;
   }
 

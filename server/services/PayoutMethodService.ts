@@ -1,4 +1,5 @@
 import "server-only";
+import { isUniqueViolation } from "@/server/repositories/BaseRepository";
 import { detectOperator, maskMsisdn, normalizeSlPhone, OPERATOR_LABELS, type Operator } from "@/lib/phone";
 import type { PayoutMethod } from "@/server/db/schema";
 import type { EmailService } from "@/server/integrations/email";
@@ -123,6 +124,10 @@ export class PayoutMethodService {
         },
         tx,
       );
+    }).catch((err: unknown) => {
+      // Two binds at once: the one-current-method index lets only the first through.
+      if (isUniqueViolation(err)) throw new ConflictError("Your payout number was just changed. Reload the page to see it.");
+      throw err;
     });
     logger.info("payout method bound", { userId: actor.userId, replaced: Boolean(existing), status: method.status });
     await (this.deps.audit ?? noAudit).log({

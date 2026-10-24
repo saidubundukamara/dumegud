@@ -10,6 +10,7 @@ import { KycRepository } from "@/server/repositories/KycRepository";
 import { LedgerRepository } from "@/server/repositories/LedgerRepository";
 import { PaymentRepository } from "@/server/repositories/PaymentRepository";
 import { PayoutMethodRepository } from "@/server/repositories/PayoutMethodRepository";
+import { AccountDeletionRepository } from "@/server/repositories/AccountDeletionRepository";
 import { PayoutRepository } from "@/server/repositories/PayoutRepository";
 import { PlatformSettingsRepository } from "@/server/repositories/PlatformSettingsRepository";
 import { UserRepository } from "@/server/repositories/UserRepository";
@@ -54,6 +55,7 @@ const repos = {
   kyc: new KycRepository(),
   payoutMethods: new PayoutMethodRepository(),
   payouts: new PayoutRepository(),
+  accountDeletions: new AccountDeletionRepository(),
 };
 
 let kyc: KycService;
@@ -336,5 +338,60 @@ describe("withdrawals", () => {
     });
     const payout = await payouts.request(creator, { amountMinor: max, final: true });
     expect(payout.amountMinor).toBe(max);
+  });
+});
+
+describe("withdrawal races", () => {
+  const payoutCalls = () => monimeServer.requests.filter((r) => r.path === "/payouts").length;
+
+  it("a dispatch while another is in flight doesn't call Monime again", async () => {
+    await readyToWithdraw();
+    monimeServer.failNext(503, "internal_error", "timeout", "/payouts");
+    const payout = await payouts.request(creator, { amountMinor: 10_000 });
+    expect(payout.status).toBe("requested");
+    expect(await repos.payouts.claimDispatch(payout.id)).not.toBeNull(); // dispatcher A is sending it
+    const before = payoutCalls();
+    expect((await payouts.dispatch(payout.id)).status).toBe("requested"); // B (cron, staff) backs off
+    expect(payoutCalls()).toBe(before);
+  });
+
+  it("a 409 from Monime is an unknown outcome: the payout stays requested", async () => {
+    await readyToWithdraw();
+    monimeServer.failNext(409, "idempotency_conflict", "key in use", "/payouts");
+    const payout = await payouts.request(creator, { amountMinor: 10_000 });
+    expect(payout.status).toBe("requested");
+    expect((await payouts.dispatch(payout.id)).status).toBe("processing");
+  });
+
+  it("a released payout isn't sent to a number flagged while it waited for review", async () => {
+    await readyToWithdraw(300_000);
+    const payout = await payouts.request(creator, { amountMinor: 150_000 });
+    await t.client.query("update payout_methods set status = 'needs_recheck' where id = $1", [payout.payoutMethodId]);
+    expect((await payouts.release(staff, payout.id)).payout).toMatchObject({ status: "failed", failureCode: "destination_unavailable" });
+    expect(payoutCalls()).toBe(0);
+  });
+
+  it("re-checks the balance under the wallet lock (a stale reading can't overdraw)", async () => {
+    await readyToWithdraw(10_000);
+    // The balance read before the lock is out of date (another payout completed since).
+    const stale = new PayoutService({
+      repos,
+      monime: monimeServer.client(),
+      balances: { getBalance: async () => ({ displayMinor: 100_000, availableMinor: 100_000, maxWithdrawableMinor: 95_000, pendingMinor: 0, payoutFeeBps: 0, stale: false }) },
+      methods,
+      kyc,
+      settings: new PlatformSettingsService(repos.settings),
+      email: { send: async () => {} },
+      appBaseUrl: "https://dumegud.test",
+      now: () => now,
+    });
+    await expect(stale.request(creator, { amountMinor: 50_000 })).rejects.toThrow(/balance changed/);
+    expect(await repos.payouts.findOpenForCreator(creator.userId)).toBeNull();
+  });
+
+  it("refuses a withdrawal once a deletion request has committed", async () => {
+    await readyToWithdraw();
+    await repos.accountDeletions.insert({ userId: creator.userId, requestedAt: now, eraseAfter: new Date(now.getTime() + 86_400_000), forfeitedMinor: 0 });
+    await expect(payouts.request(creator, { amountMinor: 10_000 })).rejects.toThrow(/scheduled for deletion/);
   });
 });
