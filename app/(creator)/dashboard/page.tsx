@@ -17,6 +17,7 @@ import { services } from "@/server/services";
 import type { WalletDTO } from "@/server/services/WalletService";
 import { DeletionBanner } from "./deletion-banner";
 import { PublishControls, ShareLinks, TermsForm, VerifyEmailBanner, WalletRetry } from "./forms";
+import { HomeHighlights } from "./home-highlights";
 import { LivePageCard } from "./live-page-card";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -103,6 +104,9 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/dashboard">, "search
 
       {published && profile ? (
         <>
+          <Suspense fallback={null}>
+            <HomeHighlights actor={actor} pageUrl={`${base}/${profile.handle}`} />
+          </Suspense>
           {wallet.status === "active" ? (
             <Suspense fallback={<Skeleton className="h-48 w-full !rounded-brand-lg" />}>
               <MoneySummary actor={actor} />

@@ -11,6 +11,7 @@ import { field, invalidForm, runForm } from "@/server/lib/form";
 import { getRequestContext } from "@/server/lib/request";
 import { services } from "@/server/services";
 import { changePasswordSchema } from "@/server/validation/auth";
+import { emailPreferencesSchema } from "@/server/validation/engagement";
 
 export async function signOutAction(): Promise<void> {
   const session = await getSession();
@@ -122,5 +123,16 @@ export async function keepAccount(): Promise<FormState> {
     await services.accountDeletions.cancelDeletion(actor);
     refresh();
     return { status: "success", message: "Your account is staying. Make your page live again when you're ready." };
+  });
+}
+
+/** Settings → Emails: the monthly recap and milestone emails. */
+export async function saveEmailPreferences(_prev: FormState, formData: FormData): Promise<FormState> {
+  const { actor } = await verifySession();
+  const parsed = emailPreferencesSchema.safeParse({ recapEmails: field(formData, "recapEmails"), milestoneEmails: field(formData, "milestoneEmails") });
+  if (!parsed.success) return invalidForm(parsed.error);
+  return runForm(async () => {
+    await services.creators.setEmailPreferences(actor, parsed.data);
+    return { status: "success", message: "Saved." };
   });
 }

@@ -12,7 +12,7 @@ import type { DeletionFix } from "@/server/services/AccountDeletionService";
 import { DeletionBanner } from "../deletion-banner";
 import { DeleteAccountForm } from "./delete-account";
 import { signOutEverywhere } from "../actions";
-import { ChangePasswordForm } from "../forms";
+import { ChangePasswordForm, EmailPreferencesForm } from "../forms";
 import { PageSkeleton } from "@/components/ui/Skeleton";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -30,7 +30,11 @@ export default function SettingsPage() {
 
 async function Settings() {
   const { actor } = await verifySession();
-  const [account, deletion] = await Promise.all([services.auth.getAccount(actor), services.accountDeletions.status(actor)]);
+  const [account, deletion, emails] = await Promise.all([
+    services.auth.getAccount(actor),
+    services.accountDeletions.status(actor),
+    services.creators.getEmailPreferences(actor),
+  ]);
   if (!account) return null;
 
   return (
@@ -53,6 +57,16 @@ async function Settings() {
           <p className="text-muted">You sign in with Google, so there&apos;s no DuMeGud password to change.</p>
         )}
       </Panel>
+
+      {emails ? (
+        <Panel as="section" id="emails" className="flex scroll-mt-24 flex-col gap-4 p-5 sm:p-6">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-xl font-bold">Emails</h2>
+            <p className="text-muted">Good news, by email. Emails about your money and your account still come whatever you pick.</p>
+          </div>
+          <EmailPreferencesForm recapEmails={emails.recapEmails} milestoneEmails={emails.milestoneEmails} />
+        </Panel>
+      ) : null}
 
       <Panel as="section" className="flex flex-col items-start gap-3 p-5 sm:p-6">
         <h2 className="text-xl font-bold">Devices</h2>

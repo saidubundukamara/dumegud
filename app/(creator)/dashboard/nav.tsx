@@ -12,6 +12,7 @@ import {
   PackageIcon,
   ReceiptIcon,
   SignOutIcon,
+  SparkleIcon,
   UserCircleIcon,
   UsersThreeIcon,
   WalletIcon,
@@ -37,6 +38,7 @@ const PRIMARY: Item[] = [
 const ITEMS = {
   supporters: { href: "/dashboard/supporters", label: "Supporters", Icon: UsersThreeIcon },
   shoutouts: { href: "/dashboard/shoutouts", label: "Shout-outs", Icon: MegaphoneIcon },
+  highlights: { href: "/dashboard/highlights", label: "Highlights", Icon: SparkleIcon },
   orders: { href: "/dashboard/orders", label: "Orders", Icon: ReceiptIcon },
   verification: { href: "/dashboard/verification", label: "Verify your ID", Icon: IdentificationCardIcon },
   payoutMethod: { href: "/dashboard/payout-method", label: "My mobile money", Icon: DeviceMobileIcon },
@@ -45,17 +47,17 @@ const ITEMS = {
 
 const [home, myPage, products, wallet] = PRIMARY;
 
-/** The sidebar in four small groups, so ten destinations read as four decisions. */
+/** The sidebar in four small groups, so eleven destinations read as four decisions. */
 const GROUPS: { label: string; items: Item[] }[] = [
   { label: "Your page", items: [home, myPage, products] },
-  { label: "Fans", items: [ITEMS.supporters, ITEMS.shoutouts, ITEMS.orders] },
+  { label: "Fans", items: [ITEMS.supporters, ITEMS.shoutouts, ITEMS.highlights, ITEMS.orders] },
   { label: "Money", items: [wallet, ITEMS.verification, ITEMS.payoutMethod] },
   { label: "Account", items: [ITEMS.settings] },
 ];
 
 /** Phones: what the tab bar doesn't hold, grouped the same way. */
 const MORE_GROUPS: { label: string; items: Item[] }[] = [
-  { label: "Fans", items: [ITEMS.supporters, ITEMS.shoutouts, ITEMS.orders] },
+  { label: "Fans", items: [ITEMS.supporters, ITEMS.shoutouts, ITEMS.highlights, ITEMS.orders] },
   { label: "Money", items: [ITEMS.verification, ITEMS.payoutMethod] },
   { label: "Account", items: [ITEMS.settings] },
 ];

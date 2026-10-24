@@ -14,6 +14,7 @@ import {
   publishPage,
   resendVerificationEmail,
   retryWalletSetup,
+  saveEmailPreferences,
   unpublishPage,
 } from "./actions";
 
@@ -183,5 +184,36 @@ export function ShareLinks({ links }: { links: Array<{ label: string; url: strin
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Settings → Emails. Saves both switches together. */
+export function EmailPreferencesForm({ recapEmails, milestoneEmails }: { recapEmails: boolean; milestoneEmails: boolean }) {
+  const [state, action] = useActionState(saveEmailPreferences, initialFormState);
+  return (
+    <form action={action} className="flex flex-col gap-4">
+      <label className="flex items-start gap-3">
+        <input type="checkbox" name="recapEmails" className="mt-1 size-5" defaultChecked={recapEmails} />
+        <span>
+          <span className="font-semibold">Monthly recap</span>
+          <span className="block text-sm text-muted">On the 1st, after a month with gifts or sales.</span>
+        </span>
+      </label>
+      <label className="flex items-start gap-3">
+        <input type="checkbox" name="milestoneEmails" className="mt-1 size-5" defaultChecked={milestoneEmails} />
+        <span>
+          <span className="font-semibold">Milestones</span>
+          <span className="block text-sm text-muted">When you reach one, like your first supporter or your first sale.</span>
+        </span>
+      </label>
+      <div className="flex flex-wrap items-center gap-3">
+        <SubmitButton variant="secondary" pendingLabel="Saving…">
+          Save
+        </SubmitButton>
+        <span aria-live="polite" className={`text-sm ${state.status === "error" ? "text-danger" : "text-muted"}`}>
+          {state.message ?? ""}
+        </span>
+      </div>
+    </form>
   );
 }
