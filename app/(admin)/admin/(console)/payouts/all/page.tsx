@@ -2,14 +2,14 @@ import { WalletIcon } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { StatusBadge } from "@/components/admin/Badge";
-import { DataTable, EmptyRows } from "@/components/admin/DataTable";
+import { DataTable, DetailLine, EmptyRows } from "@/components/admin/DataTable";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { TableSkeleton } from "@/components/admin/Loading";
 import { AdminPage, Section } from "@/components/admin/Page";
 import { Pagination } from "@/components/admin/Pagination";
 import { RecordLink } from "@/components/admin/RecordLink";
 import { SelectField } from "@/components/ui/Field";
-import { formatDateTime, humanize } from "@/lib/admin-format";
+import { formatDateTime, formatRelative, humanize } from "@/lib/admin-format";
 import { adminHref } from "@/lib/admin-host";
 import { formatSLE } from "@/lib/money";
 import { requirePermission } from "@/server/dal/admin-session";
@@ -61,7 +61,21 @@ async function List({ searchParams }: Pick<PageProps<"/admin/payouts/all">, "sea
         rowKey={(p) => p.id}
         rowHref={(p) => adminHref(`/admin/payouts/${p.id}`)}
         columns={[
-          { header: "Amount", cell: (p) => <span className="tabular-nums">{formatSLE(p.amountMinor)}</span> },
+          {
+            header: "Amount",
+            cell: (p) => <span className="tabular-nums">{formatSLE(p.amountMinor)}</span>,
+            // Below lg: where it goes; below sm also who asked and when.
+            detail: (p) => (
+              <DetailLine
+                parts={[
+                  { key: "to", content: destinationLabel(p.destinationSnapshot) },
+                  { key: "creator", content: p.creatorLabel ?? "Unknown creator", below: "sm" },
+                  { key: "when", content: formatRelative(p.requestedAt), below: "sm" },
+                ]}
+              />
+            ),
+            detailUntil: "lg",
+          },
           { header: "Creator", cell: (p) => <RecordLink href={canSeeCreators && adminHref(`/admin/creators/${p.creatorId}`)}>{p.creatorLabel ?? "Unknown"}</RecordLink>, hideBelow: "sm" },
           { header: "Status", cell: (p) => <StatusBadge status={p.status} /> },
           { header: "To", cell: (p) => <span className="text-muted">{destinationLabel(p.destinationSnapshot)}</span>, hideBelow: "lg" },

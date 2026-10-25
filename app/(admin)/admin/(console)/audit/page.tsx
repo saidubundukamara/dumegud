@@ -2,7 +2,7 @@ import { ClockCounterClockwiseIcon, DownloadSimpleIcon } from "@phosphor-icons/r
 import type { Metadata, Route } from "next";
 import { Suspense } from "react";
 import { Badge } from "@/components/admin/Badge";
-import { DataTable, EmptyRows } from "@/components/admin/DataTable";
+import { DataTable, DetailLine, EmptyRows } from "@/components/admin/DataTable";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { TableSkeleton } from "@/components/admin/Loading";
 import { AdminPage, Section } from "@/components/admin/Page";
@@ -11,7 +11,7 @@ import { RecordLink } from "@/components/admin/RecordLink";
 import { RawJson } from "@/components/admin/Timeline";
 import { Field } from "@/components/ui/Field";
 import { buttonClasses } from "@/components/ui/button-classes";
-import { formatDateTime, humanize } from "@/lib/admin-format";
+import { formatDateTime, formatRelative, humanize } from "@/lib/admin-format";
 import { adminHref } from "@/lib/admin-host";
 import { isUuid } from "@/lib/uuid";
 import { requirePermission } from "@/server/dal/admin-session";
@@ -114,6 +114,15 @@ async function Entries({ searchParams }: Pick<PageProps<"/admin/audit">, "search
               <span className="flex flex-col gap-1">
                 <span className="font-medium">{humanize(r.action)}</span>
                 <code className="font-mono text-xs text-muted">{r.action}</code>
+                <span className="text-xs text-muted md:hidden">
+                  <DetailLine
+                    parts={[
+                      { key: "by", content: `By ${who(r)}` },
+                      { key: "on", content: `${humanize(r.targetType)}${r.targetId ? ` ${r.targetId.length > 12 ? r.targetId.slice(0, 8) : r.targetId}` : ""}`, below: "sm" },
+                      { key: "when", content: formatRelative(r.createdAt), below: "sm" },
+                    ]}
+                  />
+                </span>
                 {r.before || r.after ? <RawJson value={{ before: r.before ?? undefined, after: r.after ?? undefined }} label="Before and after" /> : null}
               </span>
             ),
@@ -133,7 +142,7 @@ async function Entries({ searchParams }: Pick<PageProps<"/admin/audit">, "search
             hideBelow: "sm",
           },
           { header: "By", cell: (r) => <span className="whitespace-nowrap">{who(r)}</span>, hideBelow: "md" },
-          { header: "When", cell: (r) => <span className="whitespace-nowrap text-muted tabular-nums">{formatDateTime(r.createdAt)}</span>, align: "right" },
+          { header: "When", cell: (r) => <span className="whitespace-nowrap text-muted tabular-nums">{formatDateTime(r.createdAt)}</span>, align: "right", hideBelow: "sm" },
         ]}
         empty={<EmptyRows icon={ClockCounterClockwiseIcon} title={filtered ? "Nothing matches these filters" : "Nothing logged yet"} />}
       />

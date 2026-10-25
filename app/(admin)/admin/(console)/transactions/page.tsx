@@ -2,14 +2,14 @@ import { ReceiptIcon } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { StatusBadge } from "@/components/admin/Badge";
-import { DataTable, EmptyRows } from "@/components/admin/DataTable";
+import { DataTable, DetailLine, EmptyRows } from "@/components/admin/DataTable";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { TableSkeleton } from "@/components/admin/Loading";
 import { AdminPage, Section } from "@/components/admin/Page";
 import { Pagination } from "@/components/admin/Pagination";
 import { RecordLink } from "@/components/admin/RecordLink";
 import { Field, SelectField } from "@/components/ui/Field";
-import { formatDateTime, humanize } from "@/lib/admin-format";
+import { formatDateTime, formatRelative, humanize } from "@/lib/admin-format";
 import { adminHref } from "@/lib/admin-host";
 import { formatSLE } from "@/lib/money";
 import { requirePermission } from "@/server/dal/admin-session";
@@ -79,7 +79,20 @@ async function List({ searchParams }: Pick<PageProps<"/admin/transactions">, "se
         rowKey={(p) => p.id}
         rowHref={(p) => adminHref(`/admin/transactions/${p.id}`)}
         columns={[
-          { header: "Amount", cell: (p) => <span className="tabular-nums">{formatSLE(p.grossMinor)}</span> },
+          {
+            header: "Amount",
+            cell: (p) => <span className="tabular-nums">{formatSLE(p.grossMinor)}</span>,
+            // Phones and small tablets: who, and (below sm) what and when, under the amount.
+            detail: (p) => (
+              <DetailLine
+                parts={[
+                  { key: "creator", content: p.creatorLabel ?? "Unknown creator" },
+                  { key: "kind", content: p.kind === "order" ? "Product sale" : "Support", below: "sm" },
+                  { key: "when", content: formatRelative(p.createdAt), below: "sm" },
+                ]}
+              />
+            ),
+          },
           { header: "Kind", cell: (p) => (p.kind === "order" ? "Product sale" : "Support"), hideBelow: "sm" },
           {
             header: "Creator",

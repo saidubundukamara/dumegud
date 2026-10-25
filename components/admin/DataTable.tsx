@@ -10,10 +10,18 @@ export type Column<T> = {
   align?: "right";
   /** Hide on narrow screens (the row link still opens the full record). */
   hideBelow?: "sm" | "md" | "lg";
+  /**
+   * A second, muted line under the cell on narrow screens: what the hidden columns would have
+   * said, so phone rows stay tellable apart. Plain text only (it sits under the row link).
+   */
+  detail?: (row: T) => ReactNode;
+  /** The width from which the hidden columns are back and the detail line goes (default md). */
+  detailUntil?: "sm" | "md" | "lg";
   className?: string;
 };
 
 const HIDE = { sm: "hidden sm:table-cell", md: "hidden md:table-cell", lg: "hidden lg:table-cell" } as const;
+const ONLY_BELOW = { sm: "sm:hidden", md: "md:hidden", lg: "lg:hidden" } as const;
 
 /**
  * A dense, semantic table. With `rowHref` the first cell becomes a link stretched over the whole
@@ -61,6 +69,7 @@ export function DataTable<T>({
               <tr key={rowKey(row)} className={`relative border-b border-border last:border-b-0 ${href ? "transition-colors hover:bg-row-hover" : ""}`}>
                 {columns.map((c, i) => {
                   const content = c.cell(row);
+                  const detail = c.detail?.(row);
                   return (
                     <td
                       key={i}
@@ -76,6 +85,7 @@ export function DataTable<T>({
                       ) : (
                         content
                       )}
+                      {detail ? <div className={`mt-0.5 text-xs text-muted ${ONLY_BELOW[c.detailUntil ?? "md"]}`}>{detail}</div> : null}
                     </td>
                   );
                 })}
@@ -85,6 +95,26 @@ export function DataTable<T>({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * A `detail` line built from parts, each shown only below its breakpoint (the width its column
+ * comes back at), separated by dots that never start or end a line.
+ */
+export function DetailLine({ parts }: { parts: { key: string; content: ReactNode; below?: "sm" | "md" | "lg" }[] }) {
+  // Every part carries its own dot; the row is shifted left by one dot's width and clipped, so the
+  // dot of whichever part starts a line (the first, or one that wrapped) is cut off.
+  return (
+    <span className="block overflow-hidden">
+      <span className="-ml-3 flex min-w-0 flex-wrap">
+        {parts.map((p) => (
+          <span key={p.key} className={`min-w-0 truncate before:inline-block before:w-3 before:text-center before:content-['·'] ${p.below ? ONLY_BELOW[p.below] : ""}`}>
+            {p.content}
+          </span>
+        ))}
+      </span>
+    </span>
   );
 }
 

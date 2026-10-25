@@ -2,13 +2,13 @@ import { UsersThreeIcon } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { StatusBadge } from "@/components/admin/Badge";
-import { DataTable, EmptyRows } from "@/components/admin/DataTable";
+import { DataTable, DetailLine, EmptyRows } from "@/components/admin/DataTable";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { TableSkeleton } from "@/components/admin/Loading";
 import { AdminPage, Section } from "@/components/admin/Page";
 import { Pagination } from "@/components/admin/Pagination";
 import { Field } from "@/components/ui/Field";
-import { formatDate } from "@/lib/admin-format";
+import { formatDate, humanize } from "@/lib/admin-format";
 import { adminHref } from "@/lib/admin-host";
 import { requirePermission } from "@/server/dal/admin-session";
 import { services } from "@/server/services";
@@ -50,6 +50,16 @@ async function Results({ searchParams }: Pick<PageProps<"/admin/creators">, "sea
                 <span className="truncate">{r.handle ? `@${r.handle}` : r.name || "No page yet"}</span>
                 <span className="truncate text-[0.8125rem] font-normal text-muted">{r.email}</span>
               </span>
+            ),
+            // Below md: risk tier; below sm also the page status and when they joined.
+            detail: (r) => (
+              <DetailLine
+                parts={[
+                  { key: "tier", content: r.riskTier ? `${humanize(r.riskTier)} risk` : "No risk tier" },
+                  { key: "page", content: r.profileStatus ? `Page ${humanize(r.profileStatus).toLowerCase()}` : "No page", below: "sm" },
+                  { key: "joined", content: `Joined ${formatDate(r.createdAt)}`, below: "sm" },
+                ]}
+              />
             ),
           },
           { header: "Account", cell: (r) => <StatusBadge status={r.status} /> },
