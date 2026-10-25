@@ -113,7 +113,7 @@ const nextConfig: NextConfig = {
       // `/` → `/admin` (the other order turns `/` into `/admin/admin`).
       beforeFiles: [
         // (149e9513-… is BotID's script/proxy prefix; withBotId appends its rewrites after these.)
-        { source: "/:path((?!_next/|__nextjs|api/admin/|favicon\\.ico$|149e9513-01fa-4fb0-aad4-566afd725d1b/).+)", has: onAdminHost, destination: "/admin/:path" },
+        { source: "/:path((?!_next/|__nextjs|api/admin/|favicon\\.ico$|view-transition-guard\\.js$|149e9513-01fa-4fb0-aad4-566afd725d1b/).+)", has: onAdminHost, destination: "/admin/:path" },
         { source: "/", has: onAdminHost, destination: "/admin" },
       ],
       afterFiles: [],

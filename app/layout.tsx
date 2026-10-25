@@ -41,6 +41,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geist.variable} h-full antialiased`}>
+      <head>
+        {/* eslint-disable-next-line @next/next/no-sync-scripts -- must run before React's streamed reveal scripts (see the file); it's tiny and same-origin. */}
+        <script src="/view-transition-guard.js" />
+      </head>
       <body className="flex min-h-full flex-col">
         <a
           href="#main"
