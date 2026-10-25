@@ -14,7 +14,9 @@ import {
   type ProductStatus,
   type ScanStatus,
 } from "@/server/db/schema";
+import type { Cursor } from "@/server/lib/cursor";
 import { BaseRepository } from "./BaseRepository";
+import { newestFirst, olderThan } from "./keyset";
 
 export type ProductWrite = Pick<
   Product,
@@ -91,6 +93,16 @@ export class ProductRepository extends BaseRepository {
 
   async listByStatus(status: ProductStatus, limit = 50, tx?: Executor): Promise<Product[]> {
     return this.exec(tx).select().from(products).where(eq(products.status, status)).orderBy(asc(products.updatedAt)).limit(limit);
+  }
+
+  /** Staff lists of published or suspended products, most recently changed first. */
+  async listByStatusNewest(status: ProductStatus, limit = 50, tx?: Executor, cursor?: Cursor | null): Promise<Product[]> {
+    return this.exec(tx)
+      .select()
+      .from(products)
+      .where(and(eq(products.status, status), olderThan(products.updatedAt, products.id, cursor)))
+      .orderBy(...newestFirst(products.updatedAt, products.id))
+      .limit(limit);
   }
 
   /**

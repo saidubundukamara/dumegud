@@ -18,7 +18,7 @@ import type { LedgerRepository } from "@/server/repositories/LedgerRepository";
 import type { PayoutMethodRepository } from "@/server/repositories/PayoutMethodRepository";
 import type { PayoutRepository } from "@/server/repositories/PayoutRepository";
 import type { UserRepository } from "@/server/repositories/UserRepository";
-import { isStaff, type Actor } from "./actor";
+import { assertPermission, type Actor, type AdminActor } from "./actor";
 import type { BalanceService } from "./BalanceService";
 import type { KycService } from "./KycService";
 import { accounts, payoutJournal } from "./ledger";
@@ -198,8 +198,8 @@ export class PayoutService {
 
   // ── Staff ─────────────────────────────────────────────────────────────────────
 
-  async listInReview(actor: Actor) {
-    if (!isStaff(actor.role)) throw new ForbiddenError();
+  async listInReview(actor: AdminActor) {
+    assertPermission(actor, "payouts.view");
     return this.repos.payouts.listByStatus("in_review");
   }
 
@@ -207,23 +207,23 @@ export class PayoutService {
    * Staff release of an in-review payout. At or above `payouts.dualApprovalMin` two different
    * staff members must approve; the first approval is recorded and the payout stays in review.
    */
-  async release(actor: Actor, payoutId: string): Promise<{ payout: Payout; released: boolean }> {
-    if (!isStaff(actor.role)) throw new ForbiddenError();
+  async release(actor: AdminActor, payoutId: string): Promise<{ payout: Payout; released: boolean }> {
+    assertPermission(actor, "payouts.approve");
     const settings = await this.deps.settings.get();
     const outcome = await this.transaction(async (tx) => {
       const payout = await this.repos.payouts.lockById(payoutId, tx);
       if (!payout || payout.status !== "in_review") throw new ConflictError("This withdrawal is no longer waiting for review.");
       const prior = (payout.approvals as { by: string }[]) ?? [];
-      if (prior.some((a) => a.by === actor.userId)) throw new ForbiddenError("You've already approved this. A different staff member must give the second approval.");
-      const approvals = [...prior, { by: actor.userId, at: this.now().toISOString() }];
+      if (prior.some((a) => a.by === actor.adminId)) throw new ForbiddenError("You've already approved this. A different admin must give the second approval.");
+      const approvals = [...prior, { by: actor.adminId, at: this.now().toISOString() }];
       const needed = payout.amountMinor >= settings.payoutDualApprovalMinMinor ? 2 : 1;
       if (approvals.length < needed) {
         return { payout: (await this.repos.payouts.update(payoutId, { approvals }, tx))!, released: false };
       }
-      const released = await this.repos.payouts.transition(payoutId, ["in_review"], "requested", { reviewerId: actor.userId, approvals }, tx);
+      const released = await this.repos.payouts.transition(payoutId, ["in_review"], "requested", { reviewerId: actor.adminId, approvals }, tx);
       return { payout: released!, released: true };
     });
-    logger.info(outcome.released ? "payout released" : "payout first approval", { payoutId, reviewerId: actor.userId });
+    logger.info(outcome.released ? "payout released" : "payout first approval", { payoutId, reviewerId: actor.adminId });
     await this.audit.log({
       actor,
       action: outcome.released ? "payout.release" : "payout.approve_first",
@@ -236,14 +236,14 @@ export class PayoutService {
     return { payout: await this.dispatch(payoutId), released: true };
   }
 
-  async reject(actor: Actor, payoutId: string, reason: string): Promise<void> {
-    if (!isStaff(actor.role)) throw new ForbiddenError();
+  async reject(actor: AdminActor, payoutId: string, reason: string): Promise<void> {
+    assertPermission(actor, "payouts.reject");
     const rejected = await this.repos.payouts.transition(payoutId, ["in_review"], "canceled", {
-      reviewerId: actor.userId,
+      reviewerId: actor.adminId,
       failureMessage: reason.slice(0, 300),
     });
     if (!rejected) throw new ConflictError("This withdrawal is no longer waiting for review.");
-    logger.info("payout rejected", { payoutId, reviewerId: actor.userId });
+    logger.info("payout rejected", { payoutId, reviewerId: actor.adminId });
     await this.audit.log({ actor, action: "payout.reject", targetType: "payout", targetId: payoutId, after: { reason } });
   }
 

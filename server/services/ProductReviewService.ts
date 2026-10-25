@@ -1,9 +1,11 @@
 import "server-only";
-import { ConflictError, ForbiddenError, NotFoundError } from "@/server/lib/errors";
+import type { ProductStatus } from "@/server/db/schema";
+import { decodeCursor, toPage } from "@/server/lib/cursor";
+import { ConflictError, NotFoundError } from "@/server/lib/errors";
 import { logger } from "@/server/lib/logger";
 import type { CreatorProfileRepository } from "@/server/repositories/CreatorProfileRepository";
 import type { ProductRepository } from "@/server/repositories/ProductRepository";
-import { isStaff, type Actor } from "./actor";
+import { assertPermission, type AdminActor } from "./actor";
 import { noAudit, type AuditLogger } from "./compliance";
 import type { ProductChange } from "./ProductService";
 import { runInTransaction } from "./transaction";
@@ -22,12 +24,13 @@ export class ProductReviewService {
     private readonly transaction: typeof runInTransaction = runInTransaction,
   ) {}
 
-  async listPending(actor: Actor) {
-    this.assertStaff(actor);
+  async listPending(actor: AdminActor) {
+    assertPermission(actor, "products.view");
     const rows = await this.products.listByStatus("pending_review");
     return Promise.all(
       rows.map(async (p) => ({
         id: p.id,
+        creatorId: p.creatorId,
         title: p.title,
         description: p.description,
         priceMinor: p.priceMinor,
@@ -41,12 +44,19 @@ export class ProductReviewService {
     );
   }
 
+  /** Live or taken-down products, most recently changed first (staff lists). */
+  async listByStatus(actor: AdminActor, status: Extract<ProductStatus, "published" | "suspended" | "unpublished">, cursor: unknown) {
+    assertPermission(actor, "products.view");
+    const limit = 30;
+    return toPage(await this.products.listByStatusNewest(status, limit + 1, undefined, decodeCursor(cursor)), limit, (p) => p.updatedAt);
+  }
+
   /**
    * `reviewedVersion` is the product's `updatedAt` as the reviewer saw it. Edits and file changes
    * bump it, so anything the creator changed after the page loaded is never published unseen.
    */
-  async approve(actor: Actor, productId: string, reviewedVersion?: Date): Promise<ProductChange> {
-    this.assertStaff(actor);
+  async approve(actor: AdminActor, productId: string, reviewedVersion?: Date): Promise<ProductChange> {
+    assertPermission(actor, "products.review");
     const published = await this.transaction(async (tx) => {
       // The product lock serialises this with reject, unpublish, edits and file changes.
       const product = await this.products.lockById(productId, tx);
@@ -61,22 +71,18 @@ export class ProductReviewService {
       return this.products.setStatus(productId, ["pending_review"], "published", { publishedAt: product.publishedAt ?? this.now(), reviewNote: null }, tx);
     });
     if (!published) throw new ConflictError("This product is no longer waiting for review.");
-    logger.info("product approved", { productId, reviewerId: actor.userId });
+    logger.info("product approved", { productId, reviewerId: actor.adminId });
     await this.audit.log({ actor, action: "product.approve", targetType: "product", targetId: productId, before: { status: "pending_review" }, after: { status: "published" } });
     return this.change(published.creatorId, productId);
   }
 
-  async reject(actor: Actor, productId: string, note: string): Promise<ProductChange> {
-    this.assertStaff(actor);
+  async reject(actor: AdminActor, productId: string, note: string): Promise<ProductChange> {
+    assertPermission(actor, "products.review");
     const rejected = await this.products.setStatus(productId, ["pending_review"], "draft", { reviewNote: note.slice(0, 500) });
     if (!rejected) throw new ConflictError("This product is no longer waiting for review.");
-    logger.info("product sent back to draft", { productId, reviewerId: actor.userId });
+    logger.info("product sent back to draft", { productId, reviewerId: actor.adminId });
     await this.audit.log({ actor, action: "product.reject", targetType: "product", targetId: productId, after: { note } });
     return this.change(rejected.creatorId, productId);
-  }
-
-  private assertStaff(actor: Actor) {
-    if (!isStaff(actor.role)) throw new ForbiddenError();
   }
 
   private async change(creatorId: string, productId: string): Promise<ProductChange> {

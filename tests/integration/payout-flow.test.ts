@@ -15,7 +15,7 @@ import { PayoutRepository } from "@/server/repositories/PayoutRepository";
 import { PlatformSettingsRepository } from "@/server/repositories/PlatformSettingsRepository";
 import { UserRepository } from "@/server/repositories/UserRepository";
 import { WebhookEventRepository } from "@/server/repositories/WebhookEventRepository";
-import type { Actor } from "@/server/services/actor";
+import type { Actor, AdminActor } from "@/server/services/actor";
 import { BalanceService } from "@/server/services/BalanceService";
 import { KycService } from "@/server/services/KycService";
 import { accounts, transferJournal } from "@/server/services/ledger";
@@ -27,6 +27,7 @@ import { WalletService } from "@/server/services/WalletService";
 import { WebhookService } from "@/server/services/WebhookService";
 import type { KycSubmitInput } from "@/server/validation/wallet";
 import { createMemoryStorage } from "../fixtures/creator-fakes";
+import { insertAdmin } from "../fixtures/admins";
 import { createTestDb, type TestDb } from "./db";
 
 // Phase 6 acceptance on real SQL: KYC → bind number (provider KYC + cooldown) → withdraw with
@@ -41,7 +42,7 @@ let store: ReturnType<typeof createMemoryStorage>;
 let sent: EmailMessage[];
 let now: Date;
 let creator: Actor;
-let staff: Actor;
+let staff: AdminActor;
 let walletAccountId: string;
 
 const repos = {
@@ -96,9 +97,8 @@ beforeEach(async () => {
   const wallet = await new WalletService(repos, monime).provisionForCreator(user.id);
   walletAccountId = wallet.monimeFinancialAccountId!;
   await repos.profiles.insert(user.id, { handle: "aminata", handleLower: "aminata", displayName: "Aminata", bio: "", categoryId: null, supportMessageEnabled: true });
-  creator = { userId: user.id, role: "creator", status: "active", emailVerified: true };
-  const reviewer = (await repos.users.insertIfEmailFree({ email: "staff@dumegud.test", name: "Staff", passwordHash: null }))!;
-  staff = { userId: reviewer.id, role: "staff", status: "active", emailVerified: true };
+  creator = { userId: user.id, status: "active", emailVerified: true };
+  staff = await insertAdmin("staff@dumegud.test");
 });
 
 /** Money the creator has earned: transferred into their wallet (ledger + fake Monime). */
@@ -166,7 +166,7 @@ describe("KYC", () => {
     await expect(kycInput()).rejects.toThrow(/already waiting/); // can't even stage new photos
     const [pending] = await kyc.listPending(staff);
     expect(pending.legalName).toBe("Aminata Fatmata Kamara");
-    await expect(kyc.listPending(creator)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(kyc.listPending(creator as unknown as AdminActor)).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     await kyc.decide(staff, pending.id, { outcome: "approved", note: null, reasonCode: null });
     expect((await repos.profiles.findByUserId(creator.userId))!.verificationTier).toBe("id_verified");
@@ -310,7 +310,7 @@ describe("withdrawals", () => {
     const payout = await payouts.request(creator, { amountMinor: 150_000 });
     expect(payout).toMatchObject({ status: "in_review", reviewReason: "above_auto_approve" });
     expect(monimeServer.payouts.size).toBe(0);
-    await expect(payouts.release(creator, payout.id)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(payouts.release(creator as unknown as AdminActor, payout.id)).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect((await payouts.release(staff, payout.id)).payout.status).toBe("processing");
   });
 

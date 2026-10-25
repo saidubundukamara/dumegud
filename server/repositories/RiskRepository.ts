@@ -13,12 +13,15 @@ import {
   riskCases,
   riskRules,
   transactionLimits,
+  users,
   type LimitScope,
   type RestrictionFeature,
   type RiskAlert,
   type RiskCase,
 } from "@/server/db/schema";
+import type { Cursor } from "@/server/lib/cursor";
 import { BaseRepository } from "./BaseRepository";
+import { newestFirst, olderThan } from "./keyset";
 
 const COUNTED: ("pending" | "succeeded" | "under_review")[] = ["pending", "succeeded", "under_review"];
 const SETTLED: ("succeeded" | "under_review")[] = ["succeeded", "under_review"];
@@ -195,8 +198,23 @@ export class RiskRepository extends BaseRepository {
     return row;
   }
 
-  async listAlerts(status: RiskAlert["status"], limit = 100, tx?: Executor) {
-    return this.exec(tx).select().from(riskAlerts).where(eq(riskAlerts.status, status)).orderBy(desc(riskAlerts.createdAt)).limit(limit);
+  async listAlerts(status: RiskAlert["status"], limit = 100, tx?: Executor, cursor?: Cursor | null) {
+    return this.exec(tx)
+      .select()
+      .from(riskAlerts)
+      .where(and(eq(riskAlerts.status, status), olderThan(riskAlerts.createdAt, riskAlerts.id, cursor)))
+      .orderBy(...newestFirst(riskAlerts.createdAt, riskAlerts.id))
+      .limit(limit);
+  }
+
+  /** Alerts grouped into a case, or every alert about one creator. */
+  async alertsFor(by: { caseId: string } | { creatorId: string }, limit = 50, tx?: Executor) {
+    return this.exec(tx)
+      .select()
+      .from(riskAlerts)
+      .where("caseId" in by ? eq(riskAlerts.caseId, by.caseId) : eq(riskAlerts.creatorId, by.creatorId))
+      .orderBy(desc(riskAlerts.createdAt))
+      .limit(limit);
   }
 
   async findAlerts(ids: string[], tx?: Executor) {
@@ -251,6 +269,12 @@ export class RiskRepository extends BaseRepository {
 
   // ── Cases ─────────────────────────────────────────────────────────────────────
 
+  /** Row-locks the creator's user row (serialises case opening per creator). False if there's no such user. */
+  async lockCreator(creatorId: string, tx: Executor): Promise<boolean> {
+    const [row] = await tx.select({ id: users.id }).from(users).where(eq(users.id, creatorId)).for("update").limit(1);
+    return Boolean(row);
+  }
+
   async insertCase(data: typeof riskCases.$inferInsert, tx?: Executor): Promise<RiskCase> {
     const [row] = await this.exec(tx).insert(riskCases).values(data).returning();
     return row;
@@ -283,6 +307,20 @@ export class RiskRepository extends BaseRepository {
 
   async listCases(limit = 100, tx?: Executor) {
     return this.exec(tx).select().from(riskCases).where(ne(riskCases.status, "closed")).orderBy(desc(riskCases.updatedAt)).limit(limit);
+  }
+
+  /** Closed cases, newest first (the history tab). */
+  async listClosedCases(limit = 50, tx?: Executor, cursor?: Cursor | null) {
+    return this.exec(tx)
+      .select()
+      .from(riskCases)
+      .where(and(eq(riskCases.status, "closed"), olderThan(riskCases.createdAt, riskCases.id, cursor)))
+      .orderBy(...newestFirst(riskCases.createdAt, riskCases.id))
+      .limit(limit);
+  }
+
+  async casesForCreator(creatorId: string, limit = 20, tx?: Executor) {
+    return this.exec(tx).select().from(riskCases).where(eq(riskCases.creatorId, creatorId)).orderBy(desc(riskCases.createdAt)).limit(limit);
   }
 
   // ── Restrictions ──────────────────────────────────────────────────────────────
@@ -321,8 +359,13 @@ export class RiskRepository extends BaseRepository {
     return row;
   }
 
-  async listReports(status: "open" | "dismissed" | "actioned", limit = 100, tx?: Executor) {
-    return this.exec(tx).select().from(contentReports).where(eq(contentReports.status, status)).orderBy(desc(contentReports.createdAt)).limit(limit);
+  async listReports(status: "open" | "dismissed" | "actioned", limit = 100, tx?: Executor, cursor?: Cursor | null) {
+    return this.exec(tx)
+      .select()
+      .from(contentReports)
+      .where(and(eq(contentReports.status, status), olderThan(contentReports.createdAt, contentReports.id, cursor)))
+      .orderBy(...newestFirst(contentReports.createdAt, contentReports.id))
+      .limit(limit);
   }
 
   async resolveReport(id: string, status: "dismissed" | "actioned", by: string, now: Date, tx?: Executor) {

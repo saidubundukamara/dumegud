@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { FakeMonimeServer } from "@/server/integrations/monime/fake";
 import { parseMonimeEvent } from "@/server/integrations/monime/webhook";
 import { AuditRepository } from "@/server/repositories/AuditRepository";
+import { CategoryRepository } from "@/server/repositories/CategoryRepository";
 import { CreatorProfileRepository } from "@/server/repositories/CreatorProfileRepository";
 import { CreatorWalletRepository } from "@/server/repositories/CreatorWalletRepository";
 import { LedgerRepository } from "@/server/repositories/LedgerRepository";
@@ -14,7 +15,7 @@ import { ProductRepository } from "@/server/repositories/ProductRepository";
 import { RiskRepository } from "@/server/repositories/RiskRepository";
 import { UserRepository } from "@/server/repositories/UserRepository";
 import { WebhookEventRepository } from "@/server/repositories/WebhookEventRepository";
-import type { Actor } from "@/server/services/actor";
+import type { Actor, AdminActor } from "@/server/services/actor";
 import { AdminConfigService } from "@/server/services/AdminConfigService";
 import { CaseService } from "@/server/services/CaseService";
 import { AuditService, RestrictionService } from "@/server/services/compliance";
@@ -27,6 +28,7 @@ import { SettlementService } from "@/server/services/SettlementService";
 import { TransferService } from "@/server/services/TransferService";
 import { WalletService } from "@/server/services/WalletService";
 import { WebhookService } from "@/server/services/WebhookService";
+import { insertAdmin } from "../fixtures/admins";
 import { createTestDb, type TestDb } from "./db";
 
 // Phase 7 acceptance on real SQL: admin-edited limits apply immediately and are audited; rapid
@@ -36,9 +38,9 @@ import { createTestDb, type TestDb } from "./db";
 let t: TestDb;
 let monimeServer: FakeMonimeServer;
 let creator: Actor;
-let staff: Actor;
-let staff2: Actor;
-let superAdmin: Actor;
+let staff: AdminActor;
+let staff2: AdminActor;
+let superAdmin: AdminActor;
 
 const repos = {
   users: new UserRepository(),
@@ -52,6 +54,7 @@ const repos = {
   audit: new AuditRepository(),
   risk: new RiskRepository(),
   products: new ProductRepository(),
+  categories: new CategoryRepository(),
 };
 
 let contributions: ContributionService;
@@ -67,10 +70,6 @@ beforeAll(async () => {
 });
 afterAll(() => t.close());
 
-async function staffUser(email: string, role: "staff" | "super_admin"): Promise<Actor> {
-  const u = (await repos.users.insertIfEmailFree({ email, name: email, passwordHash: null }))!;
-  return { userId: u.id, role, status: "active", emailVerified: true };
-}
 
 beforeEach(async () => {
   await t.client.exec(
@@ -115,10 +114,10 @@ beforeEach(async () => {
   await new WalletService(repos, monime).provisionForCreator(user.id);
   await repos.profiles.insert(user.id, { handle: "aminata", handleLower: "aminata", displayName: "Aminata", bio: "", categoryId: null, supportMessageEnabled: true });
   await repos.profiles.setStatusOwned(user.id, "published", new Date());
-  creator = { userId: user.id, role: "creator", status: "active", emailVerified: true };
-  staff = await staffUser("staff1@dumegud.test", "staff");
-  staff2 = await staffUser("staff2@dumegud.test", "staff");
-  superAdmin = await staffUser("root@dumegud.test", "super_admin");
+  creator = { userId: user.id, status: "active", emailVerified: true };
+  staff = await insertAdmin("staff1@dumegud.test");
+  staff2 = await insertAdmin("staff2@dumegud.test");
+  superAdmin = await insertAdmin("root@dumegud.test", ["super_admin"]);
 });
 
 let ipCounter = 0;
@@ -155,7 +154,7 @@ describe("admin-configured limits", () => {
 
     await expect(support(30_000)).rejects.toThrow(/can't receive this amount/);
     const entries = await repos.audit.listForTarget("transaction_limit", limit.id);
-    expect(entries[0]).toMatchObject({ action: "limit.update", actorId: superAdmin.userId });
+    expect(entries[0]).toMatchObject({ action: "limit.update", actorId: superAdmin.adminId });
     expect((entries[0].before as { maxAmountMinor: number }).maxAmountMinor).toBe(50_000);
     expect((entries[0].after as { maxAmountMinor: number }).maxAmountMinor).toBe(20_000);
   });
@@ -227,7 +226,7 @@ describe("cases and restrictions", () => {
   });
 
   it("creators can't open cases or decide", async () => {
-    await expect(cases.openCase(creator, { creatorId: creator.userId, alertIds: [], note: "" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(cases.openCase(creator as unknown as AdminActor, { creatorId: creator.userId, alertIds: [], note: "" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 
@@ -238,7 +237,7 @@ describe("reports", () => {
     await expect(reports.submit({ targetType: "product", targetId: crypto.randomUUID(), reason: "scam", details: "", reporterEmail: null }, { ip: "x", userAgent: null })).rejects.toMatchObject({ code: "NOT_FOUND" });
 
     const [open] = await reports.listOpen(staff);
-    expect(open).toMatchObject({ reason: "impersonation", targetLabel: "aminata" });
+    expect(open).toMatchObject({ reason: "impersonation", targetLabel: "@aminata" });
     const change = await reports.resolve(staff, open.id, { action: "suspend", reason: "impersonation confirmed" });
     expect(change.tags).toEqual(expect.arrayContaining([`creator:${profile.id}`, "handle:aminata"]));
     expect((await repos.profiles.findByUserId(creator.userId))!.status).toBe("suspended");
@@ -281,5 +280,44 @@ describe("races", () => {
     await Promise.all([cases.addNote(staff, c.id, "one"), cases.addNote(staff2, c.id, "two")]);
     const notes = (await repos.risk.findCase(c.id))!.notes as { text: string }[];
     expect(notes.map((n) => n.text).sort()).toEqual(["one", "two"]);
+  });
+});
+
+describe("admin console races", () => {
+  it("a takedown and a restore each apply once when two admins act together", async () => {
+    const profile = (await repos.profiles.findByUserId(creator.userId))!;
+    const input = { targetType: "creator" as const, targetId: profile.id, action: "suspend" as const, reason: "Impersonation" };
+    const down = await Promise.allSettled([reports.moderate(staff, input), reports.moderate(staff2, input)]);
+    expect(down.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(down.find((r) => r.status === "rejected")).toMatchObject({ reason: { code: "CONFLICT" } });
+    expect((await repos.profiles.findById(profile.id))!.status).toBe("suspended");
+
+    const back = await Promise.allSettled([reports.moderate(staff, { ...input, action: "restore" }), reports.moderate(staff2, { ...input, action: "restore" })]);
+    expect(back.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    // Restoring never re-publishes: the creator publishes again.
+    expect((await repos.profiles.findById(profile.id))!.status).toBe("unpublished");
+    await expect(reports.moderate(staff, { ...input, action: "restore", reason: " " })).rejects.toMatchObject({ code: "VALIDATION" });
+    const actions = (await repos.audit.recent(10)).map((a) => a.action);
+    expect(actions.filter((a) => a === "moderation.suspend")).toHaveLength(1);
+    expect(actions.filter((a) => a === "moderation.restore")).toHaveLength(1);
+  });
+
+  it("opens one manual case per creator even when two admins click at once", async () => {
+    const results = await Promise.allSettled([
+      cases.openCase(staff, { creatorId: creator.userId, alertIds: [], note: "a" }),
+      cases.openCase(staff2, { creatorId: creator.userId, alertIds: [], note: "b" }),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((r) => r.status === "rejected")).toMatchObject({ reason: { code: "CONFLICT" } });
+    expect(await repos.risk.casesForCreator(creator.userId)).toHaveLength(1);
+  });
+
+  it("refuses a category slug that's taken, even between two parallel creates", async () => {
+    const input = { name: "Music", slug: "music-and-audio", active: true, position: 50 };
+    const results = await Promise.allSettled([config.saveCategory(superAdmin, null, input), config.saveCategory(superAdmin, null, { ...input, name: "Audio" })]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((r) => r.status === "rejected")).toMatchObject({ reason: { code: "CONFLICT" } });
+    await expect(config.saveCategory(staff, null, { ...input, slug: "other" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(config.saveCategory(superAdmin, null, { ...input, slug: "Not A Slug!" })).rejects.toMatchObject({ code: "VALIDATION" });
   });
 });

@@ -6,7 +6,8 @@ import type { EmailService } from "@/server/integrations/email";
 import { kycDecisionTemplate } from "@/server/integrations/email/templates";
 import type { ObjectStorage } from "@/server/integrations/r2/storage";
 import { decryptField, encryptField } from "@/server/lib/crypto";
-import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/server/lib/errors";
+import { decodeCursor, toPage } from "@/server/lib/cursor";
+import { ConflictError, NotFoundError, ValidationError } from "@/server/lib/errors";
 import { pepperedHash } from "@/server/lib/hash";
 import { logger } from "@/server/lib/logger";
 import { enforceRateLimit, type RateLimitPolicy } from "@/server/lib/rate-limit";
@@ -15,7 +16,7 @@ import type { CreatorProfileRepository } from "@/server/repositories/CreatorProf
 import type { KycRepository } from "@/server/repositories/KycRepository";
 import type { UserRepository } from "@/server/repositories/UserRepository";
 import type { KycDoc, KycSubmitInput } from "@/server/validation/wallet";
-import { isStaff, type Actor } from "./actor";
+import { assertPermission, type Actor, type AdminActor } from "./actor";
 import { noAudit, type AuditLogger } from "./compliance";
 import { runInTransaction } from "./transaction";
 
@@ -143,39 +144,55 @@ export class KycService {
 
   // ── Staff review (Phase 8 adds audit logging around every view and decision) ───
 
-  async listPending(actor: Actor) {
-    this.assertStaff(actor);
+  async listPending(actor: AdminActor) {
+    assertPermission(actor, "kyc.view");
     const rows = await this.repos.kyc.listByStatus("pending");
     return rows.map((r) => this.reviewDTO(r));
   }
 
-  async getForReview(actor: Actor, submissionId: string) {
-    this.assertStaff(actor);
+  /** Decided submissions by outcome, newest first (pending is `listPending`, oldest first). */
+  async listDecided(actor: AdminActor, status: "approved" | "rejected" | "needs_more_info", cursor: unknown) {
+    assertPermission(actor, "kyc.view");
+    const limit = 30;
+    const page = toPage(await this.repos.kyc.listDecided(status, limit + 1, undefined, decodeCursor(cursor)), limit, (r) => r.createdAt);
+    return { rows: page.rows.map((r) => this.reviewDTO(r)), next: page.next };
+  }
+
+  /** One submission plus the creator's other submissions (newest first). */
+  async getForReview(actor: AdminActor, submissionId: string) {
+    assertPermission(actor, "kyc.view");
     const row = await this.repos.kyc.findById(submissionId);
     if (!row) throw new NotFoundError();
-    return this.reviewDTO(row);
+    const all = await this.repos.kyc.listForUser(row.userId);
+    return { ...this.reviewDTO(row), history: all.filter((r) => r.id !== row.id).reverse().map((r) => this.reviewDTO(r)) };
+  }
+
+  /** Every submission of one creator, newest first (creator detail page). */
+  async historyForUser(actor: AdminActor, userId: string) {
+    assertPermission(actor, "kyc.view");
+    return (await this.repos.kyc.listForUser(userId)).reverse().map((r) => this.reviewDTO(r));
   }
 
   /** Document bytes for the staff viewer (streamed by an authenticated route, never a public URL). */
-  async readDocument(actor: Actor, submissionId: string, doc: KycDoc): Promise<Uint8Array> {
-    this.assertStaff(actor);
+  async readDocument(actor: AdminActor, submissionId: string, doc: KycDoc): Promise<Uint8Array> {
+    assertPermission(actor, "kyc.view");
     const row = await this.repos.kyc.findById(submissionId);
     const key = row ? { id_front: row.idFrontKey, id_back: row.idBackKey, selfie: row.selfieKey }[doc] : null;
     if (!key) throw new NotFoundError();
     const object = await this.storage().getObject(this.deps.bucket, key, MAX_DOC_BYTES);
     if (!object) throw new NotFoundError();
-    logger.info("kyc document viewed", { submissionId, doc, reviewerId: actor.userId });
+    logger.info("kyc document viewed", { submissionId, doc, reviewerId: actor.adminId });
     await (this.deps.audit ?? noAudit).log({ actor, action: "kyc.view_document", targetType: "kyc_submission", targetId: submissionId, after: { doc } });
     return object.body;
   }
 
   async decide(
-    actor: Actor,
+    actor: AdminActor,
     submissionId: string,
     decision: { outcome: "approved" | "rejected" | "needs_more_info"; note: string | null; reasonCode: string | null },
   ): Promise<void> {
-    this.assertStaff(actor);
-    const review = { reviewerId: actor.userId, reviewNotes: decision.note, rejectionReasonCode: decision.reasonCode, reviewedAt: this.now() };
+    assertPermission(actor, "kyc.decide");
+    const review = { reviewerId: actor.adminId, reviewNotes: decision.note, rejectionReasonCode: decision.reasonCode, reviewedAt: this.now() };
     let decided: KycSubmission | null;
     try {
       decided = await this.transaction(async (tx) => {
@@ -197,7 +214,7 @@ export class KycService {
       throw err;
     }
     if (!decided) throw new ConflictError("This submission was already reviewed.");
-    logger.info("kyc decision", { submissionId, outcome: decision.outcome, reviewerId: actor.userId });
+    logger.info("kyc decision", { submissionId, outcome: decision.outcome, reviewerId: actor.adminId });
     await (this.deps.audit ?? noAudit).log({
       actor,
       action: `kyc.${decision.outcome}`,
@@ -234,6 +251,9 @@ export class KycService {
       docs: (["id_front", "id_back", "selfie"] as const).filter((d) => d !== "id_back" || r.idBackKey),
       status: r.status,
       submittedAt: r.createdAt,
+      reviewerId: r.reviewerId,
+      reviewNotes: r.reviewNotes,
+      reviewedAt: r.reviewedAt,
     };
   }
 
@@ -241,10 +261,6 @@ export class KycService {
     const latest = await this.repos.kyc.latestForUser(actor.userId);
     if (latest?.status === "pending") throw new ConflictError("Your verification is already waiting for review.");
     if (latest?.status === "approved") throw new ConflictError("You're already verified.");
-  }
-
-  private assertStaff(actor: Actor) {
-    if (!isStaff(actor.role)) throw new ForbiddenError();
   }
 
   private storage(): ObjectStorage {

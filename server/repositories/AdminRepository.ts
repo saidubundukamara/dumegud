@@ -2,6 +2,7 @@ import "server-only";
 import { and, desc, eq, gte, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import {
+  admins,
   auditLogs,
   contentReports,
   creatorProfiles,
@@ -12,12 +13,23 @@ import {
   paymentEvents,
   payments,
   payouts,
+  platformSettingsHistory,
+  products,
   riskAlerts,
+  riskCases,
   users,
   webhookEvents,
   type PaymentStatus,
+  type PayoutStatus,
 } from "@/server/db/schema";
+import type { Cursor } from "@/server/lib/cursor";
 import { BaseRepository } from "./BaseRepository";
+import { newestFirst, olderThan } from "./keyset";
+
+export type PaymentFilter = { status?: PaymentStatus; kind?: "contribution" | "order"; creatorId?: string; from?: Date; to?: Date; cursor?: Cursor | null };
+export type PayoutFilter = { status?: PayoutStatus; creatorId?: string; cursor?: Cursor | null };
+export type WebhookStatusFilter = "failed" | "dead" | "ignored" | "processed" | "processing";
+export type AuditFilter = { actorId?: string; targetType?: string; targetId?: string; action?: string; from?: Date; to?: Date; cursor?: Cursor | null };
 
 const n = (v: unknown) => Number(v ?? 0);
 
@@ -26,12 +38,18 @@ export class AdminRepository extends BaseRepository {
   async overview(since: Date, tx?: Executor) {
     const db = this.exec(tx);
     const count = async (q: Promise<{ v: string }[]>) => n((await q)[0]?.v);
-    const [registrations, published, gtv, revenue, pendingTransfers, payoutsInReview, openAlerts, openReports, failedWebhooks, pendingKyc, openDriftAlerts] =
+    const [registrations, published, gtv, revenue, productSales, pendingTransfers, payoutsInReview, openAlerts, openReports, failedWebhooks, pendingKyc, openDriftAlerts] =
       await Promise.all([
         count(db.select({ v: sql<string>`count(*)` }).from(users).where(gte(users.createdAt, since))),
         count(db.select({ v: sql<string>`count(*)` }).from(creatorProfiles).where(eq(creatorProfiles.status, "published"))),
         count(db.select({ v: sql<string>`coalesce(sum(${payments.grossMinor}), 0)` }).from(payments).where(and(eq(payments.status, "succeeded"), gte(payments.settledAt, since)))),
         count(db.select({ v: sql<string>`coalesce(sum(${payments.platformFeeMinor}), 0)` }).from(payments).where(and(eq(payments.status, "succeeded"), gte(payments.settledAt, since)))),
+        count(
+          db
+            .select({ v: sql<string>`coalesce(sum(${payments.grossMinor}), 0)` })
+            .from(payments)
+            .where(and(eq(payments.status, "succeeded"), eq(payments.kind, "order"), gte(payments.settledAt, since))),
+        ),
         count(db.select({ v: sql<string>`count(*)` }).from(payments).where(and(eq(payments.status, "succeeded"), eq(payments.settlementFrozen, false)))),
         count(db.select({ v: sql<string>`count(*)` }).from(payouts).where(eq(payouts.status, "in_review"))),
         count(db.select({ v: sql<string>`count(*)` }).from(riskAlerts).where(eq(riskAlerts.status, "open"))),
@@ -40,22 +58,58 @@ export class AdminRepository extends BaseRepository {
         count(db.select({ v: sql<string>`count(*)` }).from(kycSubmissions).where(eq(kycSubmissions.status, "pending"))),
         count(db.select({ v: sql<string>`count(*)` }).from(riskAlerts).where(and(eq(riskAlerts.status, "open"), eq(riskAlerts.ruleCode, "LEDGER_DRIFT")))),
       ]);
-    return { registrations, published, gtvMinor: gtv, revenueMinor: revenue, pendingTransfers, payoutsInReview, openAlerts, openReports, failedWebhooks, pendingKyc, openDriftAlerts };
+    return { registrations, published, gtvMinor: gtv, revenueMinor: revenue, productSalesMinor: productSales, pendingTransfers, payoutsInReview, openAlerts, openReports, failedWebhooks, pendingKyc, openDriftAlerts };
+  }
+
+  /** The sidebar's live counts: what's waiting for a person in each queue. */
+  async queueCounts(tx?: Executor) {
+    const db = this.exec(tx);
+    const count = async (q: Promise<{ v: string }[]>) => n((await q)[0]?.v);
+    const [kyc, payoutsInReview, productsInReview, reports, alerts, cases, webhooks] = await Promise.all([
+      count(db.select({ v: sql<string>`count(*)` }).from(kycSubmissions).where(eq(kycSubmissions.status, "pending"))),
+      count(db.select({ v: sql<string>`count(*)` }).from(payouts).where(eq(payouts.status, "in_review"))),
+      count(db.select({ v: sql<string>`count(*)` }).from(products).where(eq(products.status, "pending_review"))),
+      count(db.select({ v: sql<string>`count(*)` }).from(contentReports).where(eq(contentReports.status, "open"))),
+      count(db.select({ v: sql<string>`count(*)` }).from(riskAlerts).where(eq(riskAlerts.status, "open"))),
+      count(db.select({ v: sql<string>`count(*)` }).from(riskCases).where(eq(riskCases.status, "awaiting_approval"))),
+      count(db.select({ v: sql<string>`count(*)` }).from(webhookEvents).where(inArray(webhookEvents.status, ["failed", "dead"]))),
+    ]);
+    return { kyc, payouts: payoutsInReview, products: productsInReview, reports, risk: alerts + cases, webhooks };
+  }
+
+  /** Handle (or email) per creator id, to label rows that only carry an id. */
+  async creatorLabels(userIds: string[], tx?: Executor): Promise<Map<string, string>> {
+    const ids = [...new Set(userIds)].filter(Boolean);
+    if (!ids.length) return new Map();
+    const rows = await this.exec(tx)
+      .select({ id: users.id, email: users.email, handle: creatorProfiles.handle })
+      .from(users)
+      .leftJoin(creatorProfiles, eq(creatorProfiles.userId, users.id))
+      .where(inArray(users.id, ids));
+    return new Map(rows.map((r) => [r.id, r.handle ? `@${r.handle}` : r.email]));
+  }
+
+  /** Admin names per id (reviewers, approvers, case authors). */
+  async adminNames(adminIds: string[], tx?: Executor): Promise<Map<string, string>> {
+    const ids = [...new Set(adminIds)].filter(Boolean);
+    if (!ids.length) return new Map();
+    const rows = await this.exec(tx).select({ id: admins.id, name: admins.name }).from(admins).where(inArray(admins.id, ids));
+    return new Map(rows.map((r) => [r.id, r.name]));
   }
 
   /** Creators by handle prefix, exact email or exact user id. */
-  async searchCreators(term: string, limit = 50, tx?: Executor) {
+  async searchCreators(term: string, limit = 50, tx?: Executor, cursor?: Cursor | null) {
     const t = term.trim().toLowerCase();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(t);
     const conditions: SQL[] = [eq(users.email, t), ilike(creatorProfiles.handleLower, `${t.replace(/[%_\\]/g, "")}%`)];
     if (isUuid) conditions.push(eq(users.id, t));
     return this.exec(tx)
       .select({
+        id: users.id,
         userId: users.id,
         email: users.email,
         name: users.name,
         status: users.status,
-        role: users.role,
         handle: creatorProfiles.handle,
         profileStatus: creatorProfiles.status,
         riskTier: creatorProfiles.riskTier,
@@ -63,9 +117,9 @@ export class AdminRepository extends BaseRepository {
       })
       .from(users)
       .leftJoin(creatorProfiles, eq(creatorProfiles.userId, users.id))
-      .where(t ? or(...conditions) : undefined)
-      .orderBy(desc(users.createdAt))
-      .limit(Math.min(limit, 200));
+      .where(and(t ? or(...conditions) : undefined, olderThan(users.createdAt, users.id, cursor)))
+      .orderBy(...newestFirst(users.createdAt, users.id))
+      .limit(Math.min(limit, 201));
   }
 
   async creatorDetail(userId: string, tx?: Executor) {
@@ -80,15 +134,36 @@ export class AdminRepository extends BaseRepository {
     return row ?? null;
   }
 
-  async listPayments(filter: { status?: PaymentStatus; kind?: "contribution" | "order"; creatorId?: string; from?: Date; to?: Date }, limit = 100, tx?: Executor) {
+  async listPayments(filter: PaymentFilter, limit = 100, tx?: Executor) {
     const where = and(
       filter.status ? eq(payments.status, filter.status) : undefined,
       filter.kind ? eq(payments.kind, filter.kind) : undefined,
       filter.creatorId ? eq(payments.creatorId, filter.creatorId) : undefined,
       filter.from ? gte(payments.createdAt, filter.from) : undefined,
       filter.to ? lt(payments.createdAt, filter.to) : undefined,
+      olderThan(payments.createdAt, payments.id, filter.cursor),
     );
-    return this.exec(tx).select().from(payments).where(where).orderBy(desc(payments.createdAt)).limit(Math.min(limit, 200));
+    return this.exec(tx)
+      .select()
+      .from(payments)
+      .where(where)
+      .orderBy(...newestFirst(payments.createdAt, payments.id))
+      .limit(Math.min(limit, 201));
+  }
+
+  async listPayouts(filter: PayoutFilter, limit = 50, tx?: Executor) {
+    return this.exec(tx)
+      .select()
+      .from(payouts)
+      .where(
+        and(
+          filter.status ? eq(payouts.status, filter.status) : undefined,
+          filter.creatorId ? eq(payouts.creatorId, filter.creatorId) : undefined,
+          olderThan(payouts.createdAt, payouts.id, filter.cursor),
+        ),
+      )
+      .orderBy(...newestFirst(payouts.createdAt, payouts.id))
+      .limit(Math.min(limit, 201));
   }
 
   async findPayment(id: string, tx?: Executor) {
@@ -110,16 +185,16 @@ export class AdminRepository extends BaseRepository {
     return { events, ledger };
   }
 
-  async stuckPayouts(olderThan: Date, tx?: Executor) {
+  async stuckPayouts(cutoff: Date, tx?: Executor) {
     return this.exec(tx)
       .select()
       .from(payouts)
-      .where(and(inArray(payouts.status, ["requested", "processing"]), lt(payouts.updatedAt, olderThan)))
+      .where(and(inArray(payouts.status, ["requested", "processing"]), lt(payouts.updatedAt, cutoff)))
       .orderBy(payouts.requestedAt)
       .limit(100);
   }
 
-  async webhookEvents(status: "failed" | "dead" | "ignored" | "processed" | "processing" | undefined, limit = 100, tx?: Executor) {
+  async webhookEvents(status: WebhookStatusFilter | undefined, limit = 100, tx?: Executor, cursor?: Cursor | null) {
     return this.exec(tx)
       .select({
         id: webhookEvents.id,
@@ -131,9 +206,9 @@ export class AdminRepository extends BaseRepository {
         receivedAt: webhookEvents.receivedAt,
       })
       .from(webhookEvents)
-      .where(status ? eq(webhookEvents.status, status) : undefined)
-      .orderBy(desc(webhookEvents.receivedAt))
-      .limit(Math.min(limit, 200));
+      .where(and(status ? eq(webhookEvents.status, status) : undefined, olderThan(webhookEvents.receivedAt, webhookEvents.id, cursor)))
+      .orderBy(...newestFirst(webhookEvents.receivedAt, webhookEvents.id))
+      .limit(Math.min(limit, 201));
   }
 
   async findWebhookEvent(id: string, tx?: Executor) {
@@ -141,7 +216,7 @@ export class AdminRepository extends BaseRepository {
     return row ?? null;
   }
 
-  async auditLog(filter: { actorId?: string; targetType?: string; targetId?: string; action?: string; from?: Date; to?: Date }, limit = 200, tx?: Executor) {
+  async auditLog(filter: AuditFilter, limit = 200, tx?: Executor) {
     return this.exec(tx)
       .select()
       .from(auditLogs)
@@ -153,9 +228,20 @@ export class AdminRepository extends BaseRepository {
           filter.action ? ilike(auditLogs.action, `${filter.action.replace(/[%_\\]/g, "")}%`) : undefined,
           filter.from ? gte(auditLogs.createdAt, filter.from) : undefined,
           filter.to ? lt(auditLogs.createdAt, filter.to) : undefined,
+          olderThan(auditLogs.createdAt, auditLogs.id, filter.cursor),
         ),
       )
-      .orderBy(desc(auditLogs.createdAt))
+      .orderBy(...newestFirst(auditLogs.createdAt, auditLogs.id))
       .limit(Math.min(limit, 5000));
+  }
+
+  /** Every saved version of one setting, newest first. */
+  async settingsHistory(key: string, limit = 20, tx?: Executor) {
+    return this.exec(tx)
+      .select()
+      .from(platformSettingsHistory)
+      .where(eq(platformSettingsHistory.key, key))
+      .orderBy(desc(platformSettingsHistory.version))
+      .limit(Math.min(limit, 100));
   }
 }

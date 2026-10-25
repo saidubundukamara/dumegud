@@ -76,7 +76,7 @@ beforeEach(async () => {
   shoutouts = new ShoutoutService({ repos, appBaseUrl: "https://dumegud.test", now: () => now });
 
   const user = (await repos.users.insertIfEmailFree({ email: "aminata@example.com", name: "Aminata", passwordHash: null }))!;
-  actor = { userId: user.id, role: "creator", status: "active", emailVerified: true } as Actor;
+  actor = { userId: user.id, status: "active", emailVerified: true } as Actor;
   await new WalletService(repos, monime).provisionForCreator(user.id);
   await repos.profiles.insert(user.id, {
     handle: "aminata",

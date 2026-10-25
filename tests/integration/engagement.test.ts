@@ -100,7 +100,7 @@ beforeEach(async () => {
   failNext = false;
   const user = (await repos.users.insertIfEmailFree({ email: "aminata@example.com", name: "Aminata Kamara", passwordHash: null }))!;
   creatorId = user.id;
-  actor = { userId: user.id, role: "creator", status: "active", emailVerified: true } as Actor;
+  actor = { userId: user.id, status: "active", emailVerified: true } as Actor;
   await repos.profiles.insert(user.id, { handle: "aminata", handleLower: "aminata", displayName: "Aminata", bio: "", categoryId: null, supportMessageEnabled: true });
   await repos.profiles.setStatusOwned(user.id, "published", new Date("2026-08-01T00:00:00Z"));
   recaps = new RecapService({ repos, email, appBaseUrl: "https://dumegud.test", now: () => now });

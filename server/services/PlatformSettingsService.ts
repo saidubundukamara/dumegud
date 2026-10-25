@@ -67,6 +67,11 @@ const DEFAULTS: { [K in keyof typeof SCHEMA]: z.infer<(typeof SCHEMA)[K]> } = {
   "jobs.ledgerDriftToleranceMinor": 100,
 };
 
+/** The value a key falls back to while nothing is stored (shown in the admin editor). */
+export function settingDefault(key: SettingKey): unknown {
+  return DEFAULTS[key];
+}
+
 export type PlatformSettings = {
   contributionFeeBps: number;
   productFeeBps: number;

@@ -4,8 +4,11 @@ import { createEmailService, type EmailService } from "@/server/integrations/ema
 import { createMonime, type MonimeClient } from "@/server/integrations/monime";
 import { sharedFakeMonimeServer } from "@/server/integrations/monime/fake";
 import { R2Storage } from "@/server/integrations/r2/client";
+import { adminBaseUrl } from "@/lib/admin-host";
 import { AccountDeletionRepository } from "@/server/repositories/AccountDeletionRepository";
+import { AdminAccountRepository } from "@/server/repositories/AdminAccountRepository";
 import { AdminRepository } from "@/server/repositories/AdminRepository";
+import { AdminRoleRepository } from "@/server/repositories/AdminRoleRepository";
 import { AuditRepository } from "@/server/repositories/AuditRepository";
 import { AuthEventRepository } from "@/server/repositories/AuthEventRepository";
 import { AuthTokenRepository } from "@/server/repositories/AuthTokenRepository";
@@ -28,6 +31,8 @@ import { ShoutoutRepository } from "@/server/repositories/ShoutoutRepository";
 import { UserRepository } from "@/server/repositories/UserRepository";
 import { WebhookEventRepository } from "@/server/repositories/WebhookEventRepository";
 import { AccountDeletionService } from "./AccountDeletionService";
+import { AdminAccountService } from "./AdminAccountService";
+import { AdminAuthService } from "./AdminAuthService";
 import { AdminConfigService } from "./AdminConfigService";
 import { AdminService } from "./AdminService";
 import { AuthService } from "./AuthService";
@@ -84,6 +89,8 @@ export const repos = {
   audit: new AuditRepository(),
   risk: new RiskRepository(),
   admin: new AdminRepository(),
+  adminAccounts: new AdminAccountRepository(),
+  adminRoles: new AdminRoleRepository(),
   shoutouts: new ShoutoutRepository(),
   accountDeletions: new AccountDeletionRepository(),
   jobs: new JobRepository(),
@@ -121,6 +128,8 @@ let cases: CaseService | undefined;
 let reports: ReportService | undefined;
 let adminConfig: AdminConfigService | undefined;
 let admin: AdminService | undefined;
+let adminAuth: AdminAuthService | undefined;
+let adminAccounts: AdminAccountService | undefined;
 let accountDeletions: AccountDeletionService | undefined;
 let jobs: JobService | undefined;
 let reconciliation: ReconciliationService | undefined;
@@ -342,6 +351,15 @@ export const services = {
       jobs: services.jobs,
     });
     return admin;
+  },
+  get adminAuth(): AdminAuthService {
+    adminAuth ??= new AdminAuthService({ repos, audit });
+    return adminAuth;
+  },
+  get adminAccounts(): AdminAccountService {
+    const env = getEnv();
+    adminAccounts ??= new AdminAccountService({ repos, audit, email: getEmail(), adminBaseUrl: adminBaseUrl({ ADMIN_BASE_URL: env.ADMIN_BASE_URL, APP_BASE_URL: env.APP_BASE_URL }) });
+    return adminAccounts;
   },
   get accountDeletions(): AccountDeletionService {
     const env = getEnv();

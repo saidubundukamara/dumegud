@@ -287,7 +287,7 @@ describe("creator views", () => {
     await startSupport(20_000, { isAnonymous: true, supporterName: "Secret" });
     for (const e of monimeServer.completeCheckout(await sessionOf(paid.paymentId))) await deliver(e);
 
-    const actor = { userId: creatorId, role: "creator" as const, status: "active" as const, emailVerified: true };
+    const actor = { userId: creatorId, status: "active" as const, emailVerified: true };
     const list = await contributions.listForCreator(actor);
     expect(list.succeeded).toHaveLength(1);
     expect(list.succeeded[0]).toMatchObject({ name: "Kadiatu", message: "Keep going!", grossMinor: 10_000, feeEstimated: false });

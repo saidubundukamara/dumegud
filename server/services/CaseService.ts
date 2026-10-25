@@ -1,9 +1,10 @@
 import "server-only";
-import type { CaseDecision, RestrictionFeature, RiskCase } from "@/server/db/schema";
+import type { CaseDecision, RestrictionFeature, RiskAlert, RiskCase } from "@/server/db/schema";
+import { decodeCursor, toPage, type Page } from "@/server/lib/cursor";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/server/lib/errors";
 import type { LedgerRepository } from "@/server/repositories/LedgerRepository";
 import type { RiskRepository } from "@/server/repositories/RiskRepository";
-import { isStaff, type Actor } from "./actor";
+import { assertPermission, type AdminActor } from "./actor";
 import type { AuditLogger } from "./compliance";
 import { accounts } from "./ledger";
 import type { PlatformSettingsService } from "./PlatformSettingsService";
@@ -32,17 +33,22 @@ export class CaseService {
     private readonly transaction: typeof runInTransaction = runInTransaction,
   ) {}
 
-  async openCase(actor: Actor, input: { creatorId: string; alertIds: string[]; note: string }): Promise<RiskCase> {
-    this.staff(actor);
+  async openCase(actor: AdminActor, input: { creatorId: string; alertIds: string[]; note: string }): Promise<RiskCase> {
+    assertPermission(actor, "risk.cases");
     const created = await this.transaction(async (tx) => {
+      // Serialises case opening per creator, so a manual case can't be opened twice at once.
+      if (!(await this.repos.risk.lockCreator(input.creatorId, tx))) throw new NotFoundError();
+      if (!input.alertIds.length && (await this.repos.risk.openCaseForCreator(input.creatorId, tx))) {
+        throw new ConflictError("This creator already has an open case. Add a note to it instead.");
+      }
       const alerts = await this.repos.risk.findAlerts(input.alertIds, tx);
       if (alerts.some((a) => a.creatorId !== input.creatorId)) throw new ValidationError("Those alerts belong to different creators.");
       const c = await this.repos.risk.insertCase(
         {
           creatorId: input.creatorId,
           reasonCodes: [...new Set(alerts.map((a) => a.ruleCode))],
-          assigneeId: actor.userId,
-          notes: input.note ? [{ by: actor.userId, at: this.now().toISOString(), text: input.note }] : [],
+          assigneeId: actor.adminId,
+          notes: input.note ? [{ by: actor.adminId, at: this.now().toISOString(), text: input.note }] : [],
         },
         tx,
       );
@@ -57,22 +63,22 @@ export class CaseService {
     return created;
   }
 
-  async dismissAlert(actor: Actor, alertId: string): Promise<void> {
-    this.staff(actor);
+  async dismissAlert(actor: AdminActor, alertId: string): Promise<void> {
+    assertPermission(actor, "risk.cases");
     if (!(await this.repos.risk.dismissOpenAlert(alertId))) throw new ConflictError("This alert is no longer open.");
     await this.audit.log({ actor, action: "alert.dismiss", targetType: "risk_alert", targetId: alertId });
   }
 
-  async addNote(actor: Actor, caseId: string, text: string): Promise<void> {
-    this.staff(actor);
-    const note = { by: actor.userId, at: this.now().toISOString(), text: text.slice(0, 2000) };
+  async addNote(actor: AdminActor, caseId: string, text: string): Promise<void> {
+    assertPermission(actor, "risk.cases");
+    const note = { by: actor.adminId, at: this.now().toISOString(), text: text.slice(0, 2000) };
     if (!(await this.repos.risk.appendCaseNote(caseId, note))) throw new NotFoundError();
     await this.audit.log({ actor, action: "case.note", targetType: "risk_case", targetId: caseId });
   }
 
   /** Returns whether the decision took effect (false = waiting for a second approver). */
-  async decide(actor: Actor, caseId: string, input: DecisionInput): Promise<{ applied: boolean }> {
-    this.staff(actor);
+  async decide(actor: AdminActor, caseId: string, input: DecisionInput): Promise<{ applied: boolean }> {
+    assertPermission(actor, "risk.cases");
     if (input.decision === "pause_feature" && !input.feature) throw new ValidationError("Choose which feature to pause.");
     const settings = await this.settings.get();
 
@@ -80,18 +86,18 @@ export class CaseService {
       const c = await this.repos.risk.lockCase(caseId, tx);
       if (!c) throw new NotFoundError();
       if (c.status === "closed") throw new ConflictError("This case is closed.");
-      const approvals = [...((c.approvals as unknown[]) ?? []), { by: actor.userId, at: this.now().toISOString(), decision: input.decision }];
+      const approvals = [...((c.approvals as unknown[]) ?? []), { by: actor.adminId, at: this.now().toISOString(), decision: input.decision }];
 
       const owed = -(await this.repos.ledger.balance(accounts.creatorPayable(c.creatorId), tx));
       const needsSecond = RESTRICTING.includes(input.decision) && owed >= settings.dualApprovalMinBalanceMinor;
       const pending = c.pendingDecision as (DecisionInput & { by: string }) | null;
 
       if (needsSecond && !pending) {
-        await this.repos.risk.updateCase(caseId, { status: "awaiting_approval", pendingDecision: { ...input, by: actor.userId }, approvals }, tx);
+        await this.repos.risk.updateCase(caseId, { status: "awaiting_approval", pendingDecision: { ...input, by: actor.adminId }, approvals }, tx);
         return { applied: false, before: c };
       }
       if (needsSecond && pending) {
-        if (pending.by === actor.userId) throw new ForbiddenError("A different staff member must approve this decision.");
+        if (pending.by === actor.adminId) throw new ForbiddenError("A different admin must approve this decision.");
         if (pending.decision !== input.decision || pending.feature !== input.feature) {
           throw new ConflictError("This doesn't match the decision waiting for approval.");
         }
@@ -127,27 +133,53 @@ export class CaseService {
     return { applied: result.applied };
   }
 
-  async listOpen(actor: Actor) {
-    this.staff(actor);
+  async listOpen(actor: AdminActor) {
+    assertPermission(actor, "risk.view");
     return this.repos.risk.listCases();
   }
 
-  async listAlerts(actor: Actor) {
-    this.staff(actor);
+  async listAlerts(actor: AdminActor) {
+    assertPermission(actor, "risk.view");
     return this.repos.risk.listAlerts("open");
   }
 
-  private async apply(c: RiskCase, input: DecisionInput, actor: Actor, tx: Parameters<RiskRepository["insertRestriction"]>[1]) {
+  /** Alerts by status, newest first. */
+  async alertsPage(actor: AdminActor, status: RiskAlert["status"], cursor: unknown): Promise<Page<RiskAlert>> {
+    assertPermission(actor, "risk.view");
+    const limit = 30;
+    return toPage(await this.repos.risk.listAlerts(status, limit + 1, undefined, decodeCursor(cursor)), limit, (a) => a.createdAt);
+  }
+
+  /** Closed cases, newest first. */
+  async closedCasesPage(actor: AdminActor, cursor: unknown): Promise<Page<RiskCase>> {
+    assertPermission(actor, "risk.view");
+    const limit = 30;
+    return toPage(await this.repos.risk.listClosedCases(limit + 1, undefined, decodeCursor(cursor)), limit, (c) => c.createdAt);
+  }
+
+  /** A case with the alerts grouped into it. */
+  async caseDetail(actor: AdminActor, caseId: string) {
+    assertPermission(actor, "risk.view");
+    const c = await this.repos.risk.findCase(caseId);
+    if (!c) throw new NotFoundError();
+    const alerts = await this.repos.risk.alertsFor({ caseId });
+    return { case: c, alerts };
+  }
+
+  /** Alerts and cases about one creator (creator detail page). */
+  async forCreator(actor: AdminActor, creatorId: string) {
+    assertPermission(actor, "risk.view");
+    const [alerts, cases] = await Promise.all([this.repos.risk.alertsFor({ creatorId }, 20), this.repos.risk.casesForCreator(creatorId)]);
+    return { alerts, cases };
+  }
+
+  private async apply(c: RiskCase, input: DecisionInput, actor: AdminActor, tx: Parameters<RiskRepository["insertRestriction"]>[1]) {
     if (input.decision === "restrict" || input.decision === "pause_feature") {
       await this.repos.risk.insertRestriction(
-        { userId: c.creatorId, feature: input.decision === "restrict" ? "all" : input.feature!, reason: input.notes || input.decision, caseId: c.id, createdBy: actor.userId },
+        { userId: c.creatorId, feature: input.decision === "restrict" ? "all" : input.feature!, reason: input.notes || input.decision, caseId: c.id, createdBy: actor.adminId },
         tx,
       );
     }
-    if (input.decision === "restore") await this.repos.risk.liftRestrictions(c.creatorId, actor.userId, this.now(), tx);
-  }
-
-  private staff(actor: Actor) {
-    if (!isStaff(actor.role)) throw new ForbiddenError();
+    if (input.decision === "restore") await this.repos.risk.liftRestrictions(c.creatorId, actor.adminId, this.now(), tx);
   }
 }

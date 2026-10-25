@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { FakeMonimeServer } from "@/server/integrations/monime/fake";
 import { parseMonimeEvent } from "@/server/integrations/monime/webhook";
@@ -18,7 +17,7 @@ import { PlatformSettingsRepository } from "@/server/repositories/PlatformSettin
 import { RiskRepository } from "@/server/repositories/RiskRepository";
 import { UserRepository } from "@/server/repositories/UserRepository";
 import { WebhookEventRepository } from "@/server/repositories/WebhookEventRepository";
-import type { Actor } from "@/server/services/actor";
+import type { Actor, AdminActor } from "@/server/services/actor";
 import { AdminService } from "@/server/services/AdminService";
 import { AuditService } from "@/server/services/compliance";
 import { ContributionService } from "@/server/services/ContributionService";
@@ -30,14 +29,15 @@ import { SettlementService } from "@/server/services/SettlementService";
 import { TransferService } from "@/server/services/TransferService";
 import { WalletService } from "@/server/services/WalletService";
 import { WebhookService } from "@/server/services/WebhookService";
+import { fakeAdmin, insertAdmin } from "../fixtures/admins";
 import { createTestDb, type TestDb } from "./db";
 
 let t: TestDb;
 let monimeServer: FakeMonimeServer;
 let creator: Actor;
-let staff: Actor;
-let staff2: Actor;
-let superAdmin: Actor;
+let staff: AdminActor;
+let staff2: AdminActor;
+let superAdmin: AdminActor;
 
 const repos = {
   users: new UserRepository(),
@@ -67,10 +67,9 @@ beforeAll(async () => {
 });
 afterAll(() => t.close());
 
-async function user(email: string, role: Actor["role"]): Promise<Actor> {
+async function user(email: string): Promise<Actor> {
   const u = (await repos.users.insertIfEmailFree({ email, name: email, passwordHash: null }))!;
-  if (role !== "creator") await t.db.execute(sql`update users set role = ${role} where id = ${u.id}`);
-  return { userId: u.id, role, status: "active", emailVerified: true };
+  return { userId: u.id, status: "active", emailVerified: true };
 }
 
 beforeEach(async () => {
@@ -107,13 +106,13 @@ beforeEach(async () => {
   webhooks = new WebhookService(repos.webhookEvents, settlement.webhookHandlers());
   admin = new AdminService({ repos, audit, monime, platformAccountId: () => platformId, settlement, transfers, payouts: payoutService, webhooks: () => webhooks });
 
-  creator = await user("aminata@example.com", "creator");
+  creator = await user("aminata@example.com");
   await new WalletService(repos, monime).provisionForCreator(creator.userId);
   await repos.profiles.insert(creator.userId, { handle: "aminata", handleLower: "aminata", displayName: "Aminata", bio: "", categoryId: null, supportMessageEnabled: true });
   await repos.profiles.setStatusOwned(creator.userId, "published", new Date());
-  staff = await user("staff1@dumegud.test", "staff");
-  staff2 = await user("staff2@dumegud.test", "staff");
-  superAdmin = await user("root@dumegud.test", "super_admin");
+  staff = await insertAdmin("staff1@dumegud.test");
+  staff2 = await insertAdmin("staff2@dumegud.test");
+  superAdmin = await insertAdmin("root@dumegud.test", ["super_admin"]);
 });
 
 async function pay(amount: number, fingerprint: string) {
@@ -147,7 +146,7 @@ describe("payments", () => {
 });
 
 describe("payouts", () => {
-  it("large payouts need two different staff approvals", async () => {
+  it("large payouts need two different admins' approvals", async () => {
     const methodId = crypto.randomUUID();
     await t.client.query(
       `insert into payout_methods (id, user_id, provider_id, msisdn_enc, msisdn_hash, msisdn_last3, holder_name, name_match, status, bound_at)
@@ -183,7 +182,9 @@ describe("webhooks", () => {
       data: { id: "scs-missing", status: "completed", metadata: {} },
     };
     expect((await webhooks.handleMonime(parseMonimeEvent(JSON.stringify(early))!, early)).response).toBe("retry");
-    const [failed] = await admin.webhookEvents(staff, "failed");
+    const {
+      rows: [failed],
+    } = await admin.webhookEvents(staff, "failed", null);
     expect(await admin.replayWebhook(staff, failed.id)).toBe("failed"); // still no such payment
     await expect(admin.replayWebhook(staff, crypto.randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect((await repos.audit.listForTarget("webhook_event", failed.id))[0].action).toBe("webhook.replay");
@@ -191,16 +192,16 @@ describe("webhooks", () => {
 });
 
 describe("users", () => {
-  it("status changes revoke sessions; only super admins close accounts or change roles", async () => {
+  it("status changes revoke sessions; closing needs creators.close; admins aren't creator accounts", async () => {
     await admin.setUserStatus(staff, creator.userId, "suspended", "fraud investigation");
     expect(await repos.users.findAuthState(creator.userId)).toMatchObject({ status: "suspended", sessionVersion: 2 });
     await expect(admin.setUserStatus(staff, creator.userId, "closed", "x")).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(admin.setUserStatus(staff, staff2.userId, "suspended", "x")).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(admin.setUserStatus(staff, staff.userId, "active", "x")).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(admin.setUserRole(staff, creator.userId, "staff")).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(admin.setUserRole(superAdmin, superAdmin.userId, "creator")).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await admin.setUserRole(superAdmin, staff.userId, "super_admin");
-    expect(await repos.users.findAuthState(staff.userId)).toMatchObject({ role: "super_admin", sessionVersion: 2 });
+    await expect(admin.setUserStatus(fakeAdmin(["support"]), creator.userId, "active", "x")).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(admin.setUserStatus(staff, staff2.adminId, "suspended", "x")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await admin.setUserStatus(superAdmin, creator.userId, "closed", "confirmed fraud");
+    expect(await repos.users.findAuthState(creator.userId)).toMatchObject({ status: "closed", sessionVersion: 3 });
+    const [entry] = await repos.audit.listForTarget("user", creator.userId);
+    expect(entry).toMatchObject({ actorId: superAdmin.adminId, actorType: "admin", actorRole: "super_admin", action: "user.status" });
   });
 
   it("finds creators by handle, email and id", async () => {
@@ -208,17 +209,51 @@ describe("users", () => {
     expect((await admin.searchCreators(staff, "AMINATA@example.com"))[0]?.userId).toBe(creator.userId);
     expect((await admin.searchCreators(staff, creator.userId))[0]?.userId).toBe(creator.userId);
     expect(await admin.searchCreators(staff, "' OR 1=1 --")).toEqual([]);
-    await expect(admin.searchCreators(creator, "a")).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(admin.searchCreators(fakeAdmin([]), "a")).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 
 describe("audit export", () => {
-  it("is super-admin only, audited, and neutralises spreadsheet formulas", async () => {
+  it("needs audit.export, is audited, and neutralises spreadsheet formulas", async () => {
     await new AuditService(repos.audit).log({ actor: staff, action: "=HYPERLINK(\"http://evil\")", targetType: "x", targetId: "1" });
     await expect(admin.exportAuditCsv(staff, {})).rejects.toMatchObject({ code: "FORBIDDEN" });
     const csv = await admin.exportAuditCsv(superAdmin, {});
-    expect(csv.split("\n")[0]).toBe("created_at,actor_id,actor_role,action,target_type,target_id,before,after");
+    expect(csv.split("\n")[0]).toBe("created_at,actor_id,actor_type,actor_role,action,target_type,target_id,before,after");
     expect(csv).toContain(`"'=HYPERLINK(""http://evil"")"`);
     expect((await repos.admin.auditLog({ action: "audit.export" }))).toHaveLength(1);
+  });
+});
+
+describe("console lists", () => {
+  it("pages newest first with an opaque cursor, without gaps or repeats, and ignores a tampered one", async () => {
+    for (let i = 0; i < 33; i++) await user(`fan${i}@example.com`);
+    const first = await admin.searchCreatorsPage(staff, "", null);
+    expect(first.rows).toHaveLength(30);
+    expect(first.next).toEqual(expect.any(String));
+    const second = await admin.searchCreatorsPage(staff, "", first.next);
+    const ids = [...first.rows, ...second.rows].map((r) => r.userId);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.length).toBe(34); // 33 fans + aminata (rows created in the same millisecond tie-break on id)
+    expect(second.next).toBeNull();
+    expect((await admin.searchCreatorsPage(staff, "", "not-a-cursor")).rows[0]!.userId).toBe(first.rows[0]!.userId);
+  });
+
+  it("shows each queue count only to admins who can open that queue", async () => {
+    const finance = await insertAdmin("finance@dumegud.test", ["finance"]);
+    const counts = await admin.queueCounts(finance);
+    expect(counts.payouts).toEqual(expect.any(Number));
+    expect(counts.kyc).toBeNull();
+    expect(Object.values(await admin.queueCounts(superAdmin)).every((v) => typeof v === "number")).toBe(true);
+  });
+});
+
+describe("risk tier", () => {
+  it("changes only from the tier the admin saw, and is audited", async () => {
+    await expect(admin.setRiskTier(staff, creator.userId, "low", "high", "")).rejects.toMatchObject({ code: "VALIDATION" });
+    const both = await Promise.allSettled([admin.setRiskTier(staff, creator.userId, "low", "high", "Chargebacks"), admin.setRiskTier(staff2, creator.userId, "low", "medium", "New")]);
+    expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(both.find((r) => r.status === "rejected")).toMatchObject({ reason: { code: "CONFLICT" } });
+    expect(["high", "medium"]).toContain((await repos.profiles.findByUserId(creator.userId))!.riskTier);
+    expect((await repos.audit.recent(5)).filter((a) => a.action === "creator.risk_tier")).toHaveLength(1);
   });
 });

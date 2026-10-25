@@ -16,7 +16,7 @@ import { PlatformSettingsRepository } from "@/server/repositories/PlatformSettin
 import { ProductRepository } from "@/server/repositories/ProductRepository";
 import { UserRepository } from "@/server/repositories/UserRepository";
 import { WebhookEventRepository } from "@/server/repositories/WebhookEventRepository";
-import type { Actor } from "@/server/services/actor";
+import type { Actor, AdminActor } from "@/server/services/actor";
 import { DownloadService } from "@/server/services/DownloadService";
 import { OrderService } from "@/server/services/OrderService";
 import { PlatformSettingsService } from "@/server/services/PlatformSettingsService";
@@ -27,6 +27,7 @@ import { TransferService } from "@/server/services/TransferService";
 import { WalletService } from "@/server/services/WalletService";
 import { WebhookService } from "@/server/services/WebhookService";
 import { createMemoryStorage } from "../fixtures/creator-fakes";
+import { fakeAdmin } from "../fixtures/admins";
 import { createTestDb, racingTransaction, type TestDb } from "./db";
 
 const SECRET = "test-download-signing-secret-0123456789";
@@ -39,7 +40,7 @@ let store: ReturnType<typeof createMemoryStorage>;
 let sent: EmailMessage[];
 let now: Date;
 let creator: Actor;
-let staff: Actor;
+let staff: AdminActor;
 
 const repos = {
   users: new UserRepository(),
@@ -112,8 +113,8 @@ beforeEach(async () => {
   await repos.profiles.insert(user.id, { handle: "aminata", handleLower: "aminata", displayName: "Aminata", bio: "", categoryId: null, supportMessageEnabled: true });
   await repos.profiles.acceptTermsOwned(user.id, now);
   await repos.profiles.setStatusOwned(user.id, "published", now);
-  creator = { userId: user.id, role: "creator", status: "active", emailVerified: true };
-  staff = { userId: crypto.randomUUID(), role: "staff", status: "active", emailVerified: true };
+  creator = { userId: user.id, status: "active", emailVerified: true };
+  staff = fakeAdmin();
 });
 
 const productInput = { title: "Krio Recipes", description: "30 recipes.", categoryId: null, price: 25_000, licenseType: "personal" as const, licenseText: "" };
@@ -195,7 +196,7 @@ describe("lifecycle", () => {
     await expect(products.submitForReview(creator, productId, false)).rejects.toThrow(/own the rights/);
     await products.submitForReview(creator, productId, true);
     expect(await products.getPublic(productId)).toBeNull();
-    await expect(review.approve(creator, productId)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(review.approve(creator as unknown as AdminActor, productId)).rejects.toMatchObject({ code: "FORBIDDEN" });
     await review.approve(staff, productId);
     expect(await products.getPublic(productId)).toMatchObject({ title: "Krio Recipes", priceMinor: 25_000, watermarked: true, files: [{ format: "PDF" }] });
   });

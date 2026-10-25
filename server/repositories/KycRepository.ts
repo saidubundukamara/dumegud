@@ -2,7 +2,9 @@ import "server-only";
 import { and, asc, desc, eq } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import { kycSubmissions, type KycStatus, type KycSubmission } from "@/server/db/schema";
+import type { Cursor } from "@/server/lib/cursor";
 import { BaseRepository } from "./BaseRepository";
+import { newestFirst, olderThan } from "./keyset";
 
 export class KycRepository extends BaseRepository {
   /** Throws a unique violation if the user already has a pending submission. */
@@ -38,6 +40,16 @@ export class KycRepository extends BaseRepository {
 
   async listByStatus(status: KycStatus, limit = 50, tx?: Executor): Promise<KycSubmission[]> {
     return this.exec(tx).select().from(kycSubmissions).where(eq(kycSubmissions.status, status)).orderBy(asc(kycSubmissions.createdAt)).limit(limit);
+  }
+
+  /** Decided submissions, newest first (the review history). */
+  async listDecided(status: Exclude<KycStatus, "pending">, limit = 50, tx?: Executor, cursor?: Cursor | null): Promise<KycSubmission[]> {
+    return this.exec(tx)
+      .select()
+      .from(kycSubmissions)
+      .where(and(eq(kycSubmissions.status, status), olderThan(kycSubmissions.createdAt, kycSubmissions.id, cursor)))
+      .orderBy(...newestFirst(kycSubmissions.createdAt, kycSubmissions.id))
+      .limit(limit);
   }
 
   /** Guarded review decision (only a pending submission can be decided). */

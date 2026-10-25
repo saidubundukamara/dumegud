@@ -80,7 +80,7 @@ beforeEach(async () => {
   await repos.profiles.setStatusOwned(user.id, "published", now);
   await repos.profiles.setAvatarKeyOwned(user.id, "avatars/a.webp");
   store.put("public", "avatars/a.webp", new Uint8Array([1]));
-  creator = { userId: user.id, role: "creator", status: "active", emailVerified: true };
+  creator = { userId: user.id, status: "active", emailVerified: true };
 
   deletionDeps = {
     repos,

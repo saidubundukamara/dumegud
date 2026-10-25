@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, isNull, ne, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, notInArray, sql } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
 import {
   categories,
@@ -180,6 +180,16 @@ export class CreatorProfileRepository extends BaseRepository {
       .where(and(eq(creatorProfiles.userId, userId), eq(creatorProfiles.riskTier, from)))
       .returning({ id: creatorProfiles.id });
     return rows.length > 0;
+  }
+
+  /** Staff status change only from one of `from` (conditional: a concurrent change wins once). */
+  async setStatusByStaffFrom(profileId: string, from: ProfileStatus[], status: ProfileStatus, tx?: Executor): Promise<CreatorProfile | null> {
+    const [row] = await this.exec(tx)
+      .update(creatorProfiles)
+      .set({ status })
+      .where(and(eq(creatorProfiles.id, profileId), inArray(creatorProfiles.status, from)))
+      .returning();
+    return row ?? null;
   }
 
   async setStatusByStaff(profileId: string, status: ProfileStatus, tx?: Executor): Promise<CreatorProfile | null> {
