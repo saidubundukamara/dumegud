@@ -390,6 +390,17 @@ export class ProductService {
     };
   }
 
+  /**
+   * The creator profile behind a product, public or not. Lets a cached "not found" product page
+   * be refreshed when that creator's page goes live.
+   */
+  async ownerProfileId(productId: string): Promise<string | null> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)) return null;
+    const product = await this.repos.products.findById(productId);
+    if (!product) return null;
+    return (await this.repos.profiles.findByUserId(product.creatorId))?.id ?? null;
+  }
+
   /** Shop grid on a creator page. */
   async listPublicForCreator(creatorUserId: string) {
     const rows = await this.repos.products.listPublishedForCreator(creatorUserId);

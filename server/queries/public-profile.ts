@@ -59,6 +59,9 @@ export async function getCachedProduct(productId: string) {
   cacheLife("hours");
   cacheTag(productTag(productId));
   const product = await services.products.getPublic(productId);
-  if (product) cacheTag(creatorTag(product.creator.profileId));
+  // A product can be hidden only because its creator's page isn't live yet. Tag that case with the
+  // creator too, so making the page live (which refreshes the creator tag) un-hides it.
+  const profileId = product ? product.creator.profileId : await services.products.ownerProfileId(productId);
+  if (profileId) cacheTag(creatorTag(profileId));
   return product;
 }

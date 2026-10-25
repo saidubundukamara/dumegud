@@ -206,6 +206,18 @@ describe("lifecycle", () => {
     expect((await repos.products.findById(productId))!.status).toBe("pending_review");
     expect(await products.getPublic(productId)).toBeNull();
   });
+
+  it("an approved product stays hidden until its creator's page is live", async () => {
+    const productId = await publishedProduct();
+    const profile = (await repos.profiles.findByUserId(creator.userId))!;
+    await repos.profiles.setStatusOwned(creator.userId, "draft", new Date());
+    expect(await products.getPublic(productId)).toBeNull();
+    // The cached "not found" is tagged with this profile, so going live refreshes it.
+    expect(await products.ownerProfileId(productId)).toBe(profile.id);
+    await repos.profiles.setStatusOwned(creator.userId, "published", new Date());
+    expect(await products.getPublic(productId)).not.toBeNull();
+    expect(await products.ownerProfileId("not-a-uuid")).toBeNull();
+  });
 });
 
 describe("purchase → entitlement → download", () => {
