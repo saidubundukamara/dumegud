@@ -30,6 +30,8 @@
   --color-warning-surface: var(--dmg-warning-surface);
   --color-danger: var(--dmg-danger);
   --color-danger-surface: var(--dmg-danger-surface);
+  --color-sidebar: var(--dmg-sidebar);
+  --color-row-hover: var(--dmg-row-hover);
   --radius-brand: var(--dmg-radius);
   --radius-brand-sm: var(--dmg-radius-sm);
   --radius-brand-lg: var(--dmg-radius-lg);

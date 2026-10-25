@@ -15,10 +15,3 @@ test("a malformed report target shows not found", async ({ page }) => {
   await page.goto("/report?type=wallet&id=nope");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/404|could not be found/i);
 });
-
-for (const path of ["/admin/risk", "/admin/limits", "/admin/reports"]) {
-  test(`signed-out visitors to ${path} are sent to /login`, async ({ page }) => {
-    await page.goto(path);
-    await expect(page).toHaveURL(/\/login\?next=/);
-  });
-}

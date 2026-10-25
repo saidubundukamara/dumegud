@@ -1,12 +1,18 @@
 import { WarningCircleIcon } from "@phosphor-icons/react/dist/ssr";
 import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
-type Common = { label: string; name: string; errors?: string[]; hint?: ReactNode; className?: string };
+type Common = { label: string; name: string; errors?: string[]; hint?: ReactNode; className?: string; compact?: boolean };
 
 // Filled control: no grey box, a soft ring that turns blue on focus and crimson when invalid.
 // Exported for the few controls laid out by hand (inline link rows, the caption editor).
 export const CONTROL =
   "w-full rounded-brand bg-surface-muted px-4 text-[1.0625rem] text-text ring-1 ring-control-border transition-[box-shadow,background-color] duration-200 ease-brand placeholder:text-muted hover:ring-text focus:bg-surface focus:outline-none focus:ring-2 focus:ring-focus aria-invalid:ring-2 aria-invalid:ring-danger disabled:opacity-60";
+
+/** The same control for dense staff screens (admin): 36px tall, 14px text, white fill. */
+export const CONTROL_COMPACT =
+  "w-full rounded-brand-sm bg-surface px-3 text-sm text-text ring-1 ring-control-border transition-[box-shadow] duration-150 ease-brand placeholder:text-muted hover:ring-text focus:outline-none focus:ring-2 focus:ring-focus aria-invalid:ring-2 aria-invalid:ring-danger disabled:bg-surface-muted disabled:opacity-70";
+
+const control = (compact: boolean | undefined, height: string, compactHeight: string) => (compact ? `${compactHeight} ${CONTROL_COMPACT}` : `${height} ${CONTROL}`);
 
 /** Label, hint and errors wired to the control through aria-describedby. */
 function FieldShell({
@@ -14,6 +20,7 @@ function FieldShell({
   errors,
   hint,
   className,
+  compact,
   children,
 }: Omit<Common, "name"> & {
   children: (ids: { id: string; describedBy?: string; invalid?: true }) => ReactNode;
@@ -21,8 +28,8 @@ function FieldShell({
   const id = useId();
   const { describedBy, invalid, messages } = fieldMessages(id, hint, errors);
   return (
-    <div className={`flex flex-col gap-1.5 ${className ?? ""}`}>
-      <label htmlFor={id} className="text-[0.9375rem] font-semibold">
+    <div className={`flex flex-col ${compact ? "gap-1" : "gap-1.5"} ${className ?? ""}`}>
+      <label htmlFor={id} className={compact ? "text-[0.8125rem] font-medium text-text" : "text-[0.9375rem] font-semibold"}>
         {label}
       </label>
       {children({ id, describedBy, invalid })}
@@ -82,16 +89,16 @@ function fieldMessages(id: string, hint: ReactNode, errors: string[] | undefined
   return { describedBy, invalid: hasError || undefined, messages };
 }
 
-export function Field({ label, name, errors, hint, className, ...input }: Common & InputHTMLAttributes<HTMLInputElement>) {
+export function Field({ label, name, errors, hint, className, compact, ...input }: Common & InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <FieldShell label={label} errors={errors} hint={hint} className={className}>
+    <FieldShell label={label} errors={errors} hint={hint} className={className} compact={compact}>
       {({ id, describedBy, invalid }) => (
         <input
           id={id}
           name={name}
           aria-invalid={invalid}
           aria-describedby={describedBy}
-          className={`min-h-13 ${CONTROL}`}
+          className={control(compact, "min-h-13", "min-h-9")}
           {...input}
         />
       )}
@@ -105,17 +112,18 @@ export function TextAreaField({
   errors,
   hint,
   className,
+  compact,
   ...textarea
 }: Common & TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
-    <FieldShell label={label} errors={errors} hint={hint} className={className}>
+    <FieldShell label={label} errors={errors} hint={hint} className={className} compact={compact}>
       {({ id, describedBy, invalid }) => (
         <textarea
           id={id}
           name={name}
           aria-invalid={invalid}
           aria-describedby={describedBy}
-          className={`min-h-32 py-3 ${CONTROL}`}
+          className={control(compact, "min-h-32 py-3", "min-h-20 py-2")}
           {...textarea}
         />
       )}
@@ -129,18 +137,19 @@ export function SelectField({
   errors,
   hint,
   className,
+  compact,
   children,
   ...select
 }: Common & SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <FieldShell label={label} errors={errors} hint={hint} className={className}>
+    <FieldShell label={label} errors={errors} hint={hint} className={className} compact={compact}>
       {({ id, describedBy, invalid }) => (
         <select
           id={id}
           name={name}
           aria-invalid={invalid}
           aria-describedby={describedBy}
-          className={`min-h-13 ${CONTROL}`}
+          className={control(compact, "min-h-13", "min-h-9")}
           {...select}
         >
           {children}

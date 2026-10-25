@@ -10,7 +10,6 @@ let service: CreatorService;
 
 const actor = (userId: string, overrides: Partial<Actor> = {}): Actor => ({
   userId,
-  role: "creator",
   status: "active",
   emailVerified: true,
   ...overrides,

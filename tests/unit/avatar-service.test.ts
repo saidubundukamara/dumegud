@@ -5,7 +5,7 @@ import { AvatarService, isOwnStagingKey, reencodeAvatar } from "@/server/service
 import { createCreatorFakes, createMemoryStorage } from "../fixtures/creator-fakes";
 
 const USER = "11111111-2222-4333-8444-555555555555";
-const actor = { userId: USER, role: "creator" as const, status: "active" as const, emailVerified: true };
+const actor = { userId: USER, status: "active" as const, emailVerified: true };
 
 async function jpegWithExif() {
   return sharp({ create: { width: 900, height: 600, channels: 3, background: "#c0ffee" } })

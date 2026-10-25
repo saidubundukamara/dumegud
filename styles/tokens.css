@@ -46,6 +46,10 @@
   --dmg-danger: #dc2626;
   --dmg-danger-surface: #fee2e2;
 
+  /* Admin console: a barely tinted rail beside the white work area, and the row-hover wash. */
+  --dmg-sidebar: #faf9f8;
+  --dmg-row-hover: rgb(26 21 20 / 0.025);
+
   --dmg-radius: 1rem;
   --dmg-radius-sm: 0.625rem;
   --dmg-radius-lg: 1.5rem;

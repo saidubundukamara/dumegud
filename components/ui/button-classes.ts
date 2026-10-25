@@ -1,7 +1,7 @@
 // Shared by <SubmitButton> and links styled as buttons (usable from Server Components).
 
-export type ButtonVariant = "primary" | "secondary" | "accent" | "ghost" | "dark" | "quiet";
-export type ButtonSize = "md" | "lg";
+export type ButtonVariant = "primary" | "secondary" | "accent" | "ghost" | "dark" | "quiet" | "danger";
+export type ButtonSize = "sm" | "md" | "lg";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-primary text-primary-foreground shadow-primary hover:bg-primary-hover active:bg-primary-pressed",
@@ -12,16 +12,20 @@ const VARIANTS: Record<ButtonVariant, string> = {
   dark: "bg-accent text-accent-foreground hover:bg-accent/90",
   quiet: "bg-surface-muted text-text hover:bg-[color-mix(in_srgb,var(--color-surface-muted),black_5%)]",
   ghost: "text-text underline-offset-4 hover:underline",
+  /** Destructive staff actions (admin): takedowns, suspensions. White on danger is 4.8:1. */
+  danger: "bg-danger text-white hover:bg-[color-mix(in_srgb,var(--color-danger),black_12%)]",
 };
 
 const SIZES: Record<ButtonSize, string> = {
+  /** Dense staff screens (admin): 36px, with the compact controls' radius instead of a pill. */
+  sm: "min-h-9 px-3.5 text-sm !rounded-brand-sm !shadow-none",
   md: "min-h-12 px-5 text-base",
   lg: "min-h-14 px-7 text-[1.0625rem]",
 };
 
 /**
  * Pill buttons with a physical press (scale) and the brand ease. 48px minimum height keeps every
- * button above the 44pt HIG touch target.
+ * button above the 44pt HIG touch target. `sm` is for the admin console only (mouse-first, dense).
  */
 export function buttonClasses(variant: ButtonVariant = "primary", className = "", size: ButtonSize = "md") {
   return `group/btn inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-[background-color,box-shadow,transform,translate,scale,color] duration-200 ease-brand active:scale-[0.97] disabled:pointer-events-none disabled:opacity-55 ${SIZES[size]} ${VARIANTS[variant]} ${className}`;
