@@ -1,10 +1,10 @@
 import "server-only";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
-import { accounts, passwordResetTokens, users, verificationTokens, type NewUser, type Role, type User, type UserStatus } from "@/server/db/schema";
+import { accounts, passwordResetTokens, users, verificationTokens, type NewUser, type User, type UserStatus } from "@/server/db/schema";
 import { BaseRepository } from "./BaseRepository";
 
-export type UserAuthState = Pick<User, "id" | "role" | "status" | "sessionVersion" | "emailVerified"> & {
+export type UserAuthState = Pick<User, "id" | "status" | "sessionVersion" | "emailVerified"> & {
   /** Required and still missing: a new Google sign-up that hasn't given a date of birth yet. */
   needsDateOfBirth: boolean;
 };
@@ -32,7 +32,6 @@ export class UserRepository extends BaseRepository {
     const [row] = await this.exec(tx)
       .select({
         id: users.id,
-        role: users.role,
         status: users.status,
         sessionVersion: users.sessionVersion,
         emailVerified: users.emailVerified,
@@ -74,7 +73,7 @@ export class UserRepository extends BaseRepository {
   async deletePendingDateOfBirth(id: string, tx?: Executor): Promise<boolean> {
     const rows = await this.exec(tx)
       .delete(users)
-      .where(and(eq(users.id, id), eq(users.dateOfBirthRequired, true), isNull(users.dateOfBirthEnc), eq(users.role, "creator")))
+      .where(and(eq(users.id, id), eq(users.dateOfBirthRequired, true), isNull(users.dateOfBirthEnc)))
       .returning({ id: users.id });
     return rows.length > 0;
   }
@@ -143,14 +142,6 @@ export class UserRepository extends BaseRepository {
     await this.exec(tx)
       .update(users)
       .set({ status, sessionVersion: sql`${users.sessionVersion} + 1` })
-      .where(eq(users.id, id));
-  }
-
-  /** Role changes revoke sessions so the new role (and step-up) apply immediately. */
-  async setRole(id: string, role: Role, tx?: Executor): Promise<void> {
-    await this.exec(tx)
-      .update(users)
-      .set({ role, sessionVersion: sql`${users.sessionVersion} + 1` })
       .where(eq(users.id, id));
   }
 

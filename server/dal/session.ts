@@ -1,16 +1,14 @@
 import "server-only";
-import { forbidden, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { cache } from "react";
 import { auth } from "@/auth";
-import type { Role } from "@/server/db/schema";
 import type { Actor } from "@/server/services/actor";
 import { repos } from "@/server/services";
-import { requireStepUp } from "./step-up";
 
-// Data Access Layer for authentication. The JWT says who the caller claims to be; this checks
-// the database on every request so suspension, role changes and "sign out everywhere"
-// (sessionVersion bumps) take effect immediately. Layouts don't gate; every page, Server
+// Data Access Layer for creator authentication (admins use admin-session.ts). The JWT says who
+// the caller claims to be; this checks the database on every request so suspension and "sign out
+// everywhere" (sessionVersion bumps) take effect immediately. Layouts don't gate; every page, Server
 // Action and Route Handler calls one of these.
 
 export type VerifiedSession = {
@@ -37,9 +35,9 @@ export const getSession = cache(async (): Promise<VerifiedSession | null> => {
     return null;
   }
   return {
-    actor: { userId: user.id, role: user.role, status: user.status, emailVerified: user.emailVerified !== null },
+    actor: { userId: user.id, status: user.status, emailVerified: user.emailVerified !== null },
     sessionVersion: user.sessionVersion,
-    needsDateOfBirth: user.needsDateOfBirth && user.role === "creator",
+    needsDateOfBirth: user.needsDateOfBirth,
   };
 });
 
@@ -51,19 +49,5 @@ export async function verifySession(opts: { allowMissingDateOfBirth?: boolean } 
   const session = await getSession();
   if (!session) redirect("/login");
   if (session.needsDateOfBirth && !opts.allowMissingDateOfBirth) redirect(AGE_GATE_PATH);
-  return session;
-}
-
-/** Renders the 403 page (forbidden.tsx) for users without one of `roles`. */
-export async function requireRole(...roles: Role[]): Promise<VerifiedSession> {
-  const session = await verifySession();
-  if (!roles.includes(session.actor.role)) forbidden();
-  return session;
-}
-
-/** Staff role plus a password confirmation from the last 10 minutes (sensitive admin actions). */
-export async function requireStaffStepUp(...roles: Role[]): Promise<VerifiedSession> {
-  const session = await requireRole(...(roles.length ? roles : (["staff", "super_admin"] as Role[])));
-  await requireStepUp({ userId: session.actor.userId, sessionVersion: session.sessionVersion });
   return session;
 }

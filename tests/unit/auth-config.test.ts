@@ -11,8 +11,8 @@ function authorized(path: string, signedIn: boolean) {
 }
 
 describe("proxy authorized callback (optimistic)", () => {
-  it("redirects signed-out visitors of /dashboard and /admin to /login with next", () => {
-    for (const path of ["/dashboard", "/dashboard/settings?x=1", "/admin"]) {
+  it("redirects signed-out visitors of /dashboard to /login with next", () => {
+    for (const path of ["/dashboard", "/dashboard/settings?x=1"]) {
       const res = authorized(path, false) as Response;
       expect(res.status).toBe(302);
       const location = new URL(res.headers.get("location")!);
@@ -23,7 +23,8 @@ describe("proxy authorized callback (optimistic)", () => {
 
   it("lets signed-in users through (the DAL does real checks) and ignores public pages", () => {
     expect(authorized("/dashboard", true)).toBe(true);
-    expect(authorized("/admin", true)).toBe(true);
+    // The admin has its own session on its own host; Auth.js never gates it.
+    expect(authorized("/admin", false)).toBe(true);
     expect(authorized("/dashboarding", false)).toBe(true);
     expect(authorized("/", false)).toBe(true);
   });

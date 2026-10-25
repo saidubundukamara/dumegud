@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { bigint, boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { admins } from "./admins";
 import { users } from "./auth";
 import { createdAt, id, timestamps } from "./columns";
 import { riskTier, verificationTier } from "./creators";
@@ -47,7 +48,7 @@ export const transactionLimits = pgTable(
     maxCount: integer(),
     action: limitAction().notNull(),
     active: boolean().notNull().default(true),
-    updatedBy: uuid().references(() => users.id, { onDelete: "set null" }),
+    updatedBy: uuid().references(() => admins.id, { onDelete: "set null" }),
     ...timestamps(),
   },
   (t) => [index().on(t.scope, t.active)],
@@ -59,7 +60,7 @@ export const riskRules = pgTable("risk_rules", {
   params: jsonb().notNull(),
   severity: alertSeverity().notNull(),
   active: boolean().notNull().default(true),
-  updatedBy: uuid().references(() => users.id, { onDelete: "set null" }),
+  updatedBy: uuid().references(() => admins.id, { onDelete: "set null" }),
   updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -71,7 +72,7 @@ export const riskCases = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     reasonCodes: text().array().notNull().default(sql`'{}'::text[]`),
-    assigneeId: uuid().references(() => users.id, { onDelete: "set null" }),
+    assigneeId: uuid().references(() => admins.id, { onDelete: "set null" }),
     status: caseStatus().notNull().default("open"),
     decision: caseDecision(),
     decisionNotes: text(),
@@ -114,10 +115,10 @@ export const accountRestrictions = pgTable(
     feature: restrictionFeature().notNull(),
     reason: text().notNull(),
     caseId: uuid().references(() => riskCases.id, { onDelete: "set null" }),
-    createdBy: uuid().references(() => users.id, { onDelete: "set null" }),
+    createdBy: uuid().references(() => admins.id, { onDelete: "set null" }),
     expiresAt: timestamp({ withTimezone: true }),
     liftedAt: timestamp({ withTimezone: true }),
-    liftedBy: uuid().references(() => users.id, { onDelete: "set null" }),
+    liftedBy: uuid().references(() => admins.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
   (t) => [index().on(t.userId, t.liftedAt)],
@@ -134,7 +135,7 @@ export const contentReports = pgTable(
     reporterEmailHash: text(),
     ipHash: text(),
     status: reportStatus().notNull().default("open"),
-    resolvedBy: uuid().references(() => users.id, { onDelete: "set null" }),
+    resolvedBy: uuid().references(() => admins.id, { onDelete: "set null" }),
     resolvedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
   },
@@ -147,7 +148,7 @@ export const moderationActions = pgTable("moderation_actions", {
   targetId: uuid().notNull(),
   action: text().notNull(),
   reason: text().notNull(),
-  actorId: uuid().references(() => users.id, { onDelete: "set null" }),
+  actorId: uuid().references(() => admins.id, { onDelete: "set null" }),
   createdAt: createdAt(),
 });
 
@@ -157,6 +158,8 @@ export const auditLogs = pgTable(
   {
     id: id(),
     actorId: uuid(),
+    /** `user` (a creator), `admin` or null for system jobs. actorId has no FK: rows outlive both. */
+    actorType: text(),
     actorRole: text(),
     action: text().notNull(),
     targetType: text().notNull(),
@@ -177,7 +180,7 @@ export const platformSettingsHistory = pgTable(
     key: text().notNull(),
     value: jsonb().notNull(),
     version: integer().notNull(),
-    changedBy: uuid().references(() => users.id, { onDelete: "set null" }),
+    changedBy: uuid().references(() => admins.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
   (t) => [index().on(t.key, t.version)],

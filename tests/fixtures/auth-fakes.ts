@@ -15,7 +15,6 @@ export function makeUser(overrides: Partial<User> = {}): User {
     emailVerified: null,
     image: null,
     passwordHash: null,
-    role: "creator",
     status: "active",
     sessionVersion: 1,
     failedLoginCount: 0,
@@ -66,7 +65,7 @@ export function createAuthFakes(opts: { now?: Date } = {}) {
     },
     deletePendingDateOfBirth: async (id: string) => {
       const u = users.get(id);
-      if (!u || !u.dateOfBirthRequired || u.dateOfBirthEnc !== null || u.role !== "creator") return false;
+      if (!u || !u.dateOfBirthRequired || u.dateOfBirthEnc !== null) return false;
       return users.delete(id);
     },
     recordLoginSuccess: async (id: string) => update(id, { failedLoginCount: 0, lockedUntil: null }),

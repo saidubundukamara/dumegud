@@ -141,6 +141,20 @@
       "when": 1792843166503,
       "tag": "0019_recaps_milestones",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792912182520,
+      "tag": "0020_admins",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792912183239,
+      "tag": "0021_drop_user_role",
+      "breakpoints": true
     }
   ]
 }

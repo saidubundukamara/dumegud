@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { bigint, boolean, check, index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { admins } from "./admins";
 import { users } from "./auth";
 import { id, timestamps } from "./columns";
 import { feeSource } from "./payments";
@@ -38,7 +39,7 @@ export const kycSubmissions = pgTable(
     idBackKey: text(),
     selfieKey: text().notNull(),
     status: kycStatus().notNull().default("pending"),
-    reviewerId: uuid().references(() => users.id, { onDelete: "set null" }),
+    reviewerId: uuid().references(() => admins.id, { onDelete: "set null" }),
     reviewNotes: text(),
     rejectionReasonCode: text(),
     reviewedAt: timestamp({ withTimezone: true }),
@@ -108,7 +109,7 @@ export const payouts = pgTable(
     /** Masked destination as it was at request time. */
     destinationSnapshot: jsonb().notNull(),
     holderNameAtRequest: text(),
-    reviewerId: uuid().references(() => users.id, { onDelete: "set null" }),
+    reviewerId: uuid().references(() => admins.id, { onDelete: "set null" }),
     /** Staff approvals for release ([{ by, at }]); large payouts need two different people. */
     approvals: jsonb().notNull().default(sql`'[]'::jsonb`),
     requestedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),

@@ -55,11 +55,6 @@ test("signed-out visitors to /dashboard/profile are sent to /login", async ({ pa
   await expect(page).toHaveURL(/\/login\?next=%2Fdashboard%2Fprofile$/);
 });
 
-test("signed-out visitors to /admin are sent to /login", async ({ page }) => {
-  await page.goto("/admin");
-  await expect(page).toHaveURL(/\/login\?next=%2Fadmin$/);
-});
-
 test("register validates on the server and keeps typed values", async ({ page }) => {
   await page.goto("/register");
   await page.getByLabel("Your name").fill("Aminata");

@@ -45,11 +45,11 @@ export class ForbiddenError extends AppError {
   }
 }
 
-/** A sensitive admin action needs the password re-entered (step-up). */
+/** A sensitive admin action needs a fresh authenticator code (step-up, 10 minutes). */
 export class StepUpRequiredError extends AppError {
   readonly code = "STEP_UP_REQUIRED";
   readonly status = 403;
-  constructor(message = "Confirm your password to continue (sensitive action).") {
+  constructor(message = "Enter a code from your authenticator app to continue (sensitive action).") {
     super(message);
   }
 }

@@ -18,7 +18,6 @@ import { createdAt, id, timestamps } from "./columns";
 // the Auth.js Drizzle adapter shape so Google sign-in can create and link users. Sessions are
 // JWTs, so there is no `sessions` table.
 
-export const userRole = pgEnum("user_role", ["creator", "staff", "super_admin"]);
 export const userStatus = pgEnum("user_status", ["active", "restricted", "suspended", "closed"]);
 export const authEventType = pgEnum("auth_event_type", [
   "login_success",
@@ -31,7 +30,6 @@ export const authEventType = pgEnum("auth_event_type", [
   "google_linked",
 ]);
 
-export type Role = (typeof userRole.enumValues)[number];
 export type UserStatus = (typeof userStatus.enumValues)[number];
 export type AuthEventType = (typeof authEventType.enumValues)[number];
 
@@ -46,7 +44,6 @@ export const users = pgTable(
     image: text(),
     /** Argon2id PHC string. Null for Google-only accounts. */
     passwordHash: text(),
-    role: userRole().notNull().default("creator"),
     status: userStatus().notNull().default("active"),
     /** Bumped to revoke every outstanding JWT (password change, suspension, sign out everywhere). */
     sessionVersion: integer().notNull().default(1),
@@ -56,7 +53,7 @@ export const users = pgTable(
     dateOfBirthEnc: text(),
     /**
      * True until the user gives a date of birth. Google sign-ups start without one and are sent to
-     * /welcome/age; accounts that existed before the field (and seeded staff) are exempt.
+     * /welcome/age; accounts that existed before the field are exempt.
      */
     dateOfBirthRequired: boolean().notNull().default(true),
     ...timestamps(),

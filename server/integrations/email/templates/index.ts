@@ -294,6 +294,25 @@ export function passwordChangedTemplate(p: { resetUrl: string }): Rendered {
   });
 }
 
+// ── Admins ────────────────────────────────────────────────────────────────────
+
+export function adminInviteTemplate(p: { invitedBy: string; roles: string[]; url: string; expiresHours: number }): Rendered {
+  const roles = p.roles.length ? p.roles.join(", ") : "no role yet";
+  return email({
+    tag: "admin-invite",
+    subject: "You're invited to the DuMeGud admin",
+    preheader: `${p.invitedBy} invited you to help run DuMeGud.`,
+    heading: "You're invited to the DuMeGud admin",
+    blocks: [
+      para(`${p.invitedBy} invited you to the DuMeGud admin with this access: ${roles}.`),
+      para("Choose a password, then set up an authenticator app (Google Authenticator, 1Password, Authy or similar). You'll need both every time you sign in."),
+      para(`This link works once and expires in ${p.expiresHours} hours. If you weren't expecting it, ignore this email.`),
+    ],
+    action: { label: "Accept the invite", url: p.url },
+    footer: "Admin invites are sent by a DuMeGud super admin.",
+  });
+}
+
 // ── Buyers ────────────────────────────────────────────────────────────────────
 
 export function orderReceiptTemplate(p: {

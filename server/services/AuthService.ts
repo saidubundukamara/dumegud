@@ -1,5 +1,5 @@
 import "server-only";
-import type { AuthEventType, Role, User } from "@/server/db/schema";
+import type { AuthEventType, User } from "@/server/db/schema";
 import type { EmailMessage, EmailService } from "@/server/integrations/email";
 import {
   existingAccountTemplate,
@@ -50,7 +50,6 @@ export type SessionUser = {
   email: string;
   name: string | null;
   image: string | null;
-  role: Role;
   sessionVersion: number;
 };
 
@@ -59,7 +58,6 @@ export type AccountDTO = {
   email: string;
   emailVerified: boolean;
   hasPassword: boolean;
-  role: Role;
 };
 
 export type RegisterOutcome = { created: true; userId: string } | { created: false; email: string };
@@ -351,7 +349,6 @@ export class AuthService {
       email: user.email,
       emailVerified: user.emailVerified !== null,
       hasPassword: user.passwordHash !== null,
-      role: user.role,
     };
   }
 
@@ -406,7 +403,6 @@ function toSessionUser(user: User): SessionUser {
     email: user.email,
     name: user.name,
     image: user.image,
-    role: user.role,
     sessionVersion: user.sessionVersion,
   };
 }

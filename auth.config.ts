@@ -3,7 +3,7 @@ import type { NextAuthConfig } from "next-auth";
 // Provider-agnostic Auth.js config shared with proxy.ts. Keep it free of DB, argon2 and env
 // validation imports: the proxy runs it on every matched request.
 
-const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
+const PROTECTED_PREFIXES = ["/dashboard"];
 
 function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -15,8 +15,8 @@ export const authConfig = {
   providers: [],
   callbacks: {
     /**
-     * Optimistic check only (JWT present). Real authorization (sessionVersion, status, role)
-     * happens in the DAL on every page and action. Staff-only pages render 403 from the DAL.
+     * Optimistic check only (JWT present). Real authorization (sessionVersion, status)
+     * happens in the DAL on every page and action. The admin has its own session (admin subdomain).
      */
     authorized({ auth, request }) {
       const { pathname, search } = request.nextUrl;
@@ -28,14 +28,12 @@ export const authConfig = {
     jwt({ token, user }) {
       if (user?.id) {
         token.uid = user.id;
-        token.role = user.role;
         token.sv = user.sessionVersion;
       }
       return token;
     },
     session({ session, token }) {
       if (token.uid) session.user.id = token.uid;
-      if (token.role) session.user.role = token.role;
       if (typeof token.sv === "number") session.user.sv = token.sv;
       return session;
     },

@@ -15,6 +15,12 @@ export const RATE_LIMIT_POLICIES = {
   "login:email": { limit: 5, window: "15 m" },
   "login:ip": { limit: 20, window: "15 m" },
   "register:ip": { limit: 5, window: "1 h" },
+  "admin-login:email": { limit: 5, window: "15 m" },
+  "admin-login:ip": { limit: 20, window: "15 m" },
+  "admin-2fa:admin": { limit: 5, window: "15 m" },
+  "admin-invite:admin": { limit: 20, window: "1 h" },
+  /** The command palette searches as the admin types (debounced). */
+  "admin-search:admin": { limit: 120, window: "1 m" },
   "password-reset:email": { limit: 3, window: "1 h" },
   "verify-email:user": { limit: 3, window: "1 h" },
   "checkout:ip": { limit: 10, window: "10 m" },

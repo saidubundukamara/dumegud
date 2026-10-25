@@ -25,5 +25,5 @@ export function invalidForm(error: z.ZodError, values?: Record<string, string>):
 export async function runForm(fn: () => Promise<FormState>, values?: Record<string, string>): Promise<FormState> {
   const result = await toActionResult(fn);
   if (result.ok) return result.data;
-  return { status: "error", message: result.message, fieldErrors: result.fieldErrors, values };
+  return { status: "error", message: result.message, code: result.code, fieldErrors: result.fieldErrors, values };
 }

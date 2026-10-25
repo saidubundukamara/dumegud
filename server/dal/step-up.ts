@@ -1,37 +1,42 @@
 import "server-only";
 import { createHmac } from "node:crypto";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import { getEnv } from "@/server/env";
 import { signToken, verifySignedToken } from "@/server/lib/crypto";
 import { StepUpRequiredError } from "@/server/lib/errors";
 
-// Admin step-up (implementation.md Phase 1/8): sensitive admin actions need the password
-// re-entered within the last 10 minutes. The proof is a short-lived signed cookie bound to the
-// user id and session version, so "sign out everywhere" or a role change voids it.
+// Admin step-up: sensitive admin actions need a fresh authenticator code from the last 10
+// minutes. The proof is a short-lived signed cookie bound to the admin session (id + session
+// version), so signing out, a role change or "revoke session" voids it.
 
 export const STEP_UP_COOKIE = "dmg_stepup";
 export const STEP_UP_TTL_SECONDS = 10 * 60;
 
 function secret(): string {
-  return createHmac("sha256", getEnv().AUTH_SECRET).update("dumegud-step-up").digest("base64url");
+  return createHmac("sha256", getEnv().AUTH_SECRET).update("dumegud-admin-step-up").digest("base64url");
 }
 
-export function stepUpToken(userId: string, sessionVersion: number, nowSeconds: number): string {
-  return signToken(`${userId}|${sessionVersion}|${nowSeconds + STEP_UP_TTL_SECONDS}`, secret());
+/** The admin session a step-up belongs to. */
+export type StepUpSubject = { adminId: string; sessionId: string; sessionVersion: number };
+
+const subjectKey = (who: StepUpSubject) => `${who.adminId}|${who.sessionId}|${who.sessionVersion}`;
+
+export function stepUpToken(who: StepUpSubject, nowSeconds: number): string {
+  return signToken(`${subjectKey(who)}|${nowSeconds + STEP_UP_TTL_SECONDS}`, secret());
 }
 
-/** Seconds of step-up left for this user and session version (0 = none). */
-export function stepUpRemaining(token: string | undefined, userId: string, sessionVersion: number, nowSeconds: number): number {
+/** Seconds of step-up left for this admin session (0 = none). */
+export function stepUpRemaining(token: string | undefined, who: StepUpSubject, nowSeconds: number): number {
   if (!token) return 0;
-  const [id, sv, exp] = verifySignedToken(token, secret())?.split("|") ?? [];
-  if (id !== userId || Number(sv) !== sessionVersion) return 0;
+  const parts = verifySignedToken(token, secret())?.split("|") ?? [];
+  const exp = parts.pop();
+  if (parts.join("|") !== subjectKey(who)) return 0;
   return Math.max(0, Number(exp) - nowSeconds);
 }
 
-type Who = { userId: string; sessionVersion: number };
-
-export async function grantStepUp(who: Who): Promise<void> {
-  (await cookies()).set(STEP_UP_COOKIE, stepUpToken(who.userId, who.sessionVersion, Math.floor(Date.now() / 1000)), {
+export async function grantStepUp(who: StepUpSubject): Promise<void> {
+  (await cookies()).set(STEP_UP_COOKIE, stepUpToken(who, Math.floor(Date.now() / 1000)), {
     httpOnly: true,
     sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
@@ -40,11 +45,12 @@ export async function grantStepUp(who: Who): Promise<void> {
   });
 }
 
-export async function stepUpSecondsLeft(who: Who): Promise<number> {
-  return stepUpRemaining((await cookies()).get(STEP_UP_COOKIE)?.value, who.userId, who.sessionVersion, Math.floor(Date.now() / 1000));
+export async function stepUpSecondsLeft(who: StepUpSubject): Promise<number> {
+  await connection(); // reads the clock: request time only
+  return stepUpRemaining((await cookies()).get(STEP_UP_COOKIE)?.value, who, Math.floor(Date.now() / 1000));
 }
 
-/** Throws StepUpRequiredError unless the password was confirmed in the last 10 minutes. */
-export async function requireStepUp(who: Who): Promise<void> {
+/** Throws StepUpRequiredError unless a code was confirmed in the last 10 minutes. */
+export async function requireStepUp(who: StepUpSubject): Promise<void> {
   if ((await stepUpSecondsLeft(who)) <= 0) throw new StepUpRequiredError();
 }

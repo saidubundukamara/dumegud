@@ -1,22 +1,20 @@
 import type { DefaultSession } from "next-auth";
-import type { Role } from "@/server/db/schema/auth";
 
-// Claims we add to Auth.js users, sessions and JWTs (see auth.config.ts callbacks).
+// Claims we add to Auth.js users, sessions and JWTs (see auth.config.ts callbacks). Auth.js is
+// for creators only; admins sign in on the admin subdomain with their own session.
 
 declare module "next-auth" {
   interface User {
-    role?: Role;
     sessionVersion?: number;
   }
   interface Session {
-    user: { id: string; role?: Role; sv?: number } & DefaultSession["user"];
+    user: { id: string; sv?: number } & DefaultSession["user"];
   }
 }
 
 declare module "@auth/core/jwt" {
   interface JWT {
     uid?: string;
-    role?: Role;
     sv?: number;
   }
 }

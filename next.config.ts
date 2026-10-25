@@ -1,6 +1,7 @@
 import path from "node:path";
 import { withBotId } from "botid/next/config";
 import type { NextConfig } from "next";
+import { adminHostname } from "./lib/admin-host";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -58,6 +59,10 @@ const securityHeaders = [
     : []),
 ];
 
+// The admin subdomain (lib/admin-host.ts). Matched on the hostname, port excluded.
+const adminHost = adminHostname().replace(/\./g, "\\.");
+const onAdminHost = [{ type: "host" as const, value: adminHost }];
+
 const OG_FILES = ["./styles/tokens.css", "./node_modules/@fontsource/geist-sans/files/geist-sans-latin-{400,700}-normal.woff"];
 
 const nextConfig: NextConfig = {
@@ -93,7 +98,27 @@ const nextConfig: NextConfig = {
     },
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Behind a login anyway, but never in search results even if a link leaks.
+      { source: "/:path*", has: onAdminHost, headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+    ];
+  },
+  async rewrites() {
+    return {
+      // Before files and pages, so every admin-host path lands in app/(admin)/admin. Next's own
+      // assets and the admin API stay where they are. The proxy has already 404'd /admin/* on
+      // every host, so the internal paths only exist through these rewrites.
+      // Rules apply in sequence to the already-rewritten path, so the catch-all must come before
+      // `/` → `/admin` (the other order turns `/` into `/admin/admin`).
+      beforeFiles: [
+        // (149e9513-… is BotID's script/proxy prefix; withBotId appends its rewrites after these.)
+        { source: "/:path((?!_next/|__nextjs|api/admin/|favicon\\.ico$|149e9513-01fa-4fb0-aad4-566afd725d1b/).+)", has: onAdminHost, destination: "/admin/:path" },
+        { source: "/", has: onAdminHost, destination: "/admin" },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
   },
 };
 

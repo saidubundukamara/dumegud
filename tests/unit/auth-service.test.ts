@@ -44,7 +44,6 @@ describe("register", () => {
     expect(outcome.created).toBe(true);
     const user = [...fakes.users.values()][0];
     expect(user.passwordHash).toBe(`hashed:${PASSWORD}`);
-    expect(user.role).toBe("creator");
     expect(user.dateOfBirthRequired).toBe(false);
     expect(decryptField(user.dateOfBirthEnc!)).toBe(DOB);
   });
@@ -82,7 +81,7 @@ describe("verifyCredentials", () => {
   it("returns the session user and logs success for a correct password", async () => {
     const user = fakes.addUser({ passwordHash: `hashed:${PASSWORD}`, failedLoginCount: 3 });
     const result = await service.verifyCredentials({ email: "AMINATA@example.com ", password: PASSWORD }, ctx);
-    expect(result).toMatchObject({ id: user.id, role: "creator", sessionVersion: 1 });
+    expect(result).toMatchObject({ id: user.id, sessionVersion: 1 });
     expect(fakes.users.get(user.id)?.failedLoginCount).toBe(0);
     expect(fakes.events.at(-1)).toMatchObject({ type: "login_success", userId: user.id });
     expect(fakes.events.at(-1)?.ipHash).not.toContain("203.0.113.7");
@@ -171,7 +170,7 @@ describe("password reset", () => {
 });
 
 describe("changePassword / signOutEverywhere", () => {
-  const actorFor = (userId: string) => ({ userId, role: "creator" as const, status: "active" as const, emailVerified: true });
+  const actorFor = (userId: string) => ({ userId, status: "active" as const, emailVerified: true });
 
   it("requires the current password", async () => {
     const user = fakes.addUser({ passwordHash: `hashed:${PASSWORD}` });
@@ -234,7 +233,7 @@ describe("Google sign-in", () => {
 
 describe("age gate (Google sign-ups)", () => {
   // The fakes' clock is 2026-10-17.
-  const actorFor = (userId: string) => ({ userId, role: "creator" as const, status: "active" as const, emailVerified: true });
+  const actorFor = (userId: string) => ({ userId, status: "active" as const, emailVerified: true });
   let provision: ReturnType<typeof vi.fn<(userId: string) => Promise<unknown>>>;
   beforeEach(() => {
     provision = vi.fn(async () => ({}) as unknown);
@@ -290,13 +289,10 @@ describe("age gate (Google sign-ups)", () => {
     expect(fakes.users.has(normal.id)).toBe(true);
   });
 
-  it("never deletes an account that already has a date of birth or isn't a creator", async () => {
+  it("never deletes an account that already has a date of birth", async () => {
     const dated = fakes.addUser({ email: "a@example.com", dateOfBirthEnc: "x", dateOfBirthRequired: false });
-    const staff = fakes.addUser({ email: "s@example.com", role: "staff", dateOfBirthRequired: true });
     await service.confirmDateOfBirth(actorFor(dated.id), "2015-01-01", { underAgeConfirmed: true });
-    await service.confirmDateOfBirth(actorFor(staff.id), "2015-01-01", { underAgeConfirmed: true });
     expect(fakes.users.has(dated.id)).toBe(true);
-    expect(fakes.users.has(staff.id)).toBe(true);
   });
 
   it.each([["", "Enter your date of birth."], ["2000-02-31", INVALID_DOB_MESSAGE], ["2030-01-01", INVALID_DOB_MESSAGE]])(

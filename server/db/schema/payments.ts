@@ -14,6 +14,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { TRAFFIC_SOURCES } from "../../../lib/traffic-source";
+import { admins } from "./admins";
 import { users } from "./auth";
 import { createdAt, id, timestamps } from "./columns";
 import { socialPlatform } from "./creators";
@@ -212,7 +213,7 @@ export const platformSettings = pgTable("platform_settings", {
   key: text().primaryKey(),
   value: jsonb().notNull(),
   version: integer().notNull().default(1),
-  updatedBy: uuid().references(() => users.id, { onDelete: "set null" }),
+  updatedBy: uuid().references(() => admins.id, { onDelete: "set null" }),
   updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 

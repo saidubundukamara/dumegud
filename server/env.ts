@@ -12,6 +12,8 @@ const schema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     APP_BASE_URL: z.url(),
+    /** The admin subdomain. Defaults to `admin.` + the APP_BASE_URL host (lib/admin-host.ts). */
+    ADMIN_BASE_URL: optionalUrl,
 
     DATABASE_URL: z.url(),
 
