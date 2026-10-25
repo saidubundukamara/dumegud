@@ -12,7 +12,7 @@ import { verifySession } from "@/server/dal/session";
 import { services } from "@/server/services";
 import { inSetup, productPath } from "../../labels";
 import { SubmitForReview } from "../../status-forms";
-import { BackLink, Checklist, StepHeading, Stepper, type ChecklistEntry } from "../../ui";
+import { BackLink, Checklist, PageNotLiveNotice, StepHeading, Stepper, type ChecklistEntry } from "../../ui";
 
 export const metadata: Metadata = { title: "Send for review" };
 
@@ -27,11 +27,12 @@ export default function ProductPublishPage({ params }: PageProps<"/dashboard/pro
 async function Publish({ params }: Pick<PageProps<"/dashboard/products/[productId]/publish">, "params">) {
   const { actor } = await verifySession();
   const { productId } = await params;
-  const [product, readiness, categories, settings] = await Promise.all([
+  const [product, readiness, categories, settings, profile] = await Promise.all([
     services.products.getOwn(actor, productId),
     services.products.readiness(actor, productId),
     services.creators.listCategories(),
     services.settings.get(),
+    services.creators.getOwnProfile(actor),
   ]);
   const hub = productPath(product.id);
   if (!inSetup(product.status)) redirect(hub);
@@ -53,6 +54,8 @@ async function Publish({ params }: Pick<PageProps<"/dashboard/products/[productI
       </div>
       <Stepper current="publish" productId={product.id} done={readiness.find((i) => i.key === "file")?.done ? ["details", "files"] : ["details"]} />
       {product.reviewNote ? <Alert tone="warning">From our review: {product.reviewNote}</Alert> : null}
+      {/* Review doesn't wait for the page, but sales do: say so before they send it. */}
+      <PageNotLiveNotice pageStatus={profile?.status} />
 
       <Panel as="section" className="flex flex-col gap-4 p-5">
         <h2 className="text-lg font-bold">{ready ? "Ready to sell" : "Before you send it"}</h2>

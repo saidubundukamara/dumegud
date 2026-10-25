@@ -1,7 +1,7 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowUpRightIcon, CaretRightIcon, ConfettiIcon, HourglassMediumIcon } from "@phosphor-icons/react/dist/ssr";
+import { ArrowUpRightIcon, CaretRightIcon, ConfettiIcon, HourglassMediumIcon, StorefrontIcon } from "@phosphor-icons/react/dist/ssr";
 import { Alert } from "@/components/ui/Alert";
 import { StatusChip } from "@/components/ui/Badge";
 import { Card, Panel } from "@/components/ui/Card";
@@ -14,10 +14,11 @@ import { formatSLECompact } from "@/lib/money";
 import { verifySession } from "@/server/dal/session";
 import { getEnv } from "@/server/env";
 import { services } from "@/server/services";
+import type { OwnProfileDTO } from "@/server/services/CreatorService";
 import type { OwnProductDTO, ReadinessItem } from "@/server/services/ProductService";
 import { PRODUCT_STATUS_LABELS, PRODUCT_STATUS_TONES, productPath } from "../labels";
 import { Unpublish } from "../status-forms";
-import { BackLink, Checklist, type ChecklistEntry } from "../ui";
+import { BackLink, Checklist, PageNotLiveNotice, type ChecklistEntry } from "../ui";
 
 export const metadata: Metadata = { title: "Product" };
 
@@ -32,12 +33,14 @@ export default function ProductOverviewPage({ params }: PageProps<"/dashboard/pr
 async function Overview({ params }: Pick<PageProps<"/dashboard/products/[productId]">, "params">) {
   const { actor } = await verifySession();
   const { productId } = await params;
-  const [product, readiness, categories, settings] = await Promise.all([
+  const [product, readiness, categories, settings, profile] = await Promise.all([
     services.products.getOwn(actor, productId),
     services.products.readiness(actor, productId),
     services.creators.listCategories(),
     services.settings.get(),
+    services.creators.getOwnProfile(actor),
   ]);
+  const pageLive = profile?.status === "published";
   const files = product.assets.filter((a) => a.kind === "file" && a.status !== "uploading" && a.status !== "rejected");
   const previews = product.assets.filter((a) => a.kind === "preview_image" && a.status === "clean");
   const net = quoteSplit(product.priceMinor, settings.monimeCollectionBpsEstimate, settings.productFeeBps).creatorNetMinor;
@@ -48,12 +51,20 @@ async function Overview({ params }: Pick<PageProps<"/dashboard/products/[product
       <div className="flex flex-col gap-3">
         <BackLink href="/dashboard/products">Products</BackLink>
         <div className="flex flex-col items-start gap-2">
-          <StatusChip tone={PRODUCT_STATUS_TONES[product.status]}>{PRODUCT_STATUS_LABELS[product.status]}</StatusChip>
+          {product.status === "published" && !pageLive ? (
+            <StatusChip tone="warning">Waiting for your page</StatusChip>
+          ) : (
+            <StatusChip tone={PRODUCT_STATUS_TONES[product.status]}>{PRODUCT_STATUS_LABELS[product.status]}</StatusChip>
+          )}
           <h1 className="text-title line-clamp-3 break-words text-balance">{product.title}</h1>
         </div>
       </div>
 
-      <StatusHero product={product} readiness={readiness} />
+      {/* Approved products on a draft or hidden page get their own card below instead. */}
+      {product.status === "suspended" || (product.status === "published" && profile?.status !== "suspended") ? null : (
+        <PageNotLiveNotice pageStatus={profile?.status} />
+      )}
+      <StatusHero product={product} readiness={readiness} pageStatus={profile?.status} />
 
       <Panel as="section" aria-label="Product details" className="divide-y divide-border">
         <Row label="Price" href={productPath(product.id, "details")} action="Edit">
@@ -86,8 +97,33 @@ async function Overview({ params }: Pick<PageProps<"/dashboard/products/[product
   );
 }
 
-function StatusHero({ product, readiness }: { product: OwnProductDTO; readiness: ReadinessItem[] }) {
+function StatusHero({ product, readiness, pageStatus }: { product: OwnProductDTO; readiness: ReadinessItem[]; pageStatus: OwnProfileDTO["status"] | undefined }) {
   const note = product.reviewNote ? <Alert tone="warning">From our review: {product.reviewNote}</Alert> : null;
+
+  // Approved, but products are only on sale while the creator's page is live.
+  if (product.status === "published" && pageStatus === "suspended") return null;
+  if (product.status === "published" && pageStatus !== "published") {
+    return (
+      <Card inner="flex flex-col gap-5 p-5 sm:p-7" className="animate-rise">
+        <div className="flex items-start gap-4">
+          <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full bg-warning-surface text-warning">
+            <StorefrontIcon weight="duotone" className="size-6" />
+          </span>
+          <div className="flex flex-col gap-1">
+            <h2 className="text-2xl font-bold">Approved. Make your page live to start selling</h2>
+            <p className="text-muted">
+              Products go on sale only while your page is live. Until then nobody can see or buy this one. Make your page live and it goes on sale
+              straight away.
+            </p>
+          </div>
+        </div>
+        <Link href="/dashboard" className={buttonClasses("primary", "w-full sm:w-fit")}>
+          Make your page live
+          <CaretRightIcon aria-hidden="true" weight="bold" className="size-4" />
+        </Link>
+      </Card>
+    );
+  }
 
   if (product.status === "published") {
     const base = getEnv().APP_BASE_URL.replace(/\/$/, "");

@@ -2,6 +2,8 @@ import type { Route } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CaretLeftIcon, CheckIcon } from "@phosphor-icons/react/dist/ssr";
+import { Alert } from "@/components/ui/Alert";
+import type { OwnProfileDTO } from "@/server/services/CreatorService";
 
 export type Step = "details" | "files" | "publish";
 
@@ -95,5 +97,26 @@ export function WizardFooter({ children }: { children: ReactNode }) {
     <div className="sticky bottom-[calc(3.5rem_+_max(0.75rem,env(safe-area-inset-bottom)))] z-10 -mx-4 flex items-center gap-3 bg-gradient-to-t from-background from-70% to-background/0 px-4 pb-3 pt-6 sm:-mx-6 sm:px-6 md:static md:mx-0 md:bg-none md:px-0 md:pb-0 md:pt-2">
       {children}
     </div>
+  );
+}
+
+/**
+ * Products are only on sale while the creator's own page is live (`ProductService.getPublic`), so
+ * an approved product on a page that isn't live can't be seen or bought. Says so wherever it matters.
+ */
+export function PageNotLiveNotice({ pageStatus }: { pageStatus: OwnProfileDTO["status"] | undefined }) {
+  if (pageStatus === "published") return null;
+  if (pageStatus === "suspended") {
+    return (
+      <Alert tone="warning">
+        <strong>Your page is suspended</strong>, so nobody can buy your products. Contact support if you think this is a mistake.
+      </Alert>
+    );
+  }
+  return (
+    <Alert tone="warning">
+      <strong>Your page isn&apos;t live yet.</strong> Products go on sale only while your page is live, so buyers can&apos;t see them
+      for now. <Link href="/dashboard">Make your page live</Link>
+    </Alert>
   );
 }
