@@ -73,8 +73,8 @@ function Chip({ secondsLeft }: { secondsLeft: number }) {
     <>
       <button type="button" onClick={() => setOpen(true)} className={buttonClasses("secondary", "", "sm")}>
         <LockKeyIcon aria-hidden="true" weight="bold" className="size-4" />
-        <span className="hidden sm:inline">Unlock sensitive actions</span>
-        <span className="sm:hidden">Unlock</span>
+        <span className="hidden lg:inline">Unlock sensitive actions</span>
+        <span className="whitespace-nowrap lg:hidden">Unlock</span>
       </button>
       <Sheet open={open} onClose={close} title="Unlock sensitive actions">
         <div className="flex flex-col gap-4 px-2 pb-2">
