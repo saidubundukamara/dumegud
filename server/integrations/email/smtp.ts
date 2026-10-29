@@ -1,5 +1,6 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { ExternalServiceError } from "@/server/lib/errors";
 import { logger } from "@/server/lib/logger";
 import type { EmailMessage, EmailService } from "./EmailService";
@@ -14,11 +15,25 @@ export type SmtpEmailConfig = {
   transport?: Pick<Transporter, "sendMail">;
 };
 
+// Parsed here rather than handing nodemailer the string: its URL parser uses the deprecated
+// `url.parse()`, which Node warns about (DEP0169) once Turbopack bundles nodemailer into app code.
+export function smtpOptionsFromUrl(url: string): SMTPTransport.Options {
+  const parsed = new URL(url);
+  return {
+    host: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : undefined,
+    secure: parsed.protocol === "smtps:",
+    auth: parsed.username
+      ? { user: decodeURIComponent(parsed.username), pass: decodeURIComponent(parsed.password) }
+      : undefined,
+  };
+}
+
 export class SmtpEmailService implements EmailService {
   private readonly transport: Pick<Transporter, "sendMail">;
 
   constructor(private readonly config: SmtpEmailConfig) {
-    this.transport = config.transport ?? nodemailer.createTransport(config.url);
+    this.transport = config.transport ?? nodemailer.createTransport(smtpOptionsFromUrl(config.url));
   }
 
   async send(message: EmailMessage): Promise<void> {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { CloudflareEmailService, parseFromAddress } from "@/server/integrations/email/cloudflare";
-import { SmtpEmailService } from "@/server/integrations/email/smtp";
+import { SmtpEmailService, smtpOptionsFromUrl } from "@/server/integrations/email/smtp";
 import { escapeHtml, verifyEmailTemplate } from "@/server/integrations/email/templates";
 import { ExternalServiceError } from "@/server/lib/errors";
 
@@ -72,5 +72,15 @@ describe("SmtpEmailService", () => {
     });
     const svc = new SmtpEmailService({ url: "smtp://localhost:1025", from: "n@d.com", transport: { sendMail } });
     await expect(svc.send(message)).rejects.toBeInstanceOf(ExternalServiceError);
+  });
+
+  it("parses SMTP_URL without nodemailer's url.parse()", () => {
+    expect(smtpOptionsFromUrl("smtp://localhost:1025")).toEqual({ host: "localhost", port: 1025, secure: false, auth: undefined });
+    expect(smtpOptionsFromUrl("smtps://us%40r:p%3Ass@mail.example.com")).toEqual({
+      host: "mail.example.com",
+      port: undefined,
+      secure: true,
+      auth: { user: "us@r", pass: "p:ss" },
+    });
   });
 });
