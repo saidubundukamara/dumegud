@@ -21,6 +21,8 @@ describe("getEnv", () => {
   it("requires Upstash in production", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    // CI sets ALLOW_MEMORY_RATE_LIMIT=true for its E2E run, which would skip this check.
+    vi.stubEnv("ALLOW_MEMORY_RATE_LIMIT", "false");
     resetEnvForTests();
     expect(() => getEnv()).toThrow(/Upstash/);
   });
