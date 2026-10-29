@@ -60,7 +60,7 @@ describe("SmtpEmailService", () => {
   const message = { to: "x@example.com", subject: "S", html: "<p>h</p>", text: "t", tag: "verify-email" };
 
   it("sends the message from EMAIL_FROM", async () => {
-    const sendMail = vi.fn(async () => ({}));
+    const sendMail = vi.fn(async () => ({ envelope: { from: "n@d.com", to: ["x@example.com"] }, messageId: "<m@d.com>" }));
     const svc = new SmtpEmailService({ url: "smtp://localhost:1025", from: "DuMeGud <n@d.com>", transport: { sendMail } });
     await svc.send(message);
     expect(sendMail).toHaveBeenCalledWith({ from: "DuMeGud <n@d.com>", to: "x@example.com", subject: "S", html: "<p>h</p>", text: "t" });
