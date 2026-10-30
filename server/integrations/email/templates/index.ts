@@ -1,5 +1,8 @@
 import "server-only";
+import { EMAIL_LOGO } from "@/lib/brand-kit";
+import { WORDMARK_BOX } from "@/lib/brand-logo";
 import { LEGAL } from "@/lib/legal";
+import { brandKitUrl } from "@/server/lib/brand-kit";
 import type { EmailMessage } from "../EmailService";
 
 // Plain string templates: no React, no user-supplied HTML. Every interpolated value goes through
@@ -50,6 +53,8 @@ a{text-decoration-thickness:1px;text-underline-offset:3px}
   .muted{color:#bdb3ad !important}
   .brand,.link{color:#f8c9c5 !important}
   .rule{border-color:#3a3230 !important}
+  .logo-light{display:none !important}
+  .logo-dark{display:block !important;max-height:none !important}
 }
 [data-ogsc] .bg{background:#141110 !important}
 [data-ogsc] .card{background:#211b1a !important}
@@ -57,6 +62,8 @@ a{text-decoration-thickness:1px;text-underline-offset:3px}
 [data-ogsc] .ink{color:#f5f3f2 !important}
 [data-ogsc] .muted{color:#bdb3ad !important}
 [data-ogsc] .brand,[data-ogsc] .link{color:#f8c9c5 !important}
+[data-ogsc] .logo-light{display:none !important}
+[data-ogsc] .logo-dark{display:block !important;max-height:none !important}
 `;
 
 /** One piece of an email body, rendered to both HTML and plain text. */
@@ -140,6 +147,26 @@ function renderBlock(block: Block, last: boolean): string {
   }
 }
 
+/**
+ * The logo as hosted PNGs (mail apps don't show SVG): maroon on light, white where the app honours
+ * the dark scheme. The dark copy is hidden from Outlook desktop, which ignores display:none on
+ * images. Falls back to the text wordmark while R2 isn't set up, and the alt text carries the name
+ * when images are blocked.
+ */
+function brandHeader(): string {
+  const light = brandKitUrl(EMAIL_LOGO.light.file);
+  const dark = brandKitUrl(EMAIL_LOGO.dark.file);
+  if (!light || !dark) {
+    return `<p class="brand" style="margin:0;font-family:${FONT};font-size:20px;line-height:1.2;font-weight:700;letter-spacing:-0.02em;color:${C.primary}">DuMeGud</p>`;
+  }
+  const width = EMAIL_LOGO.width;
+  const height = Math.round((width * WORDMARK_BOX.height) / WORDMARK_BOX.width);
+  const img = (src: string, cls: string) =>
+    `<img class="${cls}" src="${escapeHtml(src)}" width="${width}" height="${height}" alt="DuMeGud" style="display:block;width:${width}px;height:${height}px;border:0;outline:none;text-decoration:none;font-family:${FONT};font-size:20px;font-weight:700;color:${C.primary}">`;
+  return `${img(light, "logo-light")}
+<!--[if !mso]><!--><div class="logo-dark" style="display:none;max-height:0;overflow:hidden">${img(dark, "")}</div><!--<![endif]-->`;
+}
+
 function renderHtml(spec: EmailSpec): string {
   const link = (href: string, label: string, color: string = C.primary) =>
     `<a class="link" href="${escapeHtml(href)}" style="color:${color}">${escapeHtml(label)}</a>`;
@@ -179,7 +206,7 @@ ${preheader}
 <!--[if mso]><table role="presentation" width="560" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px">
 <tr><td style="padding:0 8px 20px">
-<p class="brand" style="margin:0;font-family:${FONT};font-size:20px;line-height:1.2;font-weight:700;letter-spacing:-0.02em;color:${C.primary}">DuMeGud</p>
+${brandHeader()}
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:8px"><tr><td width="28" height="3" bgcolor="${C.secondary}" style="width:28px;height:3px;background:${C.secondary};border-radius:2px;font-size:0;line-height:0">&nbsp;</td></tr></table>
 </td></tr>
 <tr><td class="card" style="padding:36px 32px;background:${C.card};border-radius:20px;font-family:${FONT}">

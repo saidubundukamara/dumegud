@@ -7,11 +7,35 @@ import { ExternalServiceError } from "@/server/lib/errors";
 describe("templates", () => {
   it("escapes user-controlled values in HTML", () => {
     const { html, text } = verifyEmailTemplate({ name: '<img src=x onerror="alert(1)">', url: "https://dumegud.test/v?token=a&b" });
-    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<img src=x");
     expect(html).toContain("&lt;img");
     expect(html).toContain("token=a&amp;b");
     expect(text).toContain("https://dumegud.test/v?token=a&b");
     expect(html).toContain("DuMeGud");
+  });
+
+  it("shows the hosted logo, with a dark-mode copy and the name as alt text", () => {
+    vi.stubEnv("R2_PUBLIC_BASE_URL", "https://cdn.dumegud.test");
+    try {
+      const { html } = verifyEmailTemplate({ name: null, url: "https://dumegud.test/v" });
+      expect(html).toContain('src="https://cdn.dumegud.test/brand/v1/dumegud-email-wordmark-maroon-orange.png"');
+      expect(html).toContain('src="https://cdn.dumegud.test/brand/v1/dumegud-email-wordmark-white-orange.png"');
+      expect(html).toContain('alt="DuMeGud"');
+      expect(html).not.toContain('<p class="brand"');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("falls back to the text wordmark while R2 isn't set up", () => {
+    vi.stubEnv("R2_PUBLIC_BASE_URL", "");
+    try {
+      const { html } = verifyEmailTemplate({ name: null, url: "https://dumegud.test/v" });
+      expect(html).toContain('<p class="brand"');
+      expect(html).not.toContain("email-wordmark");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("escapeHtml covers quotes", () => {
