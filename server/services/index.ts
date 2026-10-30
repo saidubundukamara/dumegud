@@ -200,6 +200,7 @@ export const services = {
       const handlers: Partial<Record<string, WebhookHandler>> = {
         ...services.settlement.webhookHandlers(),
         ...services.payouts.webhookHandlers(),
+        ...services.wallet.webhookHandlers(),
       };
       webhooks = new WebhookService(repos.webhookEvents, handlers);
     }
