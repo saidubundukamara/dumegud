@@ -1,4 +1,4 @@
-import { WarningCircleIcon } from "@phosphor-icons/react/dist/ssr";
+import { CaretDownIcon, WarningCircleIcon } from "@phosphor-icons/react/dist/ssr";
 import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 type Common = { label: string; name: string; errors?: string[]; hint?: ReactNode; className?: string; compact?: boolean };
@@ -11,6 +11,36 @@ export const CONTROL =
 /** The same control for dense staff screens (admin): 36px tall, 14px text, white fill. */
 export const CONTROL_COMPACT =
   "w-full rounded-brand-sm bg-surface px-3 text-sm text-text ring-1 ring-control-border transition-[box-shadow] duration-150 ease-brand placeholder:text-muted hover:ring-text focus:outline-none focus:ring-2 focus:ring-focus aria-invalid:ring-2 aria-invalid:ring-danger disabled:bg-surface-muted disabled:opacity-70";
+
+/**
+ * A <select> drawn like the other controls. Without `appearance-none`, iOS Safari paints its own
+ * short, flat box that ignores the height, ring and radius, so a select sitting beside inputs
+ * (the date of birth) looks broken; the caret is ours. A required select still on its empty
+ * placeholder option is `:invalid`, so the placeholder reads muted like an input's.
+ */
+export function Select({
+  className,
+  containerClassName,
+  compact,
+  children,
+  ...select
+}: SelectHTMLAttributes<HTMLSelectElement> & { containerClassName?: string; compact?: boolean }) {
+  return (
+    <div className={`relative min-w-0 ${containerClassName ?? ""}`}>
+      <select
+        className={`appearance-none ${compact ? "pr-9" : "pr-11"} invalid:text-muted [&>option]:text-text ${className ?? ""}`}
+        {...select}
+      >
+        {children}
+      </select>
+      <CaretDownIcon
+        aria-hidden="true"
+        weight="bold"
+        className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted ${compact ? "right-3 size-3.5" : "right-4 size-4"}`}
+      />
+    </div>
+  );
+}
 
 const control = (compact: boolean | undefined, height: string, compactHeight: string) => (compact ? `${compactHeight} ${CONTROL_COMPACT}` : `${height} ${CONTROL}`);
 
@@ -144,16 +174,17 @@ export function SelectField({
   return (
     <FieldShell label={label} errors={errors} hint={hint} className={className} compact={compact}>
       {({ id, describedBy, invalid }) => (
-        <select
+        <Select
           id={id}
           name={name}
           aria-invalid={invalid}
           aria-describedby={describedBy}
+          compact={compact}
           className={control(compact, "min-h-13", "min-h-9")}
           {...select}
         >
           {children}
-        </select>
+        </Select>
       )}
     </FieldShell>
   );

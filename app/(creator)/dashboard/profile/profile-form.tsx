@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { SubmitButton } from "@/components/ui/Button";
-import { CONTROL, Field, SelectField, TextAreaField } from "@/components/ui/Field";
+import { CONTROL, Field, Select, SelectField, TextAreaField } from "@/components/ui/Field";
 import { initialFormState } from "@/lib/form-state";
 import { HANDLE_MAX } from "@/lib/handle";
 import { MAX_SOCIAL_LINKS, PLATFORM_LABELS, SOCIAL_PLATFORMS, type Platform } from "@/lib/social";
@@ -123,10 +123,11 @@ export function ProfileForm({ initial, categories, appHost, handleLockedUntil, i
         {values.links.length ? null : <p className="text-sm text-muted">Add your Instagram, TikTok or other pages so fans can follow you.</p>}
         {values.links.map((link, i) => (
           <div key={i} className="flex flex-col gap-2 sm:flex-row">
-            <select
+            <Select
               name="linkPlatform"
               aria-label={`Link ${i + 1}: app`}
-              className={`min-h-12 ${CONTROL} sm:w-44`}
+              containerClassName="sm:w-44 sm:shrink-0"
+              className={`min-h-12 ${CONTROL}`}
               value={link.platform}
               onChange={(e) => setLink(i, { platform: e.target.value as Platform })}
             >
@@ -135,7 +136,7 @@ export function ProfileForm({ initial, categories, appHost, handleLockedUntil, i
                   {PLATFORM_LABELS[p]}
                 </option>
               ))}
-            </select>
+            </Select>
             <input
               name="linkUrl"
               type="url"

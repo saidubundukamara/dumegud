@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CONTROL, FieldGroup } from "@/components/ui/Field";
+import { CONTROL, FieldGroup, Select } from "@/components/ui/Field";
 import { MONTHS } from "@/lib/age";
 
 /**
@@ -38,7 +38,7 @@ export function DateOfBirthField({
             />
           </Part>
           <Part label="Month" htmlFor={`${id}-month`}>
-            <select
+            <Select
               // React's post-action form reset doesn't re-apply a <select>'s defaultValue; remount it.
               key={values?.dobMonth ?? ""}
               id={`${id}-month`}
@@ -58,7 +58,7 @@ export function DateOfBirthField({
                   {name}
                 </option>
               ))}
-            </select>
+            </Select>
           </Part>
           <Part label="Year" htmlFor={`${id}-year`}>
             <input
