@@ -11,7 +11,7 @@ const HANDLE_RE = /^[a-z0-9](?:[a-z0-9_]{1,28}[a-z0-9])$/;
 
 /** Top-level routes and brand words. Keep in sync with app/ route segments. */
 export const ROUTE_HANDLES: ReadonlySet<string> = new Set([
-  "about", "admin", "api", "auth", "dashboard", "dumegud", "forbidden", "forgot_password", "help",
+  "about", "admin", "api", "auth", "brand", "dashboard", "dumegud", "forbidden", "forgot_password", "help",
   "faq", "legal", "library", "login", "logout", "monime", "p", "pricing", "privacy", "register",
   "report", "reset_password", "settings", "signin", "signup", "staff", "static", "support", "terms",
   "verify_email", "www",

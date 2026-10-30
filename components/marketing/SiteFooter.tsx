@@ -23,7 +23,7 @@ const COLUMNS: { title: string; links: { href: Route; label: string }[] }[] = [
   },
   {
     title: "Help",
-    links: [{ href: "/report", label: "Report a problem" }, ...LEGAL_LINKS],
+    links: [{ href: "/report", label: "Report a problem" }, { href: "/brand", label: "Brand assets" }, ...LEGAL_LINKS],
   },
 ];
 
