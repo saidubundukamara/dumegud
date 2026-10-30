@@ -5,6 +5,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useState } from "react";
+import { Logomark } from "@/components/brand/Logomark";
 import { Sheet } from "@/components/motion/Sheet";
 import { adminHref } from "@/lib/admin-host";
 import { signOutAdmin } from "../auth-actions";
@@ -96,8 +97,8 @@ function Initials({ name }: { name: string }) {
 function Brand({ collapsed }: { collapsed?: boolean }) {
   return (
     <Link href={adminHref("/admin")} className="flex min-h-9 items-center gap-2 rounded-brand-sm px-1" aria-label="DuMeGud admin, overview">
-      <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-brand-sm bg-primary text-[0.8125rem] font-bold tracking-[-0.04em] text-primary-foreground">
-        D
+      <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-brand-sm bg-primary text-primary-foreground">
+        <Logomark className="h-5" />
       </span>
       {collapsed ? null : (
         <span className="flex items-baseline gap-1.5">

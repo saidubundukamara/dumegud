@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
+import { Logomark } from "@/components/brand/Logomark";
 
 /** Sign-in, two-step and invite: one narrow card, the brand above it, nothing else. */
 export default function AdminAuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-1 flex-col items-center bg-sidebar px-4 py-10 sm:justify-center sm:py-16">
       <div className="mb-6 flex items-center gap-2">
-        <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-brand-sm bg-primary text-sm font-bold tracking-[-0.04em] text-primary-foreground">
-          D
+        <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-brand-sm bg-primary text-primary-foreground">
+          <Logomark className="h-6" />
         </span>
         <span className="text-base font-bold tracking-[-0.03em]">DuMeGud</span>
         <span className="text-sm font-medium text-muted">Admin</span>
