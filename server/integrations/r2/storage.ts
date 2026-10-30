@@ -12,7 +12,15 @@ export interface ObjectStorage {
   }): Promise<string>;
   /** Object bytes, or null when missing. Throws if larger than `maxBytes`. */
   getObject(bucket: string, key: string, maxBytes: number): Promise<{ body: Uint8Array; contentType?: string } | null>;
-  putObject(input: { bucket: string; key: string; body: Uint8Array; contentType: string; cacheControl?: string }): Promise<void>;
+  putObject(input: {
+    bucket: string;
+    key: string;
+    body: Uint8Array;
+    contentType: string;
+    cacheControl?: string;
+    /** e.g. `attachment; filename="x.png"` to make a public link download instead of open. */
+    contentDisposition?: string;
+  }): Promise<void>;
   deleteObject(bucket: string, key: string): Promise<void>;
   /** Size and type, or null when missing. */
   headObject(bucket: string, key: string): Promise<{ size: number; contentType?: string } | null>;

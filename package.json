@@ -17,6 +17,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed:admin": "tsx --conditions=react-server scripts/seed-admin.ts",
+    "brand:build": "tsx --conditions=react-server scripts/brand-assets.ts",
+    "brand:upload": "tsx --conditions=react-server scripts/brand-assets.ts --upload",
     "audit:prod": "npm audit --omit=dev"
   },
   "dependencies": {
@@ -62,6 +64,7 @@
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "fflate": "^0.8.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",

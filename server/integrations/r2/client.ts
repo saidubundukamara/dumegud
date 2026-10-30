@@ -50,9 +50,16 @@ export class R2Storage implements ObjectStorage {
     }
   }
 
-  async putObject({ bucket, key, body, contentType, cacheControl }: Parameters<ObjectStorage["putObject"]>[0]) {
+  async putObject({ bucket, key, body, contentType, cacheControl, contentDisposition }: Parameters<ObjectStorage["putObject"]>[0]) {
     await this.s3.send(
-      new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType, CacheControl: cacheControl }),
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        CacheControl: cacheControl,
+        ContentDisposition: contentDisposition,
+      }),
     );
   }
 
