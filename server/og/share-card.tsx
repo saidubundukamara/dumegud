@@ -4,6 +4,7 @@ import path from "node:path";
 import { ImageResponse } from "next/og";
 import type { ReactNode } from "react";
 import sharp from "sharp";
+import { WORDMARK_BOX, wordmarkSvg } from "@/lib/brand-logo";
 import { brandTokens, type BrandTokens } from "@/server/lib/brand-tokens";
 import { logger } from "@/server/lib/logger";
 import { siteUrl } from "@/server/lib/site";
@@ -62,6 +63,17 @@ export function clip(text: string, max: number): string {
 }
 
 /**
+ * The logo for a maroon card: white "Du" and "Gud", orange "Me" (the light-on-dark lockup).
+ * An SVG data URI, which Satori draws as an image.
+ */
+export function CardWordmark({ t, height }: { t: BrandTokens; height: number }) {
+  const svg = wordmarkSvg({ base: t["primary-foreground"], accent: t.secondary });
+  const width = Math.round((height * WORDMARK_BOX.width) / WORDMARK_BOX.height);
+  // eslint-disable-next-line @next/next/no-img-element -- Satori renders plain <img>, not next/image.
+  return <img alt="DuMeGud" src={`data:image/svg+xml,${encodeURIComponent(svg)}`} width={width} height={height} />;
+}
+
+/**
  * The shared frame: brand maroon with the orange glow, the wordmark top left, and a footer with an
  * orange call to action and the link. `children` fills the middle.
  */
@@ -82,9 +94,8 @@ export async function renderShareCard({ cta, link, children }: { cta: string; li
         fontFamily: "Geist",
       }}
     >
-      {/* The site wordmark: the G picks out the accent, orange here because the card is maroon. */}
-      <div style={{ display: "flex", fontSize: 34, fontWeight: 700, letterSpacing: -1 }}>
-        DuMe<span style={{ color: t.secondary }}>G</span>ud
+      <div style={{ display: "flex" }}>
+        <CardWordmark t={t} height={44} />
       </div>
       {children(t)}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 32 }}>

@@ -2,7 +2,7 @@ import "server-only";
 import { ImageResponse } from "next/og";
 import type { ReactNode } from "react";
 import { brandTokens, type BrandTokens } from "@/server/lib/brand-tokens";
-import { loadFonts, loadPhoto } from "./share-card";
+import { CardWordmark, loadFonts, loadPhoto } from "./share-card";
 
 // Share cards for a creator's own highlights (monthly recap, milestones), sized for WhatsApp
 // Status / Stories / TikTok (story) and feeds or chats (square). Same language as the link
@@ -129,9 +129,9 @@ export async function renderHighlightCard({ size, creator, tag, badge, cta, chil
           <div style={{ display: "flex", fontSize: story ? 34 : 28, opacity: 0.8 }}>{cta}</div>
           <div style={{ display: "flex", fontSize: story ? 52 : 40, fontWeight: 700, letterSpacing: -1, color: t.secondary }}>{creator.link}</div>
         </div>
-        {/* The wordmark sits in the dark corner: the G's orange would vanish in the glow. */}
-        <div style={{ display: "flex", fontSize: story ? 36 : 30, fontWeight: 700, letterSpacing: -1, paddingBottom: 6 }}>
-          DuMe<span style={{ color: t.secondary }}>G</span>ud
+        {/* The wordmark sits in the dark corner: the orange "Me" would vanish in the glow. */}
+        <div style={{ display: "flex", paddingBottom: 6 }}>
+          <CardWordmark t={t} height={story ? 46 : 38} />
         </div>
       </div>
     </div>,
