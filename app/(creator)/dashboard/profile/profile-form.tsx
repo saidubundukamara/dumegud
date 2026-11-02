@@ -6,7 +6,7 @@ import { SubmitButton } from "@/components/ui/Button";
 import { CONTROL, Field, Select, SelectField, TextAreaField } from "@/components/ui/Field";
 import { initialFormState } from "@/lib/form-state";
 import { HANDLE_MAX } from "@/lib/handle";
-import { MAX_SOCIAL_LINKS, PLATFORM_LABELS, SOCIAL_PLATFORMS, type Platform } from "@/lib/social";
+import { MAX_SOCIAL_LINKS, PLATFORM_LABELS, SOCIAL_PLATFORMS, takesUsername, usernameFromUrl, type Platform } from "@/lib/social";
 import { saveProfile } from "./actions";
 
 const BIO_MAX = 500;
@@ -33,7 +33,11 @@ type Props = {
 // the creator's edits whenever the server rejects a field.
 export function ProfileForm({ initial, categories, appHost, handleLockedUntil, isNew }: Props) {
   const [state, action] = useActionState(saveProfile, initialFormState);
-  const [values, setValues] = useState(initial);
+  // Saved links show as the username when they're a plain profile link.
+  const [values, setValues] = useState(() => ({
+    ...initial,
+    links: initial.links.map((l) => ({ ...l, url: usernameFromUrl(l.platform, l.url) ?? l.url })),
+  }));
   const set = <K extends keyof ProfileFormValues>(key: K, value: ProfileFormValues[K]) =>
     setValues((v) => ({ ...v, [key]: value }));
   const setLink = (i: number, patch: Partial<ProfileFormValues["links"][number]>) =>
@@ -120,7 +124,11 @@ export function ProfileForm({ initial, categories, appHost, handleLockedUntil, i
 
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-1 font-semibold">Links</legend>
-        {values.links.length ? null : <p className="text-sm text-muted">Add your Instagram, TikTok or other pages so fans can follow you.</p>}
+        <p className="text-sm text-muted">
+          {values.links.length
+            ? "Type your username. You can also paste the link to your page."
+            : "Add your Instagram, TikTok or other pages so fans can follow you."}
+        </p>
         {values.links.map((link, i) => (
           <div key={i} className="flex flex-col gap-2 sm:flex-row">
             <Select
@@ -137,16 +145,37 @@ export function ProfileForm({ initial, categories, appHost, handleLockedUntil, i
                 </option>
               ))}
             </Select>
-            <input
-              name="linkUrl"
-              type="url"
-              inputMode="url"
-              aria-label={`Link ${i + 1}: ${PLATFORM_LABELS[link.platform]} address`}
-              placeholder="https://"
-              className={`min-h-12 flex-1 ${CONTROL}`}
-              value={link.url}
-              onChange={(e) => setLink(i, { url: e.target.value })}
-            />
+            {takesUsername(link.platform) ? (
+              <div className="relative flex-1">
+                <span aria-hidden className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-muted">
+                  @
+                </span>
+                <input
+                  name="linkUrl"
+                  type="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  aria-label={`Link ${i + 1}: ${PLATFORM_LABELS[link.platform]} username or link`}
+                  placeholder="username"
+                  className={`min-h-12 ${CONTROL} pl-9`}
+                  value={link.url}
+                  onChange={(e) => setLink(i, { url: e.target.value })}
+                />
+              </div>
+            ) : (
+              <input
+                name="linkUrl"
+                type="url"
+                inputMode="url"
+                autoCapitalize="none"
+                aria-label={`Link ${i + 1}: ${PLATFORM_LABELS[link.platform]} link`}
+                placeholder={link.platform === "website" ? "yoursite.com" : "Paste your link"}
+                className={`min-h-12 flex-1 ${CONTROL}`}
+                value={link.url}
+                onChange={(e) => setLink(i, { url: e.target.value })}
+              />
+            )}
             <button
               type="button"
               className="min-h-12 px-3 font-semibold underline-offset-4 hover:underline"
