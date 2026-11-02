@@ -285,7 +285,7 @@ export const services = {
   },
   get kyc(): KycService {
     const env = getEnv();
-    kyc ??= new KycService({ repos, audit, storage: getStorage(), bucket: env.R2_KYC_BUCKET, email: getEmail(), appBaseUrl: env.APP_BASE_URL });
+    kyc ??= new KycService({ repos, audit, settings: services.settings, storage: getStorage(), bucket: env.R2_KYC_BUCKET, email: getEmail(), appBaseUrl: env.APP_BASE_URL });
     return kyc;
   },
   get balances(): BalanceService {

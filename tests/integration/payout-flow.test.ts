@@ -195,6 +195,47 @@ describe("KYC", () => {
     await expect(kyc.decide(staff, pending.id, { outcome: "approved", note: null, reasonCode: null })).rejects.toThrow(/another account/);
   });
 
+  it("approves on submission when kyc.autoApprove is on, keeping the one-document rule", async () => {
+    const auto = new KycService({
+      repos,
+      settings: new PlatformSettingsService(repos.settings), // kyc.autoApprove defaults to on
+      storage: store.storage,
+      bucket: "kyc",
+      email: { send: async (m: EmailMessage) => void sent.push(m) },
+      appBaseUrl: "https://dumegud.test",
+      now: () => now,
+      rateLimit: async () => {},
+    });
+    expect(await auto.submit(creator, await kycInput())).toBe("approved");
+    expect(await auto.approvedLegalName(creator.userId)).toBe("Aminata Fatmata Kamara");
+    expect((await repos.profiles.findByUserId(creator.userId))!.verificationTier).toBe("id_verified");
+    expect(await auto.listPending(staff)).toHaveLength(0);
+    await expect(kycInput()).rejects.toThrow(/already verified/);
+
+    const other = (await repos.users.insertIfEmailFree({ email: "other@example.com", name: "x", passwordHash: null }))!;
+    const otherActor: Actor = { ...creator, userId: other.id };
+    const stageFor = async () => {
+      const { key } = await auto.requestUpload(otherActor, { doc: "selfie", contentType: "image/jpeg", size: 10 });
+      store.put("kyc", key, await sharp({ create: { width: 10, height: 10, channels: 3, background: "#000" } }).jpeg().toBuffer());
+      return key;
+    };
+    await expect(
+      auto.submit(otherActor, {
+        legalName: "Someone Else",
+        dateOfBirth: "1990-01-01",
+        idType: "national_id",
+        idNumber: "SL123456", // the document the creator already used
+        idFrontKey: await stageFor(),
+        idBackKey: null,
+        selfieKey: await stageFor(),
+      }),
+    ).rejects.toThrow(/another account/);
+    expect(await auto.approvedLegalName(other.id)).toBeNull();
+
+    // Withdrawing still needs the mobile money holder name to match the ID.
+    await methods.bind(creator, { phone: "076 123 456", providerId: null });
+  });
+
   it("refuses another user's staging keys", async () => {
     const key = await stage("selfie");
     const other: Actor = { ...creator, userId: crypto.randomUUID() };

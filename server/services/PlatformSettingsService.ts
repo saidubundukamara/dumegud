@@ -25,6 +25,7 @@ const SCHEMA = {
   "payoutMethods.firstCooldownHours": z.number().int().min(0).max(720),
   "payoutMethods.changeCooldownHours": z.number().int().min(0).max(720),
   "kyc.nameMatchEnforced": z.boolean(),
+  "kyc.autoApprove": z.boolean(),
   "phone.operatorPrefixes": z.object({ m17: z.array(z.string().regex(/^\d{2}$/)), m18: z.array(z.string().regex(/^\d{2}$/)) }),
   "risk.dualApprovalMinBalance": minorAmount,
   "payouts.dualApprovalMin": minorAmount,
@@ -61,6 +62,8 @@ const DEFAULTS: { [K in keyof typeof SCHEMA]: z.infer<(typeof SCHEMA)[K]> } = {
   "payoutMethods.firstCooldownHours": 24,
   "payoutMethods.changeCooldownHours": 48,
   "kyc.nameMatchEnforced": true,
+  // Pilot: approve ID checks on submission so creators can withdraw quickly. Turn off for staff review.
+  "kyc.autoApprove": true,
   "phone.operatorPrefixes": { m17: ["72", "73", "74", "75", "76", "78", "79"], m18: ["30", "33", "34", "77", "80", "88", "99"] },
   "risk.dualApprovalMinBalance": 100000,
   "payouts.dualApprovalMin": 500000,
@@ -93,6 +96,8 @@ export type PlatformSettings = {
   firstMethodCooldownHours: number;
   changedMethodCooldownHours: number;
   nameMatchEnforced: boolean;
+  /** ID checks are approved on submission instead of waiting for staff. */
+  kycAutoApprove: boolean;
   operatorPrefixes: { m17: string[]; m18: string[] };
   /** Restricting/restoring a creator owed at least this needs a second staff approval. */
   dualApprovalMinBalanceMinor: number;
@@ -135,6 +140,7 @@ export class PlatformSettingsService {
       firstMethodCooldownHours: read("payoutMethods.firstCooldownHours"),
       changedMethodCooldownHours: read("payoutMethods.changeCooldownHours"),
       nameMatchEnforced: read("kyc.nameMatchEnforced"),
+      kycAutoApprove: read("kyc.autoApprove"),
       operatorPrefixes: read("phone.operatorPrefixes"),
       dualApprovalMinBalanceMinor: read("risk.dualApprovalMinBalance"),
       payoutDualApprovalMinMinor: read("payouts.dualApprovalMin"),

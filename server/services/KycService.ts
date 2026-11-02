@@ -18,6 +18,7 @@ import type { UserRepository } from "@/server/repositories/UserRepository";
 import type { KycDoc, KycSubmitInput } from "@/server/validation/wallet";
 import { assertPermission, type Actor, type AdminActor } from "./actor";
 import { noAudit, type AuditLogger } from "./compliance";
+import type { PlatformSettingsService } from "./PlatformSettingsService";
 import { runInTransaction } from "./transaction";
 
 const MAX_DOC_BYTES = 8 * 1024 * 1024;
@@ -35,6 +36,8 @@ export type KycServiceDeps = {
   rateLimit?: (policy: RateLimitPolicy, id: string) => Promise<void>;
   transaction?: typeof runInTransaction;
   audit?: AuditLogger;
+  /** Reads `kyc.autoApprove`. Without it every submission waits for staff review. */
+  settings?: Pick<PlatformSettingsService, "get">;
 };
 
 export type KycStatusDTO = {
@@ -96,7 +99,8 @@ export class KycService {
     return { key, url };
   }
 
-  async submit(actor: Actor, input: KycSubmitInput): Promise<void> {
+  /** Saves the submission. Returns "approved" when `kyc.autoApprove` is on, else "pending" (staff review). */
+  async submit(actor: Actor, input: KycSubmitInput): Promise<"approved" | "pending"> {
     const storage = this.storage();
     await this.assertCanSubmit(actor);
     const staged = { id_front: input.idFrontKey, id_back: input.idBackKey, selfie: input.selfieKey };
@@ -125,21 +129,56 @@ export class KycService {
       await storage.deleteObject(this.deps.bucket, key).catch(() => {});
     }
 
+    const row = {
+      userId: actor.userId,
+      legalNameEnc: encryptField(input.legalName),
+      dateOfBirthEnc: encryptField(input.dateOfBirth),
+      idType: input.idType,
+      idNumberHash: pepperedHash("kyc-id", `${input.idType}:${input.idNumber}`),
+      idFrontKey: finalKeys.id_front!,
+      idBackKey: finalKeys.id_back ?? null,
+      selfieKey: finalKeys.selfie!,
+    };
+
+    const autoApprove = this.deps.settings ? (await this.deps.settings.get()).kycAutoApprove : false;
+    if (!autoApprove) {
+      try {
+        await this.repos.kyc.insert(row);
+      } catch (err) {
+        if (isUniqueViolation(err)) throw new ConflictError("You already have a verification waiting for review.");
+        throw err;
+      }
+      return "pending";
+    }
+
+    // Auto-approval (pilot): no staff review, but the same guards as `decide` still hold. One
+    // document verifies one account (unique index), one approved identity per person (user lock),
+    // and payouts still check the mobile money holder name against this legal name.
+    let submissionId: string;
     try {
-      await this.repos.kyc.insert({
-        userId: actor.userId,
-        legalNameEnc: encryptField(input.legalName),
-        dateOfBirthEnc: encryptField(input.dateOfBirth),
-        idType: input.idType,
-        idNumberHash: pepperedHash("kyc-id", `${input.idType}:${input.idNumber}`),
-        idFrontKey: finalKeys.id_front!,
-        idBackKey: finalKeys.id_back ?? null,
-        selfieKey: finalKeys.selfie!,
+      submissionId = await this.transaction(async (tx) => {
+        await this.repos.users.lockById(actor.userId, tx);
+        if (await this.repos.kyc.approvedForUser(actor.userId, tx)) throw new ConflictError("You're already verified.");
+        const inserted = await this.repos.kyc.insert(
+          { ...row, status: "approved", reviewNotes: "Approved automatically.", reviewedAt: this.now() },
+          tx,
+        );
+        await this.repos.profiles.setVerificationTier(actor.userId, "id_verified", tx);
+        return inserted.id;
       });
     } catch (err) {
-      if (isUniqueViolation(err)) throw new ConflictError("You already have a verification waiting for review.");
+      if (isUniqueViolation(err)) throw new ConflictError("This ID is already used to verify another account.");
       throw err;
     }
+    logger.info("kyc auto-approved", { submissionId });
+    await (this.deps.audit ?? noAudit).log({
+      actor,
+      action: "kyc.auto_approved",
+      targetType: "kyc_submission",
+      targetId: submissionId,
+      after: { status: "approved" },
+    });
+    return "approved";
   }
 
   // ── Staff review (Phase 8 adds audit logging around every view and decision) ───
