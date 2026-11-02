@@ -46,6 +46,7 @@ export const SETTING_META: Record<string, SettingMeta> = {
   "payoutMethods.firstCooldownHours": { group: "Withdrawals", label: "Wait after adding a first number", kind: "hours" },
   "payoutMethods.changeCooldownHours": { group: "Withdrawals", label: "Wait after changing the number", kind: "hours" },
   "kyc.nameMatchEnforced": { group: "Identity & phones", label: "Payout name must match ID", kind: "toggle" },
+  "kyc.autoApprove": { group: "Identity & phones", label: "Approve ID checks automatically", kind: "toggle", hint: "On: creators are verified as soon as they send their ID. Off: each one waits in the review queue." },
   "phone.operatorPrefixes": { group: "Identity & phones", label: "Network prefixes", kind: "json", hint: "Two-digit prefixes per network (m17 Orange Money, m18 AfriMoney)." },
   "risk.dualApprovalMinBalance": { group: "Risk & jobs", label: "Two approvals for restrictions from a balance of", kind: "money" },
   "jobs.ledgerDriftToleranceMinor": { group: "Risk & jobs", label: "Ledger drift tolerance", kind: "money", hint: "Differences up to this amount don’t raise an alert." },
