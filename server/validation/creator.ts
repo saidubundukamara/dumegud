@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { handleFormatError, normalizeHandle } from "@/lib/handle";
-import { MAX_SOCIAL_LINKS, parseSocialUrl, SOCIAL_PLATFORMS } from "@/lib/social";
+import { MAX_SOCIAL_LINKS, parseSocialInput, SOCIAL_PLATFORMS } from "@/lib/social";
 
 export const BIO_MAX = 500;
 export const DISPLAY_NAME_MAX = 60;
@@ -26,7 +26,7 @@ const handleSchema = z
 const linkSchema = z
   .object({ platform: z.enum(SOCIAL_PLATFORMS), url: z.string() })
   .transform((link, ctx) => {
-    const parsed = parseSocialUrl(link.platform, link.url);
+    const parsed = parseSocialInput(link.platform, link.url);
     if ("error" in parsed) {
       ctx.addIssue({ code: "custom", message: parsed.error, path: ["url"] });
       return z.NEVER;

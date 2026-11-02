@@ -35,6 +35,11 @@ describe("profileSchema", () => {
     expect(profileSchema.safeParse({ ...base, links: [{ platform: "tiktok", url: "https://evil.example" }] }).success).toBe(false);
   });
 
+  it("builds links from usernames", () => {
+    const parsed = profileSchema.parse({ ...base, links: [{ platform: "tiktok", url: "@aminata" }] });
+    expect(parsed.links).toEqual([{ platform: "tiktok", url: "https://www.tiktok.com/@aminata" }]);
+  });
+
   it("caps the number of links", () => {
     const links = Array.from({ length: 7 }, (_, i) => ({ platform: "website", url: `https://e${i}.example` }));
     expect(profileSchema.safeParse({ ...base, links }).success).toBe(false);
