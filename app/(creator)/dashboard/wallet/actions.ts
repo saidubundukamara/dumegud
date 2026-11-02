@@ -29,8 +29,10 @@ export async function submitKyc(_prev: FormState, formData: FormData): Promise<F
   });
   if (!parsed.success) return invalidForm(parsed.error, values);
   return runForm(async () => {
-    await services.kyc.submit(actor, parsed.data);
-    return { status: "success", message: "Thanks! We'll review your documents, usually within one working day." };
+    const outcome = await services.kyc.submit(actor, parsed.data);
+    return outcome === "approved"
+      ? { status: "success", message: "You're verified. You can now add your mobile money number and withdraw." }
+      : { status: "success", message: "Thanks! We'll review your documents, usually within one working day." };
   }, values);
 }
 

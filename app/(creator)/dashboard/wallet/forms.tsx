@@ -330,7 +330,7 @@ export function KycForm() {
       </SelectField>
       <Field label="ID number" name="idNumber" autoComplete="off" errors={state.fieldErrors?.idNumber} />
       <p className="text-sm text-muted">
-        Take clear photos in good light. The selfie shows us the ID really is yours. We usually check within one working day.
+        Take clear photos in good light. The selfie shows us the ID really is yours.
       </p>
       {DOCS.map((d) => (
         <PhotoInput
