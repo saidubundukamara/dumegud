@@ -66,7 +66,7 @@ export async function GET(request: Request): Promise<Response> {
         </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 48, fontWeight: 700 }}>{preview.displayName}</div>
-          <div style={{ color: t.muted }}>@{preview.handle}</div>
+          <div style={{ color: t.muted }}>{`@${preview.handle}`}</div>
         </div>
       </div>
 
