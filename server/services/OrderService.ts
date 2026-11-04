@@ -1,4 +1,5 @@
 import "server-only";
+import { checkoutReturnUrl } from "@/lib/checkout-return";
 import { randomUUID } from "node:crypto";
 import { formatDate } from "@/lib/dates";
 import { formatSLE } from "@/lib/money";
@@ -150,7 +151,7 @@ export class OrderService implements Fulfilment {
       return created;
     });
 
-    const back = `${this.base()}/p/${row.id}/purchase`;
+    const back = `/p/${row.id}/purchase`;
     const redirectUrl = await openCheckout(
       { monime: this.deps.monime, payments: this.repos.payments, platformAccountId: this.deps.platformAccountId },
       payment,
@@ -158,8 +159,8 @@ export class OrderService implements Fulfilment {
         name: product.title,
         lineItemName: product.title,
         description: `${product.title} by @${product.creator.handle}`,
-        successUrl: `${back}/success?p=${payment.id}`,
-        cancelUrl: `${back}/cancel?p=${payment.id}`,
+        successUrl: checkoutReturnUrl(this.base(), `${back}/success`, payment.id),
+        cancelUrl: checkoutReturnUrl(this.base(), `${back}/cancel`, payment.id),
         metadata: { kind: "order", creatorId: row.creatorId, productId: row.id },
       },
     );

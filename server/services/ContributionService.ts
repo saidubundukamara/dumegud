@@ -1,4 +1,5 @@
 import "server-only";
+import { checkoutReturnUrl } from "@/lib/checkout-return";
 import { randomUUID } from "node:crypto";
 import { formatSLE } from "@/lib/money";
 import { isShoutoutPlatform, type ShoutoutPlatform } from "@/lib/shoutout";
@@ -183,7 +184,7 @@ export class ContributionService {
     if (limit.breaches.length) {
       await this.deps.risk?.raiseLimitBreaches({ type: "payment", id: payment.id, creatorId: profile.userId }, limit.breaches);
     }
-    const back = `${this.appBaseUrl}/${profile.handle}/support`;
+    const back = `/${profile.handle}/support`;
     const redirectUrl = await openCheckout(
       { monime: this.monime, payments: this.repos.payments, platformAccountId: this.platformAccountId },
       payment,
@@ -191,8 +192,8 @@ export class ContributionService {
         name: `Support ${profile.displayName}`,
         lineItemName: "Support",
         description: `Support for @${profile.handle}`,
-        successUrl: `${back}/success?p=${payment.id}`,
-        cancelUrl: `${back}/cancel?p=${payment.id}`,
+        successUrl: checkoutReturnUrl(this.appBaseUrl, `${back}/success`, payment.id),
+        cancelUrl: checkoutReturnUrl(this.appBaseUrl, `${back}/cancel`, payment.id),
         metadata: { kind: "contribution", creatorId: profile.userId },
       },
     );
