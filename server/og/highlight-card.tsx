@@ -5,13 +5,15 @@ import { brandTokens, type BrandTokens } from "@/server/lib/brand-tokens";
 import { CardWordmark, loadFonts, loadPhoto } from "./share-card";
 
 // Share cards for a creator's own highlights (monthly recap, milestones), sized for WhatsApp
-// Status / Stories / TikTok (story) and feeds or chats (square). Same language as the link
+// Status / Stories / TikTok (story), feeds or chats (square) and feed posts (post). Same language as the link
 // previews: maroon with the orange glow, Geist, the wordmark. No emoji: Satori would fetch them
 // from a CDN at render time. Owner-only and never cached (see the headers below).
 
 export const CARD_SIZES = {
   story: { width: 1080, height: 1920 },
   square: { width: 1080, height: 1080 },
+  /** Instagram and Facebook feed posts (4:5). */
+  post: { width: 1080, height: 1350 },
 } as const;
 
 export type CardSize = keyof typeof CARD_SIZES;
