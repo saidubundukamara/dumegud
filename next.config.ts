@@ -83,6 +83,7 @@ const nextConfig: NextConfig = {
     "/brand": ["./styles/tokens.css"],
     "/api/recaps/image": OG_FILES,
     "/api/milestones/image": OG_FILES,
+    "/api/badge/[handle]": OG_FILES,
     "/opengraph-image": OG_FILES,
     "/[handle]/opengraph-image": OG_FILES,
     "/p/[productId]/opengraph-image": OG_FILES,
@@ -101,6 +102,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
+      // The embeddable badge is an SVG: opened directly it's a document, so it gets no script at all.
+      { source: "/api/badge/:path*", headers: [{ key: "Content-Security-Policy", value: "default-src 'none'; style-src 'unsafe-inline'" }] },
       // Behind a login anyway, but never in search results even if a link leaks.
       { source: "/:path*", has: onAdminHost, headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
     ];
