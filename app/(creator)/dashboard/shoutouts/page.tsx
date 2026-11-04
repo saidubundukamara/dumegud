@@ -156,7 +156,7 @@ async function Shoutouts({ searchParams }: Pick<PageProps<"/dashboard/shoutouts"
             {/* eslint-disable-next-line @next/next/no-img-element -- generated per request, owner-only */}
             <img
               src={imageUrl(opts, "post")}
-              alt={`Thank-you card naming ${included.length} supporters`}
+              alt={`Thank-you card naming ${included.length} ${included.length === 1 ? "supporter" : "supporters"}`}
               width={1080}
               height={1350}
               className="h-auto w-full max-w-xs rounded-brand-lg shadow-soft ring-1 ring-border"
