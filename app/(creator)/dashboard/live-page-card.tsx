@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { PencilSimpleIcon } from "@phosphor-icons/react/dist/ssr";
+import { PencilSimpleIcon, StickerIcon } from "@phosphor-icons/react/dist/ssr";
 import { PhoneFrame } from "@/components/marketing/PhoneMockup";
 import { ShareLink } from "@/components/ui/ShareLink";
 import { formatSLECompact } from "@/lib/money";
@@ -65,6 +65,10 @@ export async function LivePageCard({ profile, host, base, shareTitle }: { profil
           <Link href="/dashboard/profile" className={LINK_ROW}>
             <PencilSimpleIcon aria-hidden="true" weight="bold" className="size-4" />
             Edit page
+          </Link>
+          <Link href={`/brand?handle=${profile.handle}#brand-badge`} className={LINK_ROW}>
+            <StickerIcon aria-hidden="true" weight="bold" className="size-4" />
+            Badge and logo
           </Link>
           <PublishControls published canPublish tone="onBrand" />
         </div>
