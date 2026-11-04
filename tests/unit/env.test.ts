@@ -78,6 +78,17 @@ describe("getEnv", () => {
     resetEnvForTests();
     expect(() => getEnv()).toThrow(/MONIME_WEBHOOK_SECRET/);
   });
+
+  it("trims whitespace and surrounding quotes from a pasted webhook secret", () => {
+    for (const pasted of ["whsec-abc\n", "  whsec-abc ", '"whsec-abc"', "'whsec-abc'\n"]) {
+      vi.stubEnv("MONIME_WEBHOOK_SECRET", pasted);
+      resetEnvForTests();
+      expect(getMonimeWebhookSecret()).toBe("whsec-abc");
+    }
+    vi.stubEnv("MONIME_WEBHOOK_SECRET", '  ""  ');
+    resetEnvForTests();
+    expect(getEnv().MONIME_WEBHOOK_SECRET).toBeUndefined();
+  });
 });
 
 describe("getR2Config", () => {

@@ -7,6 +7,12 @@ import { z } from "zod";
 
 const optionalUrl = z.preprocess((v) => (v === "" ? undefined : v), z.url().optional());
 const optionalString = z.preprocess((v) => (v === "" ? undefined : v), z.string().min(1).optional());
+/** Pasted secrets often pick up a trailing newline or quotes; either breaks an HMAC silently. */
+const secretString = z.preprocess((v) => {
+  if (typeof v !== "string") return v;
+  const s = v.trim().replace(/^(["'])(.*)\1$/, "$2").trim();
+  return s === "" ? undefined : s;
+}, z.string().min(1).optional());
 
 const schema = z
   .object({
@@ -58,7 +64,7 @@ const schema = z
     MONIME_ACCESS_TOKEN: optionalString,
     MONIME_SPACE_ID: optionalString,
     /** HMAC secret for webhook signatures. Without it every webhook is rejected. */
-    MONIME_WEBHOOK_SECRET: optionalString,
+    MONIME_WEBHOOK_SECRET: secretString,
     /** The DuMeGud platform financial account (fac-…) every checkout pays into. */
     MONIME_PLATFORM_ACCOUNT_ID: optionalString,
 
