@@ -1,5 +1,6 @@
 import "server-only";
 import { cacheLife } from "next/cache";
+import { renderBadgeSvg, type BadgeSize } from "@/lib/badge";
 import { BRAND_KIT_PREFIX, type BrandPalette } from "@/lib/brand-kit";
 import { brandTokens } from "./brand-tokens";
 
@@ -18,4 +19,14 @@ export async function getCachedBrandPalette(): Promise<BrandPalette> {
   cacheLife("max");
   const t = await brandTokens();
   return { primary: t.primary, secondary: t.secondary };
+}
+
+/** Sample badges for the /brand badge builder, as SVG data URIs (shown until a handle is typed). */
+export async function getCachedBadgeSamples(): Promise<Record<BadgeSize, string>> {
+  "use cache";
+  cacheLife("max");
+  const tokens = await brandTokens();
+  const sample = (size: BadgeSize) =>
+    `data:image/svg+xml,${encodeURIComponent(renderBadgeSvg({ handle: "yourhandle", size, tokens }))}`;
+  return { sm: sample("sm"), lg: sample("lg") };
 }

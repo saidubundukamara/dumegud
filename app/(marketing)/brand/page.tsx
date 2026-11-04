@@ -1,5 +1,6 @@
 import { DownloadSimpleIcon } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
+import { BadgeBuilder } from "@/components/brand/BadgeBuilder";
 import { BrandAssetPreview } from "@/components/brand/BrandAssetPreview";
 import { Reveal } from "@/components/motion/Reveal";
 import { buttonClasses, buttonIconClasses } from "@/components/ui/button-classes";
@@ -12,11 +13,12 @@ import {
   type BrandBackdrop,
 } from "@/lib/brand-kit";
 import { pageMetadata } from "@/lib/seo";
-import { brandKitUrl, getCachedBrandPalette } from "@/server/lib/brand-kit";
+import { brandKitUrl, getCachedBadgeSamples, getCachedBrandPalette } from "@/server/lib/brand-kit";
+import { siteUrl } from "@/server/lib/site";
 
 export const metadata: Metadata = pageMetadata({
   title: "Brand assets",
-  description: "Download the DuMeGud logo, logomark and app icon as SVG or PNG, with simple rules for using them.",
+  description: "Download the DuMeGud logo, logomark and app icon as SVG or PNG, and get a support badge for your GitHub README or website.",
   path: "/brand",
 });
 
@@ -66,7 +68,7 @@ const RULES = [
 ];
 
 export default async function BrandPage() {
-  const palette = await getCachedBrandPalette();
+  const [palette, badgeSamples] = await Promise.all([getCachedBrandPalette(), getCachedBadgeSamples()]);
   const zipUrl = brandKitUrl(BRAND_KIT_ZIP);
   return (
     <main id="main" tabIndex={-1} className="flex flex-1 flex-col px-4 pb-16 pt-28 sm:px-6 md:pt-36">
@@ -105,6 +107,21 @@ export default async function BrandPage() {
             </Reveal>
           </section>
         ))}
+
+        <section aria-labelledby="brand-badge">
+          <Reveal className="flex flex-col gap-6">
+            <div className="flex max-w-2xl flex-col gap-2">
+              <h2 id="brand-badge" className="scroll-mt-28 text-title">
+                Support badge
+              </h2>
+              <p className="text-muted">
+                Add a badge to your GitHub README, blog or website so fans can find your DuMeGud page and support you. Type your
+                handle, pick a size and copy the code.
+              </p>
+            </div>
+            <BadgeBuilder origin={siteUrl().origin} samples={badgeSamples} />
+          </Reveal>
+        </section>
 
         <section aria-labelledby="brand-colours">
           <Reveal className="flex flex-col gap-6">
