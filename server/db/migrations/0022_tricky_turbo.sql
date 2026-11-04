@@ -1,0 +1,1 @@
+ALTER TYPE "public"."traffic_source" ADD VALUE 'badge' BEFORE 'direct';

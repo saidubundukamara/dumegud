@@ -3,7 +3,7 @@
 // is the reliable signal; the in-app user agent and the referrer are fallbacks. Attribution only:
 // never used for anything that matters to money or access.
 
-export const TRAFFIC_SOURCES = ["tiktok", "instagram", "facebook", "whatsapp", "x", "youtube", "direct", "other"] as const;
+export const TRAFFIC_SOURCES = ["tiktok", "instagram", "facebook", "whatsapp", "x", "youtube", "badge", "direct", "other"] as const;
 
 export type TrafficSource = (typeof TRAFFIC_SOURCES)[number];
 
@@ -14,6 +14,7 @@ export const TRAFFIC_SOURCE_LABELS: Record<TrafficSource, string> = {
   whatsapp: "WhatsApp",
   x: "X (Twitter)",
   youtube: "YouTube",
+  badge: "Badge (README or website)",
   direct: "Direct link",
   other: "Other sites",
 };
