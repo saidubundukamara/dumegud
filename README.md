@@ -2,6 +2,8 @@
 
 **Support creators. Fuel good.** *(working tagline)*
 
+[![Support @kotor on DuMeGud](https://dumegud.com/api/badge/kotor)](https://dumegud.com/kotor?via=badge)
+
 DuMeGud ("do me good") is a creator-support and digital-commerce platform for Sierra Leone. Creators get a shareable page where supporters can send **one-off contributions** and buy **digital products**, paying with local mobile money (Orange Money, AfriMoney) through [Monime]. Supporters don't need an app or an account, just a browser.
 
 > **Status:** Phases 0–8 (foundations, authentication, creator profile and wallet, Monime integration core, one-off support, digital products, KYC and payouts, risk and compliance, admin dashboard) are complete. Next up is Phase 9 (background jobs and reconciliation). See [`implementation.md`](./docs/implementation.md) for the roadmap.
